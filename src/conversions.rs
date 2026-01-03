@@ -85,3 +85,18 @@ pub fn long_to_double(l: i64) -> f64 {
 
     result as f64
 }
+
+/// Helper function to convert a packed number into a text string.
+/// Each byte in the packed number represents an ASCII character.
+pub fn packed_number_to_text(packed: u64) -> String {
+    let mut text = String::new();
+    for i in (0..6).rev() {
+        // Process 6 bytes (48 bits) from most significant to least significant
+        let byte = ((packed >> (i * 8)) & 0xFF) as u8;
+        if byte != 0 {
+            // Ignore null bytes
+            text.push(byte as char);
+        }
+    }
+    text
+}

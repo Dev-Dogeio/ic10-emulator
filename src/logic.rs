@@ -1383,25 +1383,18 @@ pub fn execute_instruction(
                 })?;
 
             // Check if we're writing to the housing itself (db)
-            let housing_id = chip.get_housing().id();
-            if ref_id == housing_id {
-                // Write directly to housing to avoid double borrow
-                chip.get_housing_mut().write(logic_type, value)?;
-            } else {
-                let network = chip.get_network().ok_or(IC10Error::RuntimeError {
-                    message: "Housing not connected to network".to_string(),
+            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+                message: "Housing not connected to network".to_string(),
+                line: instruction.line_number,
+            })?;
+            let network_ref = network.borrow();
+            let device = network_ref
+                .get_device(ref_id)
+                .ok_or(IC10Error::RuntimeError {
+                    message: format!("Device with reference ID {} not found", ref_id),
                     line: instruction.line_number,
                 })?;
-                let network_ref = network.borrow();
-                let mut device =
-                    network_ref
-                        .get_device_mut(ref_id)
-                        .ok_or(IC10Error::RuntimeError {
-                            message: format!("Device with reference ID {} not found", ref_id),
-                            line: instruction.line_number,
-                        })?;
-                device.write(logic_type, value)?;
-            }
+            device.write(logic_type, value)?;
             Ok(chip.get_pc() + 1)
         }
         Instruction::Ls {
@@ -1502,8 +1495,8 @@ pub fn execute_instruction(
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
-            let mut device = network_ref
-                .get_device_mut(ref_id)
+            let device = network_ref
+                .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
                     message: format!("Device with reference ID {} not found", ref_id),
                     line: instruction.line_number,
@@ -1681,8 +1674,8 @@ pub fn execute_instruction(
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
-            let mut device = network_ref
-                .get_device_mut(ref_id)
+            let device = network_ref
+                .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
                     message: format!("Device with reference ID {} not found", ref_id),
                     line: instruction.line_number,
@@ -1738,8 +1731,8 @@ pub fn execute_instruction(
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
-            let mut device = network_ref
-                .get_device_mut(ref_id)
+            let device = network_ref
+                .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
                     message: format!("Device with reference ID {} not found", ref_id),
                     line: instruction.line_number,
@@ -1776,13 +1769,13 @@ pub fn execute_instruction(
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
-            let mut dev = network_ref
-                .get_device_mut(ref_id)
+            let device = network_ref
+                .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
                     message: format!("Device with reference ID {} not found", ref_id),
                     line: instruction.line_number,
                 })?;
-            dev.clear_memory().map_err(|e| IC10Error::RuntimeError {
+            device.clear_memory().map_err(|e| IC10Error::RuntimeError {
                 message: e.to_string(),
                 line: instruction.line_number,
             })?;
@@ -1795,8 +1788,8 @@ pub fn execute_instruction(
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
-            let mut device = network_ref
-                .get_device_mut(ref_id)
+            let device = network_ref
+                .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
                     message: format!("Device with reference ID {} not found", ref_id),
                     line: instruction.line_number,

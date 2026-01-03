@@ -1,4 +1,7 @@
-use ic10_emulator::{DaylightSensor, Device, LogicType, ProgrammableChip, devices::LogicMemory};
+use ic10_emulator::{
+    DaylightSensor, Device, LogicType, ProgrammableChip, conversions::packed_number_to_text,
+    devices::LogicMemory, parser::preprocess,
+};
 use std::{cell::RefCell, rc::Rc, thread::sleep, time::Duration};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -6,108 +9,159 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (chip, housing, network) = ProgrammableChip::new_with_network();
 
     let sensor = Rc::new(RefCell::new(DaylightSensor::new(None)));
-    network
-        .borrow_mut()
-        .add_device(sensor.clone(), network.clone());
+    let memory_aio = Rc::new(RefCell::new(LogicMemory::new(None)));
+    let memory_hours = Rc::new(RefCell::new(LogicMemory::new(None)));
+    let memory_minutes = Rc::new(RefCell::new(LogicMemory::new(None)));
+    let memory_seconds = Rc::new(RefCell::new(LogicMemory::new(None)));
 
-    let memory = Rc::new(RefCell::new(LogicMemory::new(None)));
-    network
-        .borrow_mut()
-        .add_device(memory.clone(), network.clone());
+    {
+        let mut n = network.borrow_mut();
+        n.add_device(sensor.clone(), network.clone());
+        n.add_device(memory_aio.clone(), network.clone());
+        n.add_device(memory_hours.clone(), network.clone());
+        n.add_device(memory_minutes.clone(), network.clone());
+        n.add_device(memory_seconds.clone(), network.clone());
+    }
 
-    let program = format!(
-        r#"define Sensor {}
-define Memory {}
+    {
+        let mut h = housing.borrow_mut();
+        h.set_device_pin(0, Some(sensor.borrow().get_id()));
+        h.set_device_pin(1, Some(memory_aio.borrow().get_id()));
+        h.set_device_pin(2, Some(memory_hours.borrow().get_id()));
+        h.set_device_pin(3, Some(memory_minutes.borrow().get_id()));
+        h.set_device_pin(4, Some(memory_seconds.borrow().get_id()));
+    }
 
-define LIGHT_TICKS 1800
+    let program = r#"# 24-hour clock | immrsv
 
-alias clock r14
-alias vertical r15
+alias DaySens d0
+alias AIO d1
+alias Hours d2
+alias Minutes d3
+alias Seconds d4
 
-# Setup
-move clock LIGHT_TICKS
-jal updateclock
-sd Memory Setting 0
+alias String r6
+alias IsEdgeDetected r7
+alias Calibrating r8
+alias AdjustedTicks r9
+alias ThisVertical r10
+alias LastVertical r11
+alias IsSunRising r12
+alias WasSunRising r13
+alias LastTicksPerDay r14
+alias Ticks r15
 
-# Find entry point
-# If sun is rising, go to day detection, otherwise go to night detection
-ld vertical Sensor Vertical
+init:
+move Ticks 0
+move LastTicksPerDay 2400
+move Calibrating 4 #day cycles required to calibrate
+
+l LastVertical DaySens Vertical
 yield
-jal issunrising
-bnez r0 main
-j waitdayendloop
+l ThisVertical DaySens Vertical
+slt WasSunRising ThisVertical LastVertical #Is Sun Now Rising
+move LastVertical ThisVertical 
 
-# Main program
 main:
-  ld vertical Sensor Vertical
-  # Wait for day detection !issunrising
-  waitdayloop:
-    yield
-    jal issunrising
-    seqz r0 r0
-  beqz r0 waitdayloop
+yield
+add Ticks Ticks 1
 
-  # Stage: Wait for light ticks
-  sd Memory Setting 1
-  waitticksloop:
-    yield
-    sub clock clock 1
-    jal updateclock
-  bnez clock waitticksloop
+# Reset At Midday/Midnight
+l ThisVertical DaySens Vertical
+slt IsSunRising ThisVertical LastVertical #Is Sun Now Rising
+sne IsEdgeDetected IsSunRising WasSunRising #Is this first tick of sun rising/setting
+s db Setting WasSunRising  
+breqz IsEdgeDetected 2 #If not first tick, skip tick reset
+jal reset
+move LastVertical ThisVertical 
+move WasSunRising IsSunRising 
 
-  # Reset the clock
-  move clock LIGHT_TICKS
-  jal updateclock
+# Scale Ticks from Yesterday's TPD
+div AdjustedTicks Ticks LastTicksPerDay 
+mul AdjustedTicks AdjustedTicks 2400
 
-  sd Memory Setting 0
+# "Expected" Total Ticks per day = 20min * 60sec * 2tps = 2400
+move String 0
+div r0 AdjustedTicks 100
+trunc r0 r0
+s Hours Setting r0
+jal append
 
-  # Stage: Wait for sun to start rising
-  ld vertical Sensor Vertical
-  waitsunrisingloop:
-    yield
-    jal issunrising 
-  beqz r0 waitsunrisingloop
+mod r0 AdjustedTicks 100 #percentage fraction of hour
+mul r0 r0 36 #convert to seconds within the hour
+mod r1 r0 60 #extract remainder seconds
+trunc r1 r1
+div r0 r0 60 #extract whole minutes
+trunc r0 r0
+
+s Minutes Setting r0
+jal append
+s Seconds Setting r1
+move r0 r1
+jal append
+s AIO Setting String
+
 j main
 
-# in: vertical (previous tick vertical)
-# out: r0 (isSunRising), vertical (current tick vertical)
-issunrising:
-  ld r1 Sensor Vertical
-  slt r0 r1 vertical
-  move vertical r1
+reset:
+select r0 WasSunRising LastTicksPerDay Ticks
+move LastTicksPerDay r0
+div r0 LastTicksPerDay 2 #half-day of ticks from yesterday
+select r0 WasSunRising r0 0
+move Ticks r0
+beqz Calibrating ra
+sub Calibrating Calibrating 1
+bnez Calibrating ra
 j ra
 
-# updates the display based on the current clock variable
-# in: clock
-updateclock:
-  div r0 clock 2
-  ceil r0 r0
-j ra"#,
-        sensor.borrow().get_id(),
-        memory.borrow().get_id()
-    );
+append:
+div r5 r0 10
+trunc r5 r5
+mod r4 r0 10
+sll String String 8
+add String String STR("0")
+add String String r5
+sll String String 8
+add String String STR("0")
+add String String r4
+j ra"#;
 
     // Load the program
-    chip.borrow_mut().load_program(program.as_str())?;
+    chip.borrow_mut().load_program(program)?;
+
+    let processed = preprocess(program);
+    print!("Program:\n{}\n\n", processed?);
 
     let mut tick: u64 = 0;
 
     // Run the simulation until the script is done
     while !(chip.borrow().is_script_over()) {
-        sensor.borrow_mut().update(tick);
+        sensor.borrow().update(tick);
         let steps = housing.borrow().update(tick).unwrap()?;
 
-        let is_light_on = memory.borrow().read(LogicType::Setting)? == 1.0f64;
+        let aio_text = packed_number_to_text(memory_aio.borrow().read(LogicType::Setting)? as u64);
+        let formatted_aio = if aio_text.len() >= 6 {
+            format!(
+                "{:02}:{:02}:{:02}",
+                &aio_text[0..2].parse::<u8>().unwrap_or(0),
+                &aio_text[2..4].parse::<u8>().unwrap_or(0),
+                &aio_text[4..6].parse::<u8>().unwrap_or(0)
+            )
+        } else {
+            aio_text
+        };
 
         println!(
-            "Tick {} ({} steps): Growlight Status: ({}), Sensor Vertical: ({:.2})",
+            "Tick {} ({} steps): AIO: ({}), Hours: ({:02}), Minutes: ({:02}), Seconds: ({:02})",
             tick,
             steps,
-            if is_light_on { "On" } else { "Off" },
-            sensor.borrow().read(LogicType::Vertical)?
+            formatted_aio,
+            memory_hours.borrow().read(LogicType::Setting)? as u64,
+            memory_minutes.borrow().read(LogicType::Setting)? as u64,
+            memory_seconds.borrow().read(LogicType::Setting)? as u64
         );
 
-        tick += 1; // Increment the tick
+        tick += 1; // Increment the ticks
         sleep(Duration::from_millis(10));
     }
 

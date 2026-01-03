@@ -8,7 +8,7 @@
 use crate::{
     CableNetwork, ProgrammableChip,
     constants::{DEVICE_PIN_COUNT, REGISTER_COUNT, STACK_SIZE},
-    devices::{Device, DeviceBase, LogicType, LogicTypes, SimulationSettings},
+    devices::{Device, DeviceBase, LogicType, SimulationSettings},
     error::{IC10Error, IC10Result},
 };
 use std::{cell::RefCell, rc::Rc};
@@ -35,12 +35,12 @@ impl ICHousing {
         simulation_settings: Option<SimulationSettings>,
         chip: Option<Rc<RefCell<ProgrammableChip>>>,
     ) -> Self {
-        let mut base = DeviceBase::new(
+        let base = DeviceBase::new(
             "IC Housing".to_string(),
             "StructureCircuitHousing".to_string(),
         );
 
-        base.logic_types.setting = Some(0.0);
+        base.logic_types.borrow_mut().setting = Some(0.0);
 
         Self {
             base,
@@ -110,17 +110,17 @@ impl ICHousing {
 
     /// Get the unique id of the housing
     pub fn id(&self) -> i32 {
-        self.base.logic_types.reference_id
+        self.base.logic_types.borrow().reference_id
     }
 
     /// Get the prefab hash of the housing
     pub fn prefab_hash(&self) -> i32 {
-        self.base.logic_types.prefab_hash
+        self.base.logic_types.borrow().prefab_hash
     }
 
     /// Get the name hash of the housing
     pub fn name_hash(&self) -> i32 {
-        self.base.logic_types.name_hash
+        self.base.logic_types.borrow().name_hash
     }
 
     /// Set a device pin to reference a device by its reference ID
@@ -172,6 +172,11 @@ impl ICHousing {
         self.chip.as_ref().map(Rc::clone)
     }
 
+    /// Get the maximum instructions per tick setting
+    pub fn get_max_instructions_per_tick(&self) -> usize {
+        self.settings.max_instructions_per_tick
+    }
+
     /// Run the chip for a specified number of steps
     pub fn update(&self, _tick: u64) -> Option<IC10Result<usize>> {
         if let Some(ref chip) = self.chip {
@@ -187,15 +192,15 @@ impl ICHousing {
 
 impl Device for ICHousing {
     fn get_id(&self) -> i32 {
-        self.base.logic_types.reference_id
+        self.base.logic_types.borrow().reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        self.base.logic_types.prefab_hash
+        self.base.logic_types.borrow().prefab_hash
     }
 
     fn get_name_hash(&self) -> i32 {
-        self.base.logic_types.name_hash
+        self.base.logic_types.borrow().name_hash
     }
 
     fn get_name(&self) -> &str {
@@ -204,10 +209,6 @@ impl Device for ICHousing {
 
     fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
         self.base.network.clone()
-    }
-
-    fn get_logic_types(&self) -> &LogicTypes {
-        &self.base.logic_types
     }
 
     fn set_network(&mut self, network: Option<Rc<RefCell<CableNetwork>>>) {
@@ -228,14 +229,16 @@ impl Device for ICHousing {
 
     fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
         match logic_type {
-            LogicType::Setting => self
-                .base
-                .logic_types
-                .setting
-                .ok_or(IC10Error::RuntimeError {
-                    message: "Setting value not set".to_string(),
-                    line: 0,
-                }),
+            LogicType::Setting => {
+                self.base
+                    .logic_types
+                    .borrow()
+                    .setting
+                    .ok_or(IC10Error::RuntimeError {
+                        message: "Setting value not set".to_string(),
+                        line: 0,
+                    })
+            }
             _ => Err(IC10Error::RuntimeError {
                 message: format!(
                     "Housing does not support reading logic type {:?}",
@@ -246,10 +249,10 @@ impl Device for ICHousing {
         }
     }
 
-    fn write(&mut self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+    fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()> {
         match logic_type {
             LogicType::Setting => {
-                self.base.logic_types.setting = Some(value);
+                self.base.logic_types.borrow_mut().setting = Some(value);
                 Ok(())
             }
             _ => Err(IC10Error::RuntimeError {

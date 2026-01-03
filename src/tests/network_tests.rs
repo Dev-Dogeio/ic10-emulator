@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use crate::devices::LogicTypes;
     use crate::error::IC10Error;
     use crate::parser::string_to_hash;
     use crate::{BatchMode, Device, IC10Result, LogicType};
@@ -49,10 +48,6 @@ mod tests {
         fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
             None
         }
-        fn get_logic_types(&self) -> &LogicTypes {
-            static LOGIC_TYPES: std::sync::OnceLock<LogicTypes> = std::sync::OnceLock::new();
-            LOGIC_TYPES.get_or_init(|| LogicTypes::new(self.id, self.prefab_hash, "Test"))
-        }
         fn set_network(&mut self, _network: Option<Rc<RefCell<CableNetwork>>>) {}
 
         fn set_name(&mut self, _name: &str) {}
@@ -75,7 +70,7 @@ mod tests {
             }
         }
 
-        fn write(&mut self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+        fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()> {
             match logic_type {
                 LogicType::Setting => {
                     self.setting.set(value);

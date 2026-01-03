@@ -5,7 +5,7 @@
 
 use crate::{
     CableNetwork,
-    devices::{Device, DeviceBase, LogicType, LogicTypes, SimulationSettings},
+    devices::{Device, DeviceBase, LogicType, SimulationSettings},
     error::{IC10Error, IC10Result},
 };
 use std::{cell::RefCell, rc::Rc};
@@ -21,12 +21,12 @@ pub struct LogicMemory {
 
 impl LogicMemory {
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Self {
-        let mut base = DeviceBase::new(
+        let base = DeviceBase::new(
             "Logic Memory".to_string(),
             "StructureLogicMemory".to_string(),
         );
 
-        base.logic_types.setting = Some(0.0);
+        base.logic_types.borrow_mut().setting = Some(0.0);
         Self {
             base,
             settings: simulation_settings.unwrap_or_default(),
@@ -36,15 +36,15 @@ impl LogicMemory {
 
 impl Device for LogicMemory {
     fn get_id(&self) -> i32 {
-        self.base.logic_types.reference_id
+        self.base.logic_types.borrow().reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        self.base.logic_types.prefab_hash
+        self.base.logic_types.borrow().prefab_hash
     }
 
     fn get_name_hash(&self) -> i32 {
-        self.base.logic_types.name_hash
+        self.base.logic_types.borrow().name_hash
     }
 
     fn get_name(&self) -> &str {
@@ -53,10 +53,6 @@ impl Device for LogicMemory {
 
     fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
         self.base.network.clone()
-    }
-
-    fn get_logic_types(&self) -> &LogicTypes {
-        &self.base.logic_types
     }
 
     fn set_network(&mut self, network: Option<Rc<RefCell<CableNetwork>>>) {
@@ -77,14 +73,16 @@ impl Device for LogicMemory {
 
     fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
         match logic_type {
-            LogicType::Setting => self
-                .base
-                .logic_types
-                .setting
-                .ok_or(IC10Error::RuntimeError {
-                    message: "Setting value not set".to_string(),
-                    line: 0,
-                }),
+            LogicType::Setting => {
+                self.base
+                    .logic_types
+                    .borrow()
+                    .setting
+                    .ok_or(IC10Error::RuntimeError {
+                        message: "Setting value not set".to_string(),
+                        line: 0,
+                    })
+            }
             _ => Err(IC10Error::RuntimeError {
                 message: format!(
                     "Logic Memory does not support reading logic type {:?}",
@@ -95,10 +93,10 @@ impl Device for LogicMemory {
         }
     }
 
-    fn write(&mut self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+    fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()> {
         match logic_type {
             LogicType::Setting => {
-                self.base.logic_types.setting = Some(value);
+                self.base.logic_types.borrow_mut().setting = Some(value);
                 Ok(())
             }
             _ => Err(IC10Error::RuntimeError {

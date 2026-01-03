@@ -339,11 +339,12 @@ impl ProgrammableChip {
 
     /// Check if a device with the given reference ID exists on the network
     pub(crate) fn device_exists_by_id(&self, ref_id: i32) -> bool {
-        if let Some(network) = self.housing.borrow().get_network() {
+        let housing = self.housing.borrow();
+        if let Some(network) = housing.get_network() {
             network.borrow().device_exists(ref_id)
         } else {
             // If not connected to network, only the housing itself exists
-            ref_id == self.housing.borrow().id()
+            ref_id == housing.id()
         }
     }
 
@@ -356,7 +357,7 @@ impl ProgrammableChip {
     }
 
     /// Set a register value
-    pub fn set_register(&mut self, index: usize, value: f64) -> IC10Result<()> {
+    pub fn set_register(&self, index: usize, value: f64) -> IC10Result<()> {
         self.housing
             .borrow()
             .set_register(index, value)
@@ -372,7 +373,7 @@ impl ProgrammableChip {
     }
 
     /// Write to stack memory
-    pub fn write_stack(&mut self, address: usize, value: f64) -> IC10Result<()> {
+    pub fn write_stack(&self, address: usize, value: f64) -> IC10Result<()> {
         self.housing
             .borrow()
             .write_stack(address, value)
@@ -453,12 +454,13 @@ impl ProgrammableChip {
 
     /// Reset the chip to initial state
     pub fn reset(&mut self) {
-        let mut housing = self.housing.borrow_mut();
-        for i in 0..REGISTER_COUNT {
-            let _ = housing.set_register(i, 0.0);
+        {
+            let housing = self.housing.borrow_mut();
+            for i in 0..REGISTER_COUNT {
+                let _ = housing.set_register(i, 0.0);
+            }
+            let _ = housing.clear_memory();
         }
-        let _ = housing.clear_memory();
-        drop(housing);
         self.pc = 0;
         self.halted = false;
         self.error_line = None;

@@ -105,7 +105,7 @@ impl LogicType {
 pub struct DeviceBase {
     pub name: String,
     pub network: Option<Rc<RefCell<CableNetwork>>>,
-    pub logic_types: LogicTypes,
+    pub logic_types: RefCell<LogicTypes>,
 }
 
 impl DeviceBase {
@@ -115,7 +115,7 @@ impl DeviceBase {
         Self {
             name,
             network: None,
-            logic_types,
+            logic_types: RefCell::new(logic_types),
         }
     }
 
@@ -134,17 +134,17 @@ impl DeviceBase {
 
     /// Set the device's name and update the network's name index
     pub fn set_name(&mut self, name: String) {
-        let old_name_hash = self.logic_types.name_hash;
+        let old_name_hash = self.logic_types.borrow().name_hash;
         self.name = name;
-        self.logic_types.name_hash = string_to_hash(&self.name);
+        let new_name_hash = string_to_hash(&self.name);
+        self.logic_types.borrow_mut().name_hash = new_name_hash;
 
         // Update the network's name index if the device is connected
         if let Some(network) = &self.network {
-            network.borrow_mut().update_device_name(
-                self.logic_types.reference_id,
-                old_name_hash,
-                self.logic_types.name_hash,
-            );
+            let reference_id = self.logic_types.borrow().reference_id;
+            network
+                .borrow_mut()
+                .update_device_name(reference_id, old_name_hash, new_name_hash);
         }
     }
 }
@@ -208,9 +208,6 @@ pub trait Device: std::fmt::Debug {
     /// Get the device's network
     fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>>;
 
-    /// Get the device's logic types
-    fn get_logic_types(&self) -> &LogicTypes;
-
     /// Check if the device can read the specified logic type
     fn can_read(&self, logic_type: LogicType) -> bool;
 
@@ -221,7 +218,7 @@ pub trait Device: std::fmt::Debug {
     fn read(&self, logic_type: LogicType) -> IC10Result<f64>;
 
     /// Write a logic value to the device
-    fn write(&mut self, logic_type: LogicType, value: f64) -> IC10Result<()>;
+    fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()>;
 
     /// Read from device internal memory at index
     fn get_memory(&self, _index: usize) -> IC10Result<f64> {
@@ -232,7 +229,7 @@ pub trait Device: std::fmt::Debug {
     }
 
     /// Write to device internal memory at index
-    fn set_memory(&mut self, _index: usize, _value: f64) -> IC10Result<()> {
+    fn set_memory(&self, _index: usize, _value: f64) -> IC10Result<()> {
         Err(IC10Error::RuntimeError {
             message: "Device does not support memory access".to_string(),
             line: 0,
@@ -240,7 +237,7 @@ pub trait Device: std::fmt::Debug {
     }
 
     /// Clear all device memory
-    fn clear_memory(&mut self) -> IC10Result<()> {
+    fn clear_memory(&self) -> IC10Result<()> {
         Err(IC10Error::RuntimeError {
             message: "Device does not support memory clearing".to_string(),
             line: 0,
@@ -265,5 +262,5 @@ pub trait Device: std::fmt::Debug {
 
     /// Update the device state based on the global tick count
     /// Default implementation does nothing - devices can override if they need tick-based updates
-    fn update(&mut self, _tick: u64) {}
+    fn update(&self, _tick: u64) {}
 }

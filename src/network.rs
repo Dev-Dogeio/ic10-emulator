@@ -303,7 +303,7 @@ impl CableNetwork {
         let mut write_count = 0;
 
         for &ref_id in device_ids {
-            if let Some(mut device) = self.get_device_mut(ref_id) {
+            if let Some(device) = self.get_device(ref_id) {
                 if device.can_write(logic_type) {
                     if device.write(logic_type, value).is_ok() {
                         write_count += 1;
