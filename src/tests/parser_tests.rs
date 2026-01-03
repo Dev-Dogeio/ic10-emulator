@@ -301,9 +301,9 @@ mod tests {
     }
 
     #[test]
-    fn test_preprocess_empty_lines_removed() {
+    fn test_preprocess_empty_lines_not_removed() {
         let input = "move r0 1\n\n# comment only\n\nmove r1 2";
         let result = preprocess(input).unwrap();
-        assert_eq!(result, "move r0 1\nmove r1 2");
+        assert_eq!(result, "move r0 1\n\n\n\nmove r1 2");
     }
 }

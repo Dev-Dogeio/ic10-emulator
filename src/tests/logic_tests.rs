@@ -1086,7 +1086,7 @@ yield
         // bdse - branch if device set exists (db always exists)
         let program = r#"
 move r0 0
-bdse db 3
+bdse db 4
 move r0 99
 move r1 1
 yield
@@ -1146,7 +1146,7 @@ yield
         // bdseal - branch and link if device exists
         let program = r#"
 move r0 0
-bdseal db 4
+bdseal db 5
 move r0 99
 yield
 move r1 ra
@@ -1155,9 +1155,9 @@ yield
         chip.borrow_mut().load_program(program).unwrap();
         chip.borrow_mut().run(128).unwrap();
 
-        // Should branch to line 4, ra should be 2 (next instruction after bdseal at line 1)
+        // Should branch to line 5, ra should be 3 (next instruction after bdseal at line 2)
         assert_eq!(chip.borrow().get_register(0).unwrap(), 0.0);
-        assert_eq!(chip.borrow().get_register(1).unwrap(), 2.0);
+        assert_eq!(chip.borrow().get_register(1).unwrap(), 3.0);
     }
 
     // ==================== Special Instructions Tests ====================

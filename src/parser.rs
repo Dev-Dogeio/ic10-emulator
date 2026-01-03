@@ -66,10 +66,7 @@ pub fn preprocess(source: &str) -> IC10Result<String> {
             .to_string();
 
         // Normalize whitespace
-        let line = line.trim_end();
-        if !line.is_empty() {
-            result.push(line.to_string());
-        }
+        result.push(line.trim_end().to_string());
     }
     Ok(result.join("\n"))
 }

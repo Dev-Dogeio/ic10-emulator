@@ -31,7 +31,10 @@ pub struct ICHousing {
 }
 
 impl ICHousing {
-    pub fn new(simulation_settings: Option<SimulationSettings>, chip: Option<Rc<RefCell<ProgrammableChip>>>) -> Self {
+    pub fn new(
+        simulation_settings: Option<SimulationSettings>,
+        chip: Option<Rc<RefCell<ProgrammableChip>>>,
+    ) -> Self {
         let mut base = DeviceBase::new(
             "IC Housing".to_string(),
             "StructureCircuitHousing".to_string(),
@@ -172,7 +175,9 @@ impl ICHousing {
     /// Run the chip for a specified number of steps
     pub fn update(&self, _tick: u64) -> Option<IC10Result<usize>> {
         if let Some(ref chip) = self.chip {
-            let result = chip.borrow_mut().run(self.settings.max_instructions_per_tick);
+            let result = chip
+                .borrow_mut()
+                .run(self.settings.max_instructions_per_tick);
             return Some(result);
         }
 
