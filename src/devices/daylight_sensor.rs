@@ -5,33 +5,14 @@
 //! - Vertical angle (altitude): 0-180 degrees, 0 when sun is directly overhead (zenith),
 //!   180 when sun is on the opposite side of the planet (nadir)
 //!
-//! Time system:
-//! - 1 second = 2 ticks
-//! - 1 in-game day = 20 minutes = 1200 seconds = 2400 ticks
-//!
 //! Note: Doesn't match the game, just a simple simulation for testing purposes.
 
 use crate::{
     CableNetwork,
-    devices::{Device, DeviceBase, LogicType, LogicTypes},
+    devices::{Device, DeviceBase, LogicType, LogicTypes, SimulationSettings},
     error::{IC10Error, IC10Result},
 };
 use std::{cell::RefCell, rc::Rc};
-
-/// Settings for the DaylightSensor
-#[derive(Debug)]
-pub struct SimulationSettings {
-    /// Number of ticks in a full day cycle
-    pub ticks_per_day: f64,
-}
-
-impl Default for SimulationSettings {
-    fn default() -> Self {
-        Self {
-            ticks_per_day: 2400.0,
-        }
-    }
-}
 
 /// Daylight Sensor - tracks the sun's position in the sky
 #[derive(Debug)]

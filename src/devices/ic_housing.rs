@@ -8,7 +8,7 @@
 use crate::{
     CableNetwork, ProgrammableChip,
     constants::{DEVICE_PIN_COUNT, REGISTER_COUNT, STACK_SIZE},
-    devices::{Device, DeviceBase, LogicType, LogicTypes},
+    devices::{Device, DeviceBase, LogicType, LogicTypes, SimulationSettings},
     error::{IC10Error, IC10Result},
 };
 use std::{cell::RefCell, rc::Rc};
@@ -23,13 +23,15 @@ pub struct ICHousing {
     /// None means no device is assigned to that pin
     device_pins: [Option<i32>; DEVICE_PIN_COUNT],
     /// 18 registers (r0-r15 general purpose, r16=sp, r17=ra)
-    registers: [f64; REGISTER_COUNT],
+    registers: RefCell<[f64; REGISTER_COUNT]>,
     /// Stack memory (512 entries) - accessed via get/put instructions
-    stack: [f64; STACK_SIZE],
+    stack: RefCell<[f64; STACK_SIZE]>,
+    /// Simulation settings
+    settings: SimulationSettings,
 }
 
 impl ICHousing {
-    pub fn new(chip: Option<Rc<RefCell<ProgrammableChip>>>) -> Self {
+    pub fn new(simulation_settings: Option<SimulationSettings>, chip: Option<Rc<RefCell<ProgrammableChip>>>) -> Self {
         let mut base = DeviceBase::new(
             "IC Housing".to_string(),
             "StructureCircuitHousing".to_string(),
@@ -41,8 +43,9 @@ impl ICHousing {
             base,
             chip: chip,
             device_pins: [None; DEVICE_PIN_COUNT],
-            registers: [0.0; REGISTER_COUNT],
-            stack: [0.0; STACK_SIZE],
+            registers: RefCell::new([0.0; REGISTER_COUNT]),
+            stack: RefCell::new([0.0; STACK_SIZE]),
+            settings: simulation_settings.unwrap_or_default(),
         }
     }
 
@@ -64,18 +67,18 @@ impl ICHousing {
                 line: 0,
             });
         }
-        Ok(self.registers[index])
+        Ok(self.registers.borrow()[index])
     }
 
     /// Set a register value
-    pub fn set_register(&mut self, index: usize, value: f64) -> IC10Result<()> {
+    pub fn set_register(&self, index: usize, value: f64) -> IC10Result<()> {
         if index >= REGISTER_COUNT {
             return Err(IC10Error::RuntimeError {
                 message: format!("Register index {} out of bounds", index),
                 line: 0,
             });
         }
-        self.registers[index] = value;
+        self.registers.borrow_mut()[index] = value;
         Ok(())
     }
 
@@ -87,18 +90,18 @@ impl ICHousing {
                 line: 0,
             });
         }
-        Ok(self.stack[address])
+        Ok(self.stack.borrow()[address])
     }
 
     /// Write to stack memory
-    pub fn write_stack(&mut self, address: usize, value: f64) -> IC10Result<()> {
+    pub fn write_stack(&self, address: usize, value: f64) -> IC10Result<()> {
         if address >= STACK_SIZE {
             return Err(IC10Error::RuntimeError {
                 message: format!("Stack address {} out of bounds", address),
                 line: 0,
             });
         }
-        self.stack[address] = value;
+        self.stack.borrow_mut()[address] = value;
         Ok(())
     }
 
@@ -167,8 +170,13 @@ impl ICHousing {
     }
 
     /// Run the chip for a specified number of steps
-    pub fn update(&mut self, _tick: u64) -> Option<Rc<RefCell<ProgrammableChip>>> {
-        self.chip.as_ref().map(Rc::clone)
+    pub fn update(&self, _tick: u64) -> Option<IC10Result<usize>> {
+        if let Some(ref chip) = self.chip {
+            let result = chip.borrow_mut().run(self.settings.max_instructions_per_tick);
+            return Some(result);
+        }
+
+        None
     }
 }
 
@@ -252,6 +260,6 @@ impl Device for ICHousing {
 
 impl Default for ICHousing {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(None, None)
     }
 }

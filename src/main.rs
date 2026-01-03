@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .borrow_mut()
         .add_device(sensor.clone(), network.clone());
 
-    let memory = Rc::new(RefCell::new(LogicMemory::new()));
+    let memory = Rc::new(RefCell::new(LogicMemory::new(None)));
     network
         .borrow_mut()
         .add_device(memory.clone(), network.clone());
@@ -95,8 +95,7 @@ j ra"#,
     // Run the simulation until the script is done
     while !(chip.borrow().is_script_over()) {
         sensor.borrow_mut().update(tick);
-        let chip_ref = housing.borrow_mut().update(tick).unwrap();
-        let steps = chip_ref.borrow_mut().run(128)?;
+        let steps = housing.borrow().update(tick).unwrap()?;
 
         let is_light_on = memory.borrow().read(LogicType::Setting)? == 1.0f64;
 

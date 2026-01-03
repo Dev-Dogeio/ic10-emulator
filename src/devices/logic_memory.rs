@@ -5,7 +5,7 @@
 
 use crate::{
     CableNetwork,
-    devices::{Device, DeviceBase, LogicType, LogicTypes},
+    devices::{Device, DeviceBase, LogicType, LogicTypes, SimulationSettings},
     error::{IC10Error, IC10Result},
 };
 use std::{cell::RefCell, rc::Rc};
@@ -14,17 +14,23 @@ use std::{cell::RefCell, rc::Rc};
 #[derive(Debug)]
 pub struct LogicMemory {
     base: DeviceBase,
+    /// Simulation settings
+    #[allow(dead_code)]
+    settings: SimulationSettings,
 }
 
 impl LogicMemory {
-    pub fn new() -> Self {
+    pub fn new(simulation_settings: Option<SimulationSettings>) -> Self {
         let mut base = DeviceBase::new(
             "Logic Memory".to_string(),
             "StructureLogicMemory".to_string(),
         );
 
         base.logic_types.setting = Some(0.0);
-        Self { base }
+        Self {
+            base,
+            settings: simulation_settings.unwrap_or_default(),
+        }
     }
 }
 
@@ -112,6 +118,6 @@ impl Device for LogicMemory {
 
 impl Default for LogicMemory {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }

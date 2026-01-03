@@ -10,6 +10,24 @@ pub mod daylight_sensor;
 pub mod ic_housing;
 pub mod logic_memory;
 
+/// Simulation settings for devices
+#[derive(Debug, Clone)]
+pub struct SimulationSettings {
+    /// Number of ticks in a full day cycle
+    pub ticks_per_day: f64,
+    /// Maximum instructions per tick for IC10
+    pub max_instructions_per_tick: usize,
+}
+
+impl Default for SimulationSettings {
+    fn default() -> Self {
+        Self {
+            ticks_per_day: 2400.0,
+            max_instructions_per_tick: 128,
+        }
+    }
+}
+
 pub use daylight_sensor::DaylightSensor;
 pub use ic_housing::ICHousing;
 pub use logic_memory::LogicMemory;

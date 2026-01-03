@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn test_housing_on_network() {
         let mut network = CableNetwork::new();
-        let housing = Rc::new(RefCell::new(ICHousing::new(None)));
+        let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
 
         network.add_device(housing.clone(), Rc::new(RefCell::new(network.clone())));
 
@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn test_device_rename_updates_network() {
         let network = Rc::new(RefCell::new(CableNetwork::new()));
-        let housing = Rc::new(RefCell::new(ICHousing::new(None)));
+        let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
         let device_id = housing.borrow().get_id();
 
         // Add device to network

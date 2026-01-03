@@ -21,7 +21,7 @@ mod tests {
 
     /// Create a chip with optional initial register values
     fn chip() -> ProgrammableChip {
-        let housing = Rc::new(RefCell::new(ICHousing::new(None)));
+        let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
         ProgrammableChip::new(housing)
     }
 
@@ -1206,7 +1206,7 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add another IC housing to the network (supports Setting = 12)
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None)));
+        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
         let housing2_id = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1304,7 +1304,7 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add another IC housing device to the network (supports Setting)
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None)));
+        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
         let device_id = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1334,7 +1334,7 @@ yield
 
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None)));
+        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
         let device_id = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1382,7 +1382,7 @@ yield
 
         // Add 3 more ICHousing devices (they support Setting)
         for _ in 0..3 {
-            let housing = Rc::new(RefCell::new(ICHousing::new(None)));
+            let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
             network.borrow_mut().add_device(housing, network.clone());
         }
 
@@ -1391,7 +1391,7 @@ yield
         assert_eq!(total_count, 4, "Expected 4 devices after adding 3");
 
         // Get the prefab hash for ICHousing
-        let housing = ICHousing::new(None);
+        let housing = ICHousing::new(None, None);
         let hash = housing.get_prefab_hash();
 
         // Count devices that match the hash
@@ -1424,7 +1424,7 @@ yield
         let (chip, _housing, _network) = ProgrammableChip::new_with_network();
 
         // Get the prefab hash for ICHousing
-        let housing = ICHousing::new(None);
+        let housing = ICHousing::new(None, None);
         let hash = housing.get_prefab_hash();
 
         // Test with string name "Setting"

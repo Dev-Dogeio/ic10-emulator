@@ -79,7 +79,7 @@ impl ProgrammableChip {
         Rc<RefCell<CableNetwork>>,
     ) {
         let network = Rc::new(RefCell::new(CableNetwork::new()));
-        let housing = Rc::new(RefCell::new(ICHousing::new(None)));
+        let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
         let chip = Rc::new(RefCell::new(ProgrammableChip::new(housing.clone())));
 
         // Connect chip to housing
@@ -358,7 +358,7 @@ impl ProgrammableChip {
     /// Set a register value
     pub fn set_register(&mut self, index: usize, value: f64) -> IC10Result<()> {
         self.housing
-            .borrow_mut()
+            .borrow()
             .set_register(index, value)
             .map_err(|_| IC10Error::RegisterOutOfBounds(index))
     }
@@ -374,7 +374,7 @@ impl ProgrammableChip {
     /// Write to stack memory
     pub fn write_stack(&mut self, address: usize, value: f64) -> IC10Result<()> {
         self.housing
-            .borrow_mut()
+            .borrow()
             .write_stack(address, value)
             .map_err(|_| IC10Error::StackOutOfBounds(address))
     }
