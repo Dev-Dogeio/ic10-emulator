@@ -327,13 +327,15 @@ mod tests {
     }
 
     #[test]
-    fn test_device_rename_updates_network() {        
+    fn test_device_rename_updates_network() {
         let network = Rc::new(RefCell::new(CableNetwork::new()));
         let housing = Rc::new(RefCell::new(ICHousing::new(None)));
         let device_id = housing.borrow().get_id();
 
         // Add device to network
-        network.borrow_mut().add_device(housing.clone(), network.clone());
+        network
+            .borrow_mut()
+            .add_device(housing.clone(), network.clone());
 
         // Get initial name hash
         let old_name_hash = housing.borrow().get_name_hash();

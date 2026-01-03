@@ -581,6 +581,12 @@ pub enum Instruction {
         reagent_mode: Operand,
         reagent: Operand,
     },
+    /// rmap r, d, reagentHash - Get prefab hash from reagent hash
+    Rmap {
+        dest: Operand,
+        device: Operand,
+        reagent_hash: Operand,
+    },
 
     // ==================== ID-Based Device Access ====================
     /// ld r, id, logicType - Load from device by reference ID
@@ -694,12 +700,6 @@ pub enum Instruction {
     Clr { device: Operand },
     /// clrd id - Clear device memory by ID
     Clrd { id: Operand },
-    /// rmap r, d, reagentHash - Get prefab hash from reagent hash
-    Rmap {
-        dest: Operand,
-        device: Operand,
-        reagent_hash: Operand,
-    },
 
     // ==================== No Operation ====================
     /// Empty line or comment
@@ -1945,6 +1945,27 @@ impl ParsedInstruction {
                     original_line,
                 })
             }
+            "rmap" => {
+                if tokens.len() != 4 {
+                    return Err(IC10Error::IncorrectArgumentCount {
+                        instruction: "rmap".to_string(),
+                        expected: 3,
+                        actual: tokens.len() - 1,
+                    });
+                }
+                let dest = parse_dest_operand(tokens[1]);
+                let device = parse_operand(tokens[2]);
+                let reagent_hash = parse_operand(tokens[3]);
+                Ok(ParsedInstruction {
+                    instruction: Instruction::Rmap {
+                        dest,
+                        device,
+                        reagent_hash,
+                    },
+                    line_number,
+                    original_line,
+                })
+            }
 
             // ==================== ID-Based Device Access ====================
             "ld" => {
@@ -2338,27 +2359,6 @@ impl ParsedInstruction {
                 let id = parse_operand(tokens[1]);
                 Ok(ParsedInstruction {
                     instruction: Instruction::Clrd { id },
-                    line_number,
-                    original_line,
-                })
-            }
-            "rmap" => {
-                if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
-                        instruction: "rmap".to_string(),
-                        expected: 3,
-                        actual: tokens.len() - 1,
-                    });
-                }
-                let dest = parse_dest_operand(tokens[1]);
-                let device = parse_operand(tokens[2]);
-                let reagent_hash = parse_operand(tokens[3]);
-                Ok(ParsedInstruction {
-                    instruction: Instruction::Rmap {
-                        dest,
-                        device,
-                        reagent_hash,
-                    },
                     line_number,
                     original_line,
                 })

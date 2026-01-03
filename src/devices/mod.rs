@@ -119,7 +119,7 @@ impl DeviceBase {
         let old_name_hash = self.logic_types.name_hash;
         self.name = name;
         self.logic_types.name_hash = string_to_hash(&self.name);
-        
+
         // Update the network's name index if the device is connected
         if let Some(network) = &self.network {
             network.borrow_mut().update_device_name(

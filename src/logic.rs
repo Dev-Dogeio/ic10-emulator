@@ -1393,12 +1393,13 @@ pub fn execute_instruction(
                     line: instruction.line_number,
                 })?;
                 let network_ref = network.borrow();
-                let mut device = network_ref
-                    .get_device_mut(ref_id)
-                    .ok_or(IC10Error::RuntimeError {
-                        message: format!("Device with reference ID {} not found", ref_id),
-                        line: instruction.line_number,
-                    })?;
+                let mut device =
+                    network_ref
+                        .get_device_mut(ref_id)
+                        .ok_or(IC10Error::RuntimeError {
+                            message: format!("Device with reference ID {} not found", ref_id),
+                            line: instruction.line_number,
+                        })?;
                 device.write(logic_type, value)?;
             }
             Ok(chip.get_pc() + 1)
@@ -1410,7 +1411,6 @@ pub fn execute_instruction(
             slot_logic_type: _,
         } => {
             // Slot operations not yet fully implemented
-            // For now, return error
             Err(IC10Error::RuntimeError {
                 message: "Slot operations not yet implemented".to_string(),
                 line: instruction.line_number,
@@ -1433,6 +1433,17 @@ pub fn execute_instruction(
             device: _,
             reagent_mode: _,
             reagent: _,
+        } => {
+            // Reagent operations not yet fully implemented
+            Err(IC10Error::RuntimeError {
+                message: "Reagent operations not yet implemented".to_string(),
+                line: instruction.line_number,
+            })
+        }
+        Instruction::Rmap {
+            dest: _,
+            device: _,
+            reagent_hash: _,
         } => {
             // Reagent operations not yet fully implemented
             Err(IC10Error::RuntimeError {
@@ -1796,14 +1807,6 @@ pub fn execute_instruction(
             })?;
             Ok(chip.get_pc() + 1)
         }
-        Instruction::Rmap {
-            dest: _,
-            device: _,
-            reagent_hash: _,
-        } => Err(IC10Error::RuntimeError {
-            message: "Reagent operations not yet implemented".to_string(),
-            line: instruction.line_number,
-        }),
         Instruction::Noop => Ok(chip.get_pc() + 1),
         _ => Err(IC10Error::UnrecognizedInstruction(format!(
             "Unknown or unimplemented instruction {}: {:?}",
