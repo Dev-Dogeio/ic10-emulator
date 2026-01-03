@@ -64,7 +64,13 @@ impl Device for LogicMemory {
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
-        matches!(logic_type, LogicType::Setting)
+        matches!(
+            logic_type,
+            LogicType::PrefabHash
+                | LogicType::ReferenceId
+                | LogicType::NameHash
+                | LogicType::Setting
+        )
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
@@ -73,6 +79,9 @@ impl Device for LogicMemory {
 
     fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
         match logic_type {
+            LogicType::PrefabHash => Ok(self.base.logic_types.borrow().prefab_hash as f64),
+            LogicType::ReferenceId => Ok(self.base.logic_types.borrow().reference_id as f64),
+            LogicType::NameHash => Ok(self.base.logic_types.borrow().name_hash as f64),
             LogicType::Setting => {
                 self.base
                     .logic_types

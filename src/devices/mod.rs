@@ -43,6 +43,9 @@ pub fn allocate_device_id() -> i32 {
 /// Logic types for device property access
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LogicType {
+    NameHash,
+    PrefabHash,
+    ReferenceId,
     Setting,
     Horizontal,
     Vertical,
@@ -55,6 +58,9 @@ impl LogicType {
             12 => Some(LogicType::Setting),
             20 => Some(LogicType::Horizontal),
             21 => Some(LogicType::Vertical),
+            84 => Some(LogicType::PrefabHash),
+            217 => Some(LogicType::ReferenceId),
+            268 => Some(LogicType::NameHash),
             _ => None,
         }
     }
@@ -65,6 +71,9 @@ impl LogicType {
             LogicType::Setting => 12.0,
             LogicType::Horizontal => 20.0,
             LogicType::Vertical => 21.0,
+            LogicType::PrefabHash => 84.0,
+            LogicType::ReferenceId => 217.0,
+            LogicType::NameHash => 268.0,
         }
     }
 
@@ -74,6 +83,9 @@ impl LogicType {
             "Setting" => Some(LogicType::Setting),
             "Horizontal" => Some(LogicType::Horizontal),
             "Vertical" => Some(LogicType::Vertical),
+            "PrefabHash" => Some(LogicType::PrefabHash),
+            "ReferenceId" => Some(LogicType::ReferenceId),
+            "NameHash" => Some(LogicType::NameHash),
             _ => None,
         }
     }
@@ -152,12 +164,12 @@ impl DeviceBase {
 /// LogicTypes struct to hold PrefabHash, NameHash, and ReferenceId
 #[derive(Debug)]
 pub struct LogicTypes {
-    pub prefab_hash: i32,
-    pub name_hash: i32,
-    pub reference_id: i32,
-    pub setting: Option<f64>,
-    pub horizontal: Option<f64>,
-    pub vertical: Option<f64>,
+    prefab_hash: i32,
+    name_hash: i32,
+    reference_id: i32,
+    setting: Option<f64>,
+    horizontal: Option<f64>,
+    vertical: Option<f64>,
 }
 
 impl LogicTypes {
@@ -167,6 +179,9 @@ impl LogicTypes {
             LogicType::Setting => self.setting,
             LogicType::Horizontal => self.horizontal,
             LogicType::Vertical => self.vertical,
+            LogicType::PrefabHash => Some(self.prefab_hash as f64),
+            LogicType::ReferenceId => Some(self.reference_id as f64),
+            LogicType::NameHash => Some(self.name_hash as f64),
         }
     }
 
@@ -176,6 +191,9 @@ impl LogicTypes {
             LogicType::Setting => self.setting = Some(value),
             LogicType::Horizontal => self.horizontal = Some(value),
             LogicType::Vertical => self.vertical = Some(value),
+            LogicType::PrefabHash => self.prefab_hash = value as i32,
+            LogicType::ReferenceId => self.reference_id = value as i32,
+            LogicType::NameHash => self.name_hash = value as i32,
         }
     }
 
