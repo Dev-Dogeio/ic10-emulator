@@ -2,12 +2,10 @@
 mod tests {
     use crate::error::IC10Error;
     use crate::parser::string_to_hash;
+    use crate::types::{OptShared, shared};
     use crate::{BatchMode, Device, IC10Result, LogicType};
     use crate::{CableNetwork, devices::ICHousing};
-    use std::{
-        cell::{Cell, RefCell},
-        rc::Rc,
-    };
+    use std::cell::Cell;
 
     /// Test device for network testing
     #[derive(Debug)]
@@ -45,10 +43,10 @@ mod tests {
         fn get_name(&self) -> &str {
             "Test"
         }
-        fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
+        fn get_network(&self) -> OptShared<CableNetwork> {
             None
         }
-        fn set_network(&mut self, _network: Option<Rc<RefCell<CableNetwork>>>) {}
+        fn set_network(&mut self, _network: OptShared<CableNetwork>) {}
 
         fn set_name(&mut self, _name: &str) {}
 
@@ -87,9 +85,9 @@ mod tests {
     #[test]
     fn test_add_and_get_device() {
         let mut network = CableNetwork::new();
-        let device = Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200)));
+        let device = shared(TestNetworkDevice::new(1, 100, 200));
 
-        network.add_device(device.clone(), Rc::new(RefCell::new(network.clone())));
+        network.add_device(device.clone(), shared(network.clone()));
 
         assert!(network.device_exists(1));
         assert_eq!(network.device_count(), 1);
@@ -102,9 +100,9 @@ mod tests {
     #[test]
     fn test_remove_device() {
         let mut network = CableNetwork::new();
-        let device = Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200)));
+        let device = shared(TestNetworkDevice::new(1, 100, 200));
 
-        network.add_device(device, Rc::new(RefCell::new(network.clone())));
+        network.add_device(device, shared(network.clone()));
         assert!(network.device_exists(1));
 
         network.remove_device(1);
@@ -118,14 +116,14 @@ mod tests {
 
         // Add 3 devices with same prefab hash
         for i in 1..=3 {
-            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i, 100, 200)));
-            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+            let device = shared(TestNetworkDevice::new(i, 100, 200));
+            network.add_device(device, shared(network.clone()));
         }
 
         // Add 2 devices with different prefab hash
         for i in 4..=5 {
-            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i, 999, 200)));
-            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+            let device = shared(TestNetworkDevice::new(i, 999, 200));
+            network.add_device(device, shared(network.clone()));
         }
 
         let prefab_100_devices = network.get_devices_by_prefab(100);
@@ -144,16 +142,16 @@ mod tests {
 
         // Add devices with different name hashes
         network.add_device(
-            Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200))),
-            Rc::new(RefCell::new(network.clone())),
+            shared(TestNetworkDevice::new(1, 100, 200)),
+            shared(network.clone()),
         );
         network.add_device(
-            Rc::new(RefCell::new(TestNetworkDevice::new(2, 100, 200))),
-            Rc::new(RefCell::new(network.clone())),
+            shared(TestNetworkDevice::new(2, 100, 200)),
+            shared(network.clone()),
         );
         network.add_device(
-            Rc::new(RefCell::new(TestNetworkDevice::new(3, 100, 300))),
-            Rc::new(RefCell::new(network.clone())),
+            shared(TestNetworkDevice::new(3, 100, 300)),
+            shared(network.clone()),
         );
 
         let name_200_devices = network.get_devices_by_name(200);
@@ -169,9 +167,9 @@ mod tests {
 
         // Add devices with different settings
         for (i, val) in [10.0, 20.0, 30.0].iter().enumerate() {
-            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i as i32 + 1, 100, 200)));
+            let device = shared(TestNetworkDevice::new(i as i32 + 1, 100, 200));
             device.borrow_mut().setting.set(*val);
-            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+            network.add_device(device, shared(network.clone()));
         }
 
         let avg = network
@@ -185,9 +183,9 @@ mod tests {
         let mut network = CableNetwork::new();
 
         for (i, val) in [10.0, 20.0, 30.0].iter().enumerate() {
-            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i as i32 + 1, 100, 200)));
+            let device = shared(TestNetworkDevice::new(i as i32 + 1, 100, 200));
             device.borrow_mut().setting.set(*val);
-            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+            network.add_device(device, shared(network.clone()));
         }
 
         let sum = network
@@ -201,9 +199,9 @@ mod tests {
         let mut network = CableNetwork::new();
 
         for (i, val) in [10.0, 5.0, 30.0].iter().enumerate() {
-            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i as i32 + 1, 100, 200)));
+            let device = shared(TestNetworkDevice::new(i as i32 + 1, 100, 200));
             device.borrow_mut().setting.set(*val);
-            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+            network.add_device(device, shared(network.clone()));
         }
 
         let min = network
@@ -223,11 +221,11 @@ mod tests {
 
         // Add 3 devices with same prefab hash
         let devices: Vec<_> = (1..=3)
-            .map(|i| Rc::new(RefCell::new(TestNetworkDevice::new(i, 100, 200))))
+            .map(|i| shared(TestNetworkDevice::new(i, 100, 200)))
             .collect();
 
         for device in &devices {
-            network.add_device(device.clone(), Rc::new(RefCell::new(network.clone())));
+            network.add_device(device.clone(), shared(network.clone()));
         }
 
         // Batch write to all devices
@@ -247,17 +245,17 @@ mod tests {
         let mut network = CableNetwork::new();
 
         // Add devices with different name hashes
-        let device1 = Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200)));
+        let device1 = shared(TestNetworkDevice::new(1, 100, 200));
         device1.borrow_mut().setting.set(10.0);
-        network.add_device(device1, Rc::new(RefCell::new(network.clone())));
+        network.add_device(device1, shared(network.clone()));
 
-        let device2 = Rc::new(RefCell::new(TestNetworkDevice::new(2, 100, 200)));
+        let device2 = shared(TestNetworkDevice::new(2, 100, 200));
         device2.borrow_mut().setting.set(20.0);
-        network.add_device(device2, Rc::new(RefCell::new(network.clone())));
+        network.add_device(device2, shared(network.clone()));
 
-        let device3 = Rc::new(RefCell::new(TestNetworkDevice::new(3, 100, 300)));
+        let device3 = shared(TestNetworkDevice::new(3, 100, 300));
         device3.borrow_mut().setting.set(100.0);
-        network.add_device(device3, Rc::new(RefCell::new(network.clone())));
+        network.add_device(device3, shared(network.clone()));
 
         // Read only devices with prefab 100 AND name 200
         let avg = network
@@ -270,14 +268,14 @@ mod tests {
     fn test_batch_write_by_name() {
         let mut network = CableNetwork::new();
 
-        let device1 = Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200)));
-        network.add_device(device1.clone(), Rc::new(RefCell::new(network.clone())));
+        let device1 = shared(TestNetworkDevice::new(1, 100, 200));
+        network.add_device(device1.clone(), shared(network.clone()));
 
-        let device2 = Rc::new(RefCell::new(TestNetworkDevice::new(2, 100, 200)));
-        network.add_device(device2.clone(), Rc::new(RefCell::new(network.clone())));
+        let device2 = shared(TestNetworkDevice::new(2, 100, 200));
+        network.add_device(device2.clone(), shared(network.clone()));
 
-        let device3 = Rc::new(RefCell::new(TestNetworkDevice::new(3, 100, 300)));
-        network.add_device(device3.clone(), Rc::new(RefCell::new(network.clone())));
+        let device3 = shared(TestNetworkDevice::new(3, 100, 300));
+        network.add_device(device3.clone(), shared(network.clone()));
 
         // Write only to devices with prefab 100 AND name 200
         let count = network
@@ -313,9 +311,9 @@ mod tests {
     #[test]
     fn test_housing_on_network() {
         let mut network = CableNetwork::new();
-        let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing = shared(ICHousing::new(None, None));
 
-        network.add_device(housing.clone(), Rc::new(RefCell::new(network.clone())));
+        network.add_device(housing.clone(), shared(network.clone()));
 
         assert_eq!(network.device_count(), 1);
         assert!(network.device_exists(housing.borrow().get_id()));
@@ -323,8 +321,8 @@ mod tests {
 
     #[test]
     fn test_device_rename_updates_network() {
-        let network = Rc::new(RefCell::new(CableNetwork::new()));
-        let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let network = shared(CableNetwork::new());
+        let housing = shared(ICHousing::new(None, None));
         let device_id = housing.borrow().get_id();
 
         // Add device to network

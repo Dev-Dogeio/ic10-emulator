@@ -67,6 +67,7 @@ mod tests {
             parse("define PI 3.14"),
             Instruction::Define {
                 name: "PI".to_string(),
+                #[allow(clippy::approx_constant)]
                 value: 3.14
             }
         );

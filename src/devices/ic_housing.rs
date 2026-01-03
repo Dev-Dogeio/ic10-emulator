@@ -10,6 +10,7 @@ use crate::{
     constants::{DEVICE_PIN_COUNT, REGISTER_COUNT, STACK_SIZE},
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
     error::{IC10Error, IC10Result},
+    types::{OptShared, Shared},
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -18,7 +19,7 @@ use std::{cell::RefCell, rc::Rc};
 #[derive(Debug)]
 pub struct ICHousing {
     base: DeviceBase,
-    chip: Option<Rc<RefCell<ProgrammableChip>>>,
+    chip: OptShared<ProgrammableChip>,
     /// Device pins (d0-d5) - store reference IDs to devices on the network
     /// None means no device is assigned to that pin
     device_pins: [Option<i32>; DEVICE_PIN_COUNT],
@@ -33,7 +34,7 @@ pub struct ICHousing {
 impl ICHousing {
     pub fn new(
         simulation_settings: Option<SimulationSettings>,
-        chip: Option<Rc<RefCell<ProgrammableChip>>>,
+        chip: OptShared<ProgrammableChip>,
     ) -> Self {
         let base = DeviceBase::new(
             "IC Housing".to_string(),
@@ -44,7 +45,7 @@ impl ICHousing {
 
         Self {
             base,
-            chip: chip,
+            chip,
             device_pins: [None; DEVICE_PIN_COUNT],
             registers: RefCell::new([0.0; REGISTER_COUNT]),
             stack: RefCell::new([0.0; STACK_SIZE]),
@@ -53,20 +54,15 @@ impl ICHousing {
     }
 
     /// Get a reference to the connected network
-    pub fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
+    pub fn get_network(&self) -> OptShared<CableNetwork> {
         self.base.get_network()
-    }
-
-    /// Check if the housing is connected to a network
-    pub fn is_connected(&self) -> bool {
-        self.base.is_connected()
     }
 
     /// Get a register value
     pub fn get_register(&self, index: usize) -> IC10Result<f64> {
         if index >= REGISTER_COUNT {
             return Err(IC10Error::RuntimeError {
-                message: format!("Register index {} out of bounds", index),
+                message: format!("Register index {index} out of bounds"),
                 line: 0,
             });
         }
@@ -77,7 +73,7 @@ impl ICHousing {
     pub fn set_register(&self, index: usize, value: f64) -> IC10Result<()> {
         if index >= REGISTER_COUNT {
             return Err(IC10Error::RuntimeError {
-                message: format!("Register index {} out of bounds", index),
+                message: format!("Register index {index} out of bounds"),
                 line: 0,
             });
         }
@@ -89,7 +85,7 @@ impl ICHousing {
     pub fn read_stack(&self, address: usize) -> IC10Result<f64> {
         if address >= STACK_SIZE {
             return Err(IC10Error::RuntimeError {
-                message: format!("Stack address {} out of bounds", address),
+                message: format!("Stack address {address} out of bounds"),
                 line: 0,
             });
         }
@@ -100,7 +96,7 @@ impl ICHousing {
     pub fn write_stack(&self, address: usize, value: f64) -> IC10Result<()> {
         if address >= STACK_SIZE {
             return Err(IC10Error::RuntimeError {
-                message: format!("Stack address {} out of bounds", address),
+                message: format!("Stack address {address} out of bounds"),
                 line: 0,
             });
         }
@@ -163,17 +159,17 @@ impl ICHousing {
     }
 
     /// Set the cable network reference
-    pub fn set_network(&mut self, network: Option<Rc<RefCell<CableNetwork>>>) {
+    pub fn set_network(&mut self, network: OptShared<CableNetwork>) {
         self.base.set_network(network);
     }
 
     /// Set the chip for the housing
-    pub fn set_chip(&mut self, chip: Rc<RefCell<ProgrammableChip>>) {
+    pub fn set_chip(&mut self, chip: Shared<ProgrammableChip>) {
         self.chip = Some(chip);
     }
 
     /// Get the chip of the housing
-    pub fn get_chip(&self) -> Option<Rc<RefCell<ProgrammableChip>>> {
+    pub fn get_chip(&self) -> OptShared<ProgrammableChip> {
         self.chip.as_ref().map(Rc::clone)
     }
 
@@ -212,11 +208,11 @@ impl Device for ICHousing {
         &self.base.name
     }
 
-    fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
+    fn get_network(&self) -> OptShared<CableNetwork> {
         self.base.network.clone()
     }
 
-    fn set_network(&mut self, network: Option<Rc<RefCell<CableNetwork>>>) {
+    fn set_network(&mut self, network: OptShared<CableNetwork>) {
         self.base.network = network;
     }
 
@@ -254,10 +250,7 @@ impl Device for ICHousing {
                     })
             }
             _ => Err(IC10Error::RuntimeError {
-                message: format!(
-                    "Housing does not support reading logic type {:?}",
-                    logic_type
-                ),
+                message: format!("Housing does not support reading logic type {logic_type:?}"),
                 line: 0,
             }),
         }
@@ -270,10 +263,7 @@ impl Device for ICHousing {
                 Ok(())
             }
             _ => Err(IC10Error::RuntimeError {
-                message: format!(
-                    "Housing does not support writing logic type {:?}",
-                    logic_type
-                ),
+                message: format!("Housing does not support writing logic type {logic_type:?}"),
                 line: 0,
             }),
         }

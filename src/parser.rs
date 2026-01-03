@@ -18,8 +18,8 @@ pub fn preprocess(source: &str) -> IC10Result<String> {
     let hex_re = Regex::new(r"\$([A-Fa-f0-9_]+)").unwrap();
 
     let mut result = Vec::new();
-    for (_line_num, line) in source.lines().enumerate() {
-        let line = comment_re.replace(&line, "");
+    for line in source.lines() {
+        let line = comment_re.replace(line, "");
         let mut line = line.to_string();
 
         // String packing: STR("text")
@@ -49,7 +49,7 @@ pub fn preprocess(source: &str) -> IC10Result<String> {
         line = bin_re
             .replace_all(&line, |caps: &regex::Captures| {
                 match parse_binary_str(&caps[1]) {
-                    Some(val) => format!("{}", val),
+                    Some(val) => format!("{val}"),
                     None => "<ERR:InvalidProcessBinary>".to_string(),
                 }
             })
@@ -59,7 +59,7 @@ pub fn preprocess(source: &str) -> IC10Result<String> {
         line = hex_re
             .replace_all(&line, |caps: &regex::Captures| {
                 match parse_hex_str(&caps[1]) {
-                    Some(val) => format!("{}", val),
+                    Some(val) => format!("{val}"),
                     None => "<ERR:InvalidPreprocessHex>".to_string(),
                 }
             })
@@ -120,7 +120,7 @@ pub fn parse_hex(input: &str) -> IC10Result<i64> {
     let hex_str = input.trim_start_matches('$');
     parse_hex_str(hex_str).ok_or_else(|| IC10Error::ParseError {
         line: 0,
-        message: format!("Invalid hexadecimal literal: {}", input),
+        message: format!("Invalid hexadecimal literal: {input}"),
     })
 }
 
@@ -129,6 +129,6 @@ pub fn parse_binary(input: &str) -> IC10Result<i64> {
     let bin_str = input.trim_start_matches('%');
     parse_binary_str(bin_str).ok_or_else(|| IC10Error::ParseError {
         line: 0,
-        message: format!("Invalid binary literal: {}", input),
+        message: format!("Invalid binary literal: {input}"),
     })
 }

@@ -709,12 +709,11 @@ pub enum Instruction {
 // Parse a destination operand (register or alias like sp/ra)
 fn parse_dest_operand(token: &str) -> Operand {
     // Try to parse as a register first
-    if let Some(stripped) = token.strip_prefix('r') {
-        if let Ok(idx) = stripped.parse::<usize>() {
-            if idx < REGISTER_COUNT {
-                return Operand::Register(idx);
-            }
-        }
+    if let Some(stripped) = token.strip_prefix('r')
+        && let Ok(idx) = stripped.parse::<usize>()
+        && idx < REGISTER_COUNT
+    {
+        return Operand::Register(idx);
     }
     // Otherwise treat as an alias (including sp/ra)
     Operand::Alias(token.to_string())
@@ -727,18 +726,17 @@ fn parse_operand(token: &str) -> Operand {
     }
 
     // Check for device pins (d0, d1, d2, etc.)
-    if let Some(stripped) = token.strip_prefix('d') {
-        if let Ok(idx) = stripped.parse::<usize>() {
-            return Operand::DevicePin(idx);
-        }
+    if let Some(stripped) = token.strip_prefix('d')
+        && let Ok(idx) = stripped.parse::<usize>()
+    {
+        return Operand::DevicePin(idx);
     }
 
-    if let Some(stripped) = token.strip_prefix('r') {
-        if let Ok(idx) = stripped.parse::<usize>() {
-            if idx < REGISTER_COUNT {
-                return Operand::Register(idx);
-            }
-        }
+    if let Some(stripped) = token.strip_prefix('r')
+        && let Ok(idx) = stripped.parse::<usize>()
+        && idx < REGISTER_COUNT
+    {
+        return Operand::Register(idx);
     }
     if let Ok(val) = token.parse::<f64>() {
         return Operand::Immediate(val);
@@ -777,12 +775,12 @@ fn parse_alias_target(token: &str) -> IC10Result<AliasTarget> {
             .parse::<usize>()
             .map_err(|_| IC10Error::ParseError {
                 line: 0,
-                message: format!("Invalid register for alias: {}", token),
+                message: format!("Invalid register for alias: {token}"),
             })?;
         if idx >= REGISTER_COUNT {
             return Err(IC10Error::ParseError {
                 line: 0,
-                message: format!("Register index out of range (r0-r17): {}", token),
+                message: format!("Register index out of range (r0-r17): {token}"),
             });
         }
         Ok(AliasTarget::Register(idx))
@@ -791,14 +789,14 @@ fn parse_alias_target(token: &str) -> IC10Result<AliasTarget> {
             .parse::<usize>()
             .map_err(|_| IC10Error::ParseError {
                 line: 0,
-                message: format!("Invalid device for alias: {}", token),
+                message: format!("Invalid device for alias: {token}"),
             })?;
         // Store as i32 (will be interpreted as pin index during execution and resolved to ref ID)
         Ok(AliasTarget::Device(idx as i32))
     } else {
         Err(IC10Error::ParseError {
             line: 0,
-            message: format!("Invalid alias target: {}", token),
+            message: format!("Invalid alias target: {token}"),
         })
     }
 }

@@ -1,6 +1,7 @@
 use crate::devices::{Device, LogicType};
 use crate::error::IC10Result;
-use std::cell::{Ref, RefCell, RefMut};
+use crate::types::{OptShared, Shared};
+use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -14,7 +15,7 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 pub struct CableNetwork {
     /// All devices on the network, keyed by their reference ID
-    devices: HashMap<i32, Rc<RefCell<dyn Device>>>,
+    devices: HashMap<i32, Shared<dyn Device>>,
 
     /// Index for quick lookup by prefab hash
     /// Maps prefab_hash -> list of device reference IDs
@@ -38,11 +39,7 @@ impl CableNetwork {
     /// Add a device to the network and set up the bidirectional connection
     ///
     /// The device will be indexed by its reference ID, prefab hash, and name hash
-    pub fn add_device(
-        &mut self,
-        device: Rc<RefCell<dyn Device>>,
-        network_rc: Rc<RefCell<CableNetwork>>,
-    ) {
+    pub fn add_device(&mut self, device: Shared<dyn Device>, network_rc: Shared<CableNetwork>) {
         // Set the device's network reference
         device.borrow_mut().set_network(Some(network_rc));
 
@@ -58,18 +55,15 @@ impl CableNetwork {
         // Add to prefab index
         self.prefab_index
             .entry(prefab_hash)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(ref_id);
 
         // Add to name index
-        self.name_index
-            .entry(name_hash)
-            .or_insert_with(Vec::new)
-            .push(ref_id);
+        self.name_index.entry(name_hash).or_default().push(ref_id);
     }
 
     /// Remove a device from the network by its reference ID
-    pub fn remove_device(&mut self, ref_id: i32) -> Option<Rc<RefCell<dyn Device>>> {
+    pub fn remove_device(&mut self, ref_id: i32) -> OptShared<dyn Device> {
         if let Some(device) = self.devices.remove(&ref_id) {
             let borrowed = device.borrow();
             let prefab_hash = borrowed.get_prefab_hash();
@@ -114,7 +108,7 @@ impl CableNetwork {
         // Add to new name index
         self.name_index
             .entry(new_name_hash)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(ref_id);
     }
 
@@ -125,20 +119,15 @@ impl CableNetwork {
 
     /// Get a device by its reference ID (immutable borrow)
     /// Returns the Rc so the caller can borrow as needed
-    pub fn get_device(&self, ref_id: i32) -> Option<Ref<dyn Device>> {
+    pub fn get_device(&self, ref_id: i32) -> Option<Ref<'_, dyn Device>> {
         self.devices.get(&ref_id).map(|d| d.borrow())
     }
 
     /// Get a device by its reference ID (mutable borrow)
     /// Returns the Rc so the caller can borrow as needed
-    pub fn get_device_mut(&self, ref_id: i32) -> Option<RefMut<dyn Device>> {
+    pub fn get_device_mut(&self, ref_id: i32) -> Option<RefMut<'_, dyn Device>> {
         let device = self.devices.get(&ref_id)?;
         Some(device.borrow_mut())
-    }
-
-    /// Get the raw Rc for a device (for when you need to store a reference)
-    pub fn get_device_rc(&self, ref_id: i32) -> Option<Rc<RefCell<dyn Device>>> {
-        self.devices.get(&ref_id).cloned()
     }
 
     /// Get all devices with a specific prefab hash
@@ -240,12 +229,12 @@ impl CableNetwork {
         let mut values: Vec<f64> = Vec::new();
 
         for &ref_id in device_ids {
-            if let Some(device) = self.get_device(ref_id) {
-                if device.can_read(logic_type) {
-                    match device.read(logic_type) {
-                        Ok(val) => values.push(val),
-                        Err(_) => continue, // Skip devices that error
-                    }
+            if let Some(device) = self.get_device(ref_id)
+                && device.can_read(logic_type)
+            {
+                match device.read(logic_type) {
+                    Ok(val) => values.push(val),
+                    Err(_) => continue, // Skip devices that error
                 }
             }
         }
@@ -303,12 +292,11 @@ impl CableNetwork {
         let mut write_count = 0;
 
         for &ref_id in device_ids {
-            if let Some(device) = self.get_device(ref_id) {
-                if device.can_write(logic_type) {
-                    if device.write(logic_type, value).is_ok() {
-                        write_count += 1;
-                    }
-                }
+            if let Some(device) = self.get_device(ref_id)
+                && device.can_write(logic_type)
+                && device.write(logic_type, value).is_ok()
+            {
+                write_count += 1;
             }
         }
 

@@ -1,18 +1,18 @@
 use ic10_emulator::{
     DaylightSensor, Device, LogicType, ProgrammableChip, conversions::packed_number_to_text,
-    devices::LogicMemory, parser::preprocess,
+    devices::LogicMemory, parser::preprocess, types::shared,
 };
-use std::{cell::RefCell, rc::Rc, thread::sleep, time::Duration};
+use std::{thread::sleep, time::Duration};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a network
     let (chip, housing, network) = ProgrammableChip::new_with_network();
 
-    let sensor = Rc::new(RefCell::new(DaylightSensor::new(None)));
-    let memory_aio = Rc::new(RefCell::new(LogicMemory::new(None)));
-    let memory_hours = Rc::new(RefCell::new(LogicMemory::new(None)));
-    let memory_minutes = Rc::new(RefCell::new(LogicMemory::new(None)));
-    let memory_seconds = Rc::new(RefCell::new(LogicMemory::new(None)));
+    let sensor = shared(DaylightSensor::new(None));
+    let memory_aio = shared(LogicMemory::new(None));
+    let memory_hours = shared(LogicMemory::new(None));
+    let memory_minutes = shared(LogicMemory::new(None));
+    let memory_seconds = shared(LogicMemory::new(None));
 
     {
         let mut n = network.borrow_mut();

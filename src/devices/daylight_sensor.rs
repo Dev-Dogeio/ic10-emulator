@@ -11,8 +11,8 @@ use crate::{
     CableNetwork,
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
     error::{IC10Error, IC10Result},
+    types::OptShared,
 };
-use std::{cell::RefCell, rc::Rc};
 
 /// Daylight Sensor - tracks the sun's position in the sky
 #[derive(Debug)]
@@ -66,11 +66,11 @@ impl Device for DaylightSensor {
         &self.base.name
     }
 
-    fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
+    fn get_network(&self) -> OptShared<CableNetwork> {
         self.base.network.clone()
     }
 
-    fn set_network(&mut self, network: Option<Rc<RefCell<CableNetwork>>>) {
+    fn set_network(&mut self, network: OptShared<CableNetwork>) {
         self.base.network = network;
     }
 
@@ -120,8 +120,7 @@ impl Device for DaylightSensor {
             }
             _ => Err(IC10Error::RuntimeError {
                 message: format!(
-                    "Daylight sensor does not support reading logic type {:?}",
-                    logic_type
+                    "Daylight sensor does not support reading logic type {logic_type:?}"
                 ),
                 line: 0,
             }),
@@ -140,8 +139,7 @@ impl Device for DaylightSensor {
             }
             _ => Err(IC10Error::RuntimeError {
                 message: format!(
-                    "Daylight sensor does not support writing logic type {:?}",
-                    logic_type
+                    "Daylight sensor does not support writing logic type {logic_type:?}"
                 ),
                 line: 0,
             }),

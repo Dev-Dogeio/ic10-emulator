@@ -27,7 +27,7 @@ pub fn execute_instruction(
                         AliasTarget::Device(ref_id)
                     } else {
                         return Err(IC10Error::RuntimeError {
-                            message: format!("No device assigned to pin d{}", pin),
+                            message: format!("No device assigned to pin d{pin}"),
                             line: instruction.line_number,
                         });
                     }
@@ -1221,11 +1221,11 @@ pub fn execute_instruction(
             let can_load = if let Some(lt) = logic_type_enum {
                 if let Some(network) = chip.get_network() {
                     let network_ref = network.borrow();
-                    let result = match network_ref.get_device(ref_id) {
+
+                    match network_ref.get_device(ref_id) {
                         Some(device) => device.can_read(lt),
                         None => false,
-                    };
-                    result
+                    }
                 } else {
                     false
                 }
@@ -1254,11 +1254,11 @@ pub fn execute_instruction(
             let can_store = if let Some(lt) = logic_type_enum {
                 if let Some(network) = chip.get_network() {
                     let network_ref = network.borrow();
-                    let result = match network_ref.get_device(ref_id) {
+
+                    match network_ref.get_device(ref_id) {
                         Some(device) => device.can_write(lt),
                         None => false,
-                    };
-                    result
+                    }
                 } else {
                     false
                 }
@@ -1341,7 +1341,7 @@ pub fn execute_instruction(
             let logic_type_val = chip.resolve_value(logic_type)?;
             let logic_type =
                 LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid logic type: {}", logic_type_val),
+                    message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
@@ -1359,7 +1359,7 @@ pub fn execute_instruction(
                 let device = network_ref
                     .get_device(ref_id)
                     .ok_or(IC10Error::RuntimeError {
-                        message: format!("Device with reference ID {} not found", ref_id),
+                        message: format!("Device with reference ID {ref_id} not found"),
                         line: instruction.line_number,
                     })?;
                 device.read(logic_type)?
@@ -1378,7 +1378,7 @@ pub fn execute_instruction(
             let value = chip.resolve_value(value)?;
             let logic_type =
                 LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid logic type: {}", logic_type_val),
+                    message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
@@ -1391,7 +1391,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             device.write(logic_type, value)?;
@@ -1455,7 +1455,7 @@ pub fn execute_instruction(
             let logic_type_val = chip.resolve_value(logic_type)?;
             let logic_type =
                 LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid logic type: {}", logic_type_val),
+                    message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
@@ -1467,7 +1467,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
 
@@ -1486,7 +1486,7 @@ pub fn execute_instruction(
             let value = chip.resolve_value(value)?;
             let logic_type =
                 LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid logic type: {}", logic_type_val),
+                    message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
@@ -1498,7 +1498,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
 
@@ -1519,13 +1519,13 @@ pub fn execute_instruction(
 
             let logic_type =
                 LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid logic type: {}", logic_type_val),
+                    message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
             let batch_mode =
                 BatchMode::from_value(batch_mode_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid batch mode: {}", batch_mode_val),
+                    message: format!("Invalid batch mode: {batch_mode_val}"),
                     line: instruction.line_number,
                 })?;
 
@@ -1552,7 +1552,7 @@ pub fn execute_instruction(
 
             let logic_type =
                 LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid logic type: {}", logic_type_val),
+                    message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
@@ -1579,13 +1579,13 @@ pub fn execute_instruction(
 
             let logic_type =
                 LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid logic type: {}", logic_type_val),
+                    message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
             let batch_mode =
                 BatchMode::from_value(batch_mode_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid batch mode: {}", batch_mode_val),
+                    message: format!("Invalid batch mode: {batch_mode_val}"),
                     line: instruction.line_number,
                 })?;
 
@@ -1616,7 +1616,7 @@ pub fn execute_instruction(
 
             let logic_type =
                 LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
-                    message: format!("Invalid logic type: {}", logic_type_val),
+                    message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
@@ -1647,7 +1647,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             let value = device
@@ -1677,7 +1677,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             device
@@ -1704,7 +1704,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             let value = device
@@ -1734,7 +1734,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             device
@@ -1772,7 +1772,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             device.clear().map_err(|e| IC10Error::RuntimeError {
@@ -1791,7 +1791,7 @@ pub fn execute_instruction(
             let device = network_ref
                 .get_device(ref_id)
                 .ok_or(IC10Error::RuntimeError {
-                    message: format!("Device with reference ID {} not found", ref_id),
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             device.clear().map_err(|e| IC10Error::RuntimeError {

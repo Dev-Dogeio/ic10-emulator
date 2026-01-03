@@ -2,9 +2,10 @@ use crate::{
     CableNetwork,
     error::{IC10Error, IC10Result},
     parser::string_to_hash,
+    types::OptShared,
 };
+use std::cell::RefCell;
 use std::sync::atomic::{AtomicI32, Ordering};
-use std::{cell::RefCell, rc::Rc};
 
 pub mod daylight_sensor;
 pub mod ic_housing;
@@ -116,7 +117,7 @@ impl LogicType {
 #[derive(Debug)]
 pub struct DeviceBase {
     pub name: String,
-    pub network: Option<Rc<RefCell<CableNetwork>>>,
+    pub network: OptShared<CableNetwork>,
     pub logic_types: RefCell<LogicTypes>,
 }
 
@@ -131,16 +132,12 @@ impl DeviceBase {
         }
     }
 
-    pub fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
+    pub fn get_network(&self) -> OptShared<CableNetwork> {
         self.network.clone()
     }
 
-    pub fn is_connected(&self) -> bool {
-        self.network.is_some()
-    }
-
     /// Set the network reference for the device
-    pub fn set_network(&mut self, network: Option<Rc<RefCell<CableNetwork>>>) {
+    pub fn set_network(&mut self, network: OptShared<CableNetwork>) {
         self.network = network;
     }
 
@@ -224,7 +221,7 @@ pub trait Device: std::fmt::Debug {
     fn get_name(&self) -> &str;
 
     /// Get the device's network
-    fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>>;
+    fn get_network(&self) -> OptShared<CableNetwork>;
 
     /// Check if the device can read the specified logic type
     fn can_read(&self, logic_type: LogicType) -> bool;
@@ -263,7 +260,7 @@ pub trait Device: std::fmt::Debug {
     }
 
     /// Set the network reference for the device
-    fn set_network(&mut self, network: Option<Rc<RefCell<CableNetwork>>>);
+    fn set_network(&mut self, network: OptShared<CableNetwork>);
 
     /// Set the device's name
     fn set_name(&mut self, name: &str);

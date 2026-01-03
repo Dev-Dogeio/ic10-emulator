@@ -14,26 +14,25 @@ mod tests {
     use crate::devices::{DaylightSensor, Device, ICHousing};
     use crate::instruction::ParsedInstruction;
     use crate::logic::execute_instruction;
-    use std::cell::RefCell;
-    use std::rc::Rc;
+    use crate::types::shared;
 
     // ==================== Test Helpers ====================
 
     /// Create a chip with optional initial register values
     fn chip() -> ProgrammableChip {
-        let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing = shared(ICHousing::new(None, None));
         ProgrammableChip::new(housing)
     }
 
     /// Execute a single instruction from string, return new PC
     fn exec(chip: &mut ProgrammableChip, line: &str) -> Result<usize, String> {
-        let parsed = ParsedInstruction::parse(line, 0).map_err(|e| format!("{:?}", e))?;
-        execute_instruction(chip, &parsed).map_err(|e| format!("{:?}", e))
+        let parsed = ParsedInstruction::parse(line, 0).map_err(|e| format!("{e:?}"))?;
+        execute_instruction(chip, &parsed).map_err(|e| format!("{e:?}"))
     }
 
     /// Execute instruction, expect success
     fn exec_ok(chip: &mut ProgrammableChip, line: &str) -> usize {
-        exec(chip, line).expect(&format!("Failed to execute: {}", line))
+        exec(chip, line).unwrap_or_else(|_| panic!("Failed to execute: {line}"))
     }
 
     /// Get register value
@@ -50,20 +49,13 @@ mod tests {
     fn assert_reg(chip: &ProgrammableChip, idx: usize, expected: f64) {
         let actual = reg(chip, idx);
         if expected.is_nan() {
-            assert!(actual.is_nan(), "r{} expected NaN, got {}", idx, actual);
+            assert!(actual.is_nan(), "r{idx} expected NaN, got {actual}");
         } else if expected.is_infinite() {
-            assert_eq!(
-                actual, expected,
-                "r{} expected {}, got {}",
-                idx, expected, actual
-            );
+            assert_eq!(actual, expected, "r{idx} expected {expected}, got {actual}");
         } else {
             assert!(
                 (actual - expected).abs() < 1e-10,
-                "r{} expected {}, got {}",
-                idx,
-                expected,
-                actual
+                "r{idx} expected {expected}, got {actual}"
             );
         }
     }
@@ -242,7 +234,7 @@ mod tests {
         for _ in 0..10 {
             exec_ok(&mut chip, "rand r0");
             let val = reg(&chip, 0);
-            assert!(val >= 0.0 && val < 1.0, "rand out of range: {}", val);
+            assert!((0.0..1.0).contains(&val), "rand out of range: {val}");
         }
     }
 
@@ -721,6 +713,7 @@ yield
 
         exec_ok(&mut chip, "define PI 3.14159");
         exec_ok(&mut chip, "move r0 PI");
+        #[allow(clippy::approx_constant)]
         assert_reg(&chip, 0, 3.14159);
     }
 
@@ -1045,7 +1038,7 @@ j ra
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add a device and assign it to d0
-        let sensor = Rc::new(RefCell::new(DaylightSensor::new(None)));
+        let sensor = shared(DaylightSensor::new(None));
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
@@ -1074,7 +1067,7 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add a device and assign it to d0
-        let sensor = Rc::new(RefCell::new(DaylightSensor::new(None)));
+        let sensor = shared(DaylightSensor::new(None));
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
@@ -1104,7 +1097,7 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add a device to make d0 exist
-        let sensor = Rc::new(RefCell::new(DaylightSensor::new(None)));
+        let sensor = shared(DaylightSensor::new(None));
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
@@ -1134,7 +1127,7 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add a device to d0
-        let sensor = Rc::new(RefCell::new(DaylightSensor::new(None)));
+        let sensor = shared(DaylightSensor::new(None));
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
@@ -1206,7 +1199,7 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add another IC housing to the network (supports Setting = 12)
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing2 = shared(ICHousing::new(None, None));
         let housing2_id = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1270,7 +1263,7 @@ yield
         let (chip, housing, network) = ProgrammableChip::new_with_network();
 
         // Add another IC housing device to the network
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing2 = shared(ICHousing::new(None, None));
         let device_id = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1284,8 +1277,7 @@ yield
         // Set housing2 as device on pin 0
         housing.borrow_mut().set_device_pin(0, Some(device_id));
 
-        let program = format!(
-            r#"
+        let program = r#"
 # Test get - read from device memory
 get r0 d0 0      # Read from index 0
 get r1 d0 5      # Read from index 5
@@ -1303,7 +1295,7 @@ get r4 d0 r10    # Read it back
 
 yield
 "#
-        );
+        .to_string();
 
         chip.borrow_mut().load_program(&program).unwrap();
         chip.borrow_mut().run(128).unwrap();
@@ -1327,7 +1319,7 @@ yield
         let (chip, housing, network) = ProgrammableChip::new_with_network();
 
         // Add another IC housing device to the network
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing2 = shared(ICHousing::new(None, None));
         let device_id = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1378,7 +1370,7 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add another IC housing device to the network (supports Setting)
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing2 = shared(ICHousing::new(None, None));
         let device_id = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1387,12 +1379,11 @@ yield
         // Store the device ID in a register and use ld/sd - Setting = 12
         let program = format!(
             r#"
-move r1 {}
+move r1 {device_id}
 sd r1 12 42
 ld r0 r1 12
 yield
-"#,
-            device_id
+"#
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
@@ -1408,7 +1399,7 @@ yield
 
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing2 = shared(ICHousing::new(None, None));
         let device_id = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1416,7 +1407,7 @@ yield
 
         let program = format!(
             r#"
-move r1 {}
+move r1 {device_id}
 
 # Test with string name
 sd r1 Setting 10
@@ -1432,8 +1423,7 @@ sd r1 r5 30
 ld r3 r1 r5
 
 yield
-"#,
-            device_id
+"#
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
@@ -1456,7 +1446,7 @@ yield
 
         // Add 3 more ICHousing devices (they support Setting)
         for _ in 0..3 {
-            let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
+            let housing = shared(ICHousing::new(None, None));
             network.borrow_mut().add_device(housing, network.clone());
         }
 
@@ -1475,12 +1465,11 @@ yield
         // sb sets Setting(12) on all devices, lb reads sum - BatchMode 1 is Sum
         let program = format!(
             r#"
-move r1 {}
+move r1 {hash}
 sb r1 12 5
 lb r0 r1 12 1
 yield
-"#,
-            hash
+"#
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
@@ -1504,12 +1493,11 @@ yield
         // Test with string name "Setting"
         let program = format!(
             r#"
-move r1 {}
+move r1 {hash}
 sb r1 Setting 10
 lb r0 r1 Setting 1
 yield
-"#,
-            hash
+"#
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
@@ -1521,13 +1509,12 @@ yield
         // Test with register containing logic type
         let program2 = format!(
             r#"
-move r1 {}
+move r1 {hash}
 move r5 12
 sb r1 r5 20
 lb r0 r1 r5 1
 yield
-"#,
-            hash
+"#
         );
 
         chip.borrow_mut().load_program(&program2).unwrap();
@@ -1599,13 +1586,13 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add two IC housing devices to the network
-        let housing1 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing1 = shared(ICHousing::new(None, None));
         let device_id1 = housing1.borrow().id();
         network
             .borrow_mut()
             .add_device(housing1.clone(), network.clone());
 
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing2 = shared(ICHousing::new(None, None));
         let device_id2 = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1620,36 +1607,27 @@ yield
         let program = format!(
             r#"
 # Test getd - read from device memory by ID
-getd r0 {} 0      # Read from housing1 index 0
-getd r1 {} 50     # Read from housing1 index 50
-getd r2 {} 0      # Read from housing2 index 0
-getd r3 {} 100    # Read from housing2 index 100
+getd r0 {device_id1} 0      # Read from housing1 index 0
+getd r1 {device_id1} 50     # Read from housing1 index 50
+getd r2 {device_id2} 0      # Read from housing2 index 0
+getd r3 {device_id2} 100    # Read from housing2 index 100
 
 # Test putd - write to device memory by ID
-putd 555.0 {} 10    # Write to housing1 index 10
-getd r4 {} 10       # Read it back
+putd 555.0 {device_id1} 10    # Write to housing1 index 10
+getd r4 {device_id1} 10       # Read it back
 
-putd 666.0 {} 200   # Write to housing2 index 200
-getd r5 {} 200      # Read it back
+putd 666.0 {device_id2} 200   # Write to housing2 index 200
+getd r5 {device_id2} 200      # Read it back
 
 # Test with register operands
-move r10 {}
+move r10 {device_id1}
 move r11 25
 move r12 777.0
 putd r12 r10 r11    # Write 777.0 to housing1 index 25
 getd r6 r10 r11     # Read it back
 
 yield
-"#,
-            device_id1,
-            device_id1,
-            device_id2,
-            device_id2,
-            device_id1,
-            device_id1,
-            device_id2,
-            device_id2,
-            device_id1
+"#
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
@@ -1679,13 +1657,13 @@ yield
         let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
         // Add two IC housing devices to the network
-        let housing1 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing1 = shared(ICHousing::new(None, None));
         let device_id1 = housing1.borrow().id();
         network
             .borrow_mut()
             .add_device(housing1.clone(), network.clone());
 
-        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let housing2 = shared(ICHousing::new(None, None));
         let device_id2 = housing2.borrow().id();
         network
             .borrow_mut()
@@ -1703,43 +1681,30 @@ yield
         let program = format!(
             r#"
 # Verify memory has values in housing1
-getd r0 {} 0
-getd r1 {} 100
-getd r2 {} 511
+getd r0 {device_id1} 0
+getd r1 {device_id1} 100
+getd r2 {device_id1} 511
 
 # Verify memory has values in housing2
-getd r3 {} 0
-getd r4 {} 100
-getd r5 {} 511
+getd r3 {device_id2} 0
+getd r4 {device_id2} 100
+getd r5 {device_id2} 511
 
 # Clear housing1 memory
-clrd {}
+clrd {device_id1}
 
 # Read back housing1 to verify it's cleared
-getd r6 {} 0
-getd r7 {} 100
-getd r8 {} 511
+getd r6 {device_id1} 0
+getd r7 {device_id1} 100
+getd r8 {device_id1} 511
 
 # Read back housing2 to verify it's NOT cleared
-getd r9 {} 0
-getd r10 {} 100
-getd r11 {} 511
+getd r9 {device_id2} 0
+getd r10 {device_id2} 100
+getd r11 {device_id2} 511
 
 yield
-"#,
-            device_id1,
-            device_id1,
-            device_id1,
-            device_id2,
-            device_id2,
-            device_id2,
-            device_id1,
-            device_id1,
-            device_id1,
-            device_id1,
-            device_id2,
-            device_id2,
-            device_id2
+"#
         );
 
         chip.borrow_mut().load_program(&program).unwrap();

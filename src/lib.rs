@@ -7,6 +7,7 @@ pub mod instruction;
 pub mod logic;
 pub mod network;
 pub mod parser;
+pub mod types;
 
 #[cfg(test)]
 pub mod tests;

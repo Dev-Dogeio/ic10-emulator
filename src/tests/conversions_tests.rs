@@ -42,7 +42,7 @@ mod tests {
         for &val in &[0.0, 1.0, 42.0, 1000.0, 65535.0, 1000000.0] {
             let as_long = double_to_long(val, true);
             let back = long_to_double(as_long);
-            assert_eq!(back, val, "Round trip failed for {}", val);
+            assert_eq!(back, val, "Round trip failed for {val}");
         }
     }
 

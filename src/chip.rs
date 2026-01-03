@@ -8,9 +8,8 @@ use crate::instruction::{Instruction, ParsedInstruction};
 use crate::logic;
 use crate::network::CableNetwork;
 use crate::parser::preprocess;
-use std::cell::RefCell;
+use crate::types::{OptShared, Shared, shared};
 use std::collections::HashMap;
-use std::rc::Rc;
 
 /// The main IC10 programmable chip
 #[derive(Debug)]
@@ -31,7 +30,7 @@ pub struct ProgrammableChip {
     defines: HashMap<String, f64>,
 
     /// Circuit housing (the IC housing device itself)
-    housing: Rc<RefCell<ICHousing>>,
+    housing: Shared<ICHousing>,
 
     /// Execution state
     halted: bool,
@@ -52,7 +51,7 @@ pub enum AliasTarget {
 
 impl ProgrammableChip {
     /// Create a new programmable chip with a housing
-    pub fn new(housing: Rc<RefCell<ICHousing>>) -> Self {
+    pub fn new(housing: Shared<ICHousing>) -> Self {
         let mut aliases = HashMap::new();
         // db is a default alias that points to the housing itself
         let housing_id = housing.borrow().id();
@@ -73,14 +72,10 @@ impl ProgrammableChip {
 
     /// Create a chip with a new network and housing
     /// Sets up a chip, network, and housing, and connects them
-    pub fn new_with_network() -> (
-        Rc<RefCell<Self>>,
-        Rc<RefCell<ICHousing>>,
-        Rc<RefCell<CableNetwork>>,
-    ) {
-        let network = Rc::new(RefCell::new(CableNetwork::new()));
-        let housing = Rc::new(RefCell::new(ICHousing::new(None, None)));
-        let chip = Rc::new(RefCell::new(ProgrammableChip::new(housing.clone())));
+    pub fn new_with_network() -> (Shared<Self>, Shared<ICHousing>, Shared<CableNetwork>) {
+        let network = shared(CableNetwork::new());
+        let housing = shared(ICHousing::new(None, None));
+        let chip = shared(ProgrammableChip::new(housing.clone()));
 
         // Connect chip to housing
         housing.borrow_mut().set_chip(chip.clone());
@@ -114,7 +109,7 @@ impl ProgrammableChip {
                 if self.labels.contains_key(&label_name) {
                     return Err(IC10Error::ParseError {
                         line: line_num,
-                        message: format!("Duplicate label: {}", label_name),
+                        message: format!("Duplicate label: {label_name}"),
                     });
                 }
                 self.labels.insert(label_name, line_num);
@@ -124,27 +119,27 @@ impl ProgrammableChip {
         // Second pass: parse instructions
         for (line_num, line) in preprocessed.lines().enumerate() {
             let parsed = ParsedInstruction::parse(line, line_num)?;
+
             // If this is an alias instruction for a device, validate the device pin
             if let Instruction::Alias {
                 name: _,
-                ref target,
+                target: AliasTarget::Device(pin_idx),
             } = parsed.instruction
             {
-                if let AliasTarget::Device(pin_idx) = target {
-                    // pin_idx in parsed instruction is the pin index (stored as i32)
-                    let pin = *pin_idx as usize;
-                    if pin >= DEVICE_PIN_COUNT {
-                        return Err(IC10Error::ParseError {
-                            line: line_num,
-                            message: format!(
-                                "Device pin out of range: d{} (max d{})",
-                                pin,
-                                DEVICE_PIN_COUNT - 1
-                            ),
-                        });
-                    }
+                // pin_idx in parsed instruction is the pin index (stored as i32)
+                let pin = pin_idx as usize;
+                if pin >= DEVICE_PIN_COUNT {
+                    return Err(IC10Error::ParseError {
+                        line: line_num,
+                        message: format!(
+                            "Device pin out of range: d{} (max d{})",
+                            pin,
+                            DEVICE_PIN_COUNT - 1
+                        ),
+                    });
                 }
             }
+
             self.program.push(parsed);
         }
 
@@ -232,7 +227,7 @@ impl ProgrammableChip {
                     Some(AliasTarget::Register(idx)) => self.get_register(*idx),
                     Some(AliasTarget::Device(_)) => Err(IC10Error::RuntimeError {
                         line: self.pc,
-                        message: format!("Cannot use device alias '{}' as a value", name),
+                        message: format!("Cannot use device alias '{name}' as a value"),
                     }),
                     None => {
                         // Check for labels
@@ -246,7 +241,7 @@ impl ProgrammableChip {
                             "ra" => self.get_register(RETURN_ADDRESS_INDEX),
                             _ => Err(IC10Error::RuntimeError {
                                 line: self.pc,
-                                message: format!("Undefined alias, define, or label: {}", name),
+                                message: format!("Undefined alias, define, or label: {name}"),
                             }),
                         }
                     }
@@ -274,8 +269,7 @@ impl ProgrammableChip {
                     Some(AliasTarget::Device(_)) => Err(IC10Error::RuntimeError {
                         line: self.pc,
                         message: format!(
-                            "Cannot use device alias '{}' as a register destination",
-                            name
+                            "Cannot use device alias '{name}' as a register destination"
                         ),
                     }),
                     None => {
@@ -285,7 +279,7 @@ impl ProgrammableChip {
                             "ra" => Ok(RETURN_ADDRESS_INDEX),
                             _ => Err(IC10Error::RuntimeError {
                                 line: self.pc,
-                                message: format!("Undefined alias: {}", name),
+                                message: format!("Undefined alias: {name}"),
                             }),
                         }
                     }
@@ -306,7 +300,7 @@ impl ProgrammableChip {
                 } else {
                     Err(IC10Error::RuntimeError {
                         line: self.pc,
-                        message: format!("No device assigned to pin d{}", pin_idx),
+                        message: format!("No device assigned to pin d{pin_idx}"),
                     })
                 }
             }
@@ -330,7 +324,7 @@ impl ProgrammableChip {
                     }
                     None => Err(IC10Error::RuntimeError {
                         line: self.pc,
-                        message: format!("Undefined device alias: {}", name),
+                        message: format!("Undefined device alias: {name}"),
                     }),
                 }
             }
@@ -428,22 +422,22 @@ impl ProgrammableChip {
     }
 
     /// Get a reference to the housing
-    pub fn get_housing(&self) -> std::cell::Ref<ICHousing> {
+    pub fn get_housing(&self) -> std::cell::Ref<'_, ICHousing> {
         self.housing.borrow()
     }
 
     /// Get a mutable reference to the housing
-    pub fn get_housing_mut(&self) -> std::cell::RefMut<ICHousing> {
+    pub fn get_housing_mut(&self) -> std::cell::RefMut<'_, ICHousing> {
         self.housing.borrow_mut()
     }
 
     /// Get the Rc to the housing (for when you need to clone the reference)
-    pub fn get_housing_rc(&self) -> Rc<RefCell<ICHousing>> {
+    pub fn get_housing_rc(&self) -> Shared<ICHousing> {
         self.housing.clone()
     }
 
     /// Get a reference to the cable network (if connected)
-    pub fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
+    pub fn get_network(&self) -> OptShared<CableNetwork> {
         self.housing.borrow().get_network()
     }
 
@@ -457,26 +451,26 @@ impl ProgrammableChip {
         let housing = self.housing.borrow();
         println!("Non-zero Registers:");
         for i in 0..REGISTER_COUNT {
-            if let Ok(value) = housing.get_register(i) {
-                if value != 0.0 {
-                    if value.fract() == 0.0 {
-                        println!("r{}: {:.0}", i, value);
-                    } else {
-                        println!("r{}: {:.6}", i, value);
-                    }
+            if let Ok(value) = housing.get_register(i)
+                && value != 0.0
+            {
+                if value.fract() == 0.0 {
+                    println!("r{i}: {value:.0}");
+                } else {
+                    println!("r{i}: {value:.6}");
                 }
             }
         }
 
         println!("\nNon-zero Stack Values:");
         for i in 0..STACK_SIZE {
-            if let Ok(value) = housing.read_stack(i) {
-                if value != 0.0 {
-                    if value.fract() == 0.0 {
-                        println!("stack[{}]: {:.0}", i, value);
-                    } else {
-                        println!("stack[{}]: {:.6}", i, value);
-                    }
+            if let Ok(value) = housing.read_stack(i)
+                && value != 0.0
+            {
+                if value.fract() == 0.0 {
+                    println!("stack[{i}]: {value:.0}");
+                } else {
+                    println!("stack[{i}]: {value:.6}");
                 }
             }
         }

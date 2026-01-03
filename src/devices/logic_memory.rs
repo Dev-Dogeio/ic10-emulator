@@ -7,8 +7,8 @@ use crate::{
     CableNetwork,
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
     error::{IC10Error, IC10Result},
+    types::OptShared,
 };
-use std::{cell::RefCell, rc::Rc};
 
 /// Logic Memory - stores a single value that can be read and written
 #[derive(Debug)]
@@ -51,11 +51,11 @@ impl Device for LogicMemory {
         &self.base.name
     }
 
-    fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
+    fn get_network(&self) -> OptShared<CableNetwork> {
         self.base.network.clone()
     }
 
-    fn set_network(&mut self, network: Option<Rc<RefCell<CableNetwork>>>) {
+    fn set_network(&mut self, network: OptShared<CableNetwork>) {
         self.base.network = network;
     }
 
@@ -93,10 +93,7 @@ impl Device for LogicMemory {
                     })
             }
             _ => Err(IC10Error::RuntimeError {
-                message: format!(
-                    "Logic Memory does not support reading logic type {:?}",
-                    logic_type
-                ),
+                message: format!("Logic Memory does not support reading logic type {logic_type:?}"),
                 line: 0,
             }),
         }
@@ -109,10 +106,7 @@ impl Device for LogicMemory {
                 Ok(())
             }
             _ => Err(IC10Error::RuntimeError {
-                message: format!(
-                    "Logic Memory does not support writing logic type {:?}",
-                    logic_type
-                ),
+                message: format!("Logic Memory does not support writing logic type {logic_type:?}"),
                 line: 0,
             }),
         }
