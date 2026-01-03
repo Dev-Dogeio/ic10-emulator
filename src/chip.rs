@@ -1,7 +1,7 @@
 use crate::constants::{
     DEVICE_PIN_COUNT, REGISTER_COUNT, RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX, STACK_SIZE,
 };
-use crate::devices::{Device, ICHousing};
+use crate::devices::ICHousing;
 use crate::error::{IC10Error, IC10Result};
 use crate::get_builtin_constants;
 use crate::instruction::{Instruction, ParsedInstruction};
@@ -450,20 +450,6 @@ impl ProgrammableChip {
     /// Get the housing's reference ID
     pub fn get_housing_id(&self) -> i32 {
         self.housing.borrow().id()
-    }
-
-    /// Reset the chip to initial state
-    pub fn reset(&mut self) {
-        {
-            let housing = self.housing.borrow_mut();
-            for i in 0..REGISTER_COUNT {
-                let _ = housing.set_register(i, 0.0);
-            }
-            let _ = housing.clear_memory();
-        }
-        self.pc = 0;
-        self.halted = false;
-        self.error_line = None;
     }
 
     /// Print debug information: registers and non-zero stack values

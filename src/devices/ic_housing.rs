@@ -108,6 +108,11 @@ impl ICHousing {
         Ok(())
     }
 
+    /// Clear device stack memory (clr/clrd)
+    pub fn clear(&self) {
+        self.stack.borrow_mut().fill(0.0);
+    }
+
     /// Get the unique id of the housing
     pub fn id(&self) -> i32 {
         self.base.logic_types.borrow().reference_id
@@ -263,6 +268,22 @@ impl Device for ICHousing {
                 line: 0,
             }),
         }
+    }
+
+    /// Read from device internal memory at index
+    fn get_memory(&self, index: usize) -> IC10Result<f64> {
+        self.read_stack(index)
+    }
+
+    /// Write to device internal memory at index
+    fn set_memory(&self, index: usize, value: f64) -> IC10Result<()> {
+        self.write_stack(index, value)
+    }
+
+    /// Clear device stack memory (clr/clrd)
+    fn clear(&self) -> IC10Result<()> {
+        self.stack.borrow_mut().fill(0.0);
+        Ok(())
     }
 }
 

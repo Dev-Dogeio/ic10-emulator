@@ -1775,7 +1775,7 @@ pub fn execute_instruction(
                     message: format!("Device with reference ID {} not found", ref_id),
                     line: instruction.line_number,
                 })?;
-            device.clear_memory().map_err(|e| IC10Error::RuntimeError {
+            device.clear().map_err(|e| IC10Error::RuntimeError {
                 message: e.to_string(),
                 line: instruction.line_number,
             })?;
@@ -1794,7 +1794,7 @@ pub fn execute_instruction(
                     message: format!("Device with reference ID {} not found", ref_id),
                     line: instruction.line_number,
                 })?;
-            device.clear_memory().map_err(|e| IC10Error::RuntimeError {
+            device.clear().map_err(|e| IC10Error::RuntimeError {
                 message: e.to_string(),
                 line: instruction.line_number,
             })?;

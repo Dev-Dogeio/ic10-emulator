@@ -1264,37 +1264,111 @@ yield
     }
 
     // ==================== Memory Access Tests ====================
-    // NOTE: get/put/getd/putd/clr/clrd currently require Device trait methods
-    // that ICHousing doesn't implement. These tests are placeholders for when
-    // the feature is complete.
 
     #[test]
     fn test_get_put() {
-        // get/put use device.get_memory/set_memory which ICHousing doesn't implement
-        // This test documents the expected behavior when implemented
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, housing, network) = ProgrammableChip::new_with_network();
 
-        // Just test that the instructions parse correctly by loading a program
-        // The actual execution would fail until ICHousing implements Device memory methods
-        let program = r#"
+        // Add another IC housing device to the network
+        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let device_id = housing2.borrow().id();
+        network
+            .borrow_mut()
+            .add_device(housing2.clone(), network.clone());
+
+        // Write some values to housing2's memory
+        housing2.borrow().write_stack(0, 42.0).unwrap();
+        housing2.borrow().write_stack(5, 100.0).unwrap();
+        housing2.borrow().write_stack(511, 999.0).unwrap();
+
+        // Set housing2 as device on pin 0
+        housing.borrow_mut().set_device_pin(0, Some(device_id));
+
+        let program = format!(
+            r#"
+# Test get - read from device memory
+get r0 d0 0      # Read from index 0
+get r1 d0 5      # Read from index 5
+get r2 d0 511    # Read from index 511
+
+# Test put - write to device memory
+put 77.0 d0 1    # Write to index 1
+get r3 d0 1      # Read it back
+
+# Test with register operands
+move r10 2
+move r11 55.5
+put r11 d0 r10   # Write 55.5 to index 2
+get r4 d0 r10    # Read it back
+
 yield
-"#;
-        chip.borrow_mut().load_program(program).unwrap();
+"#
+        );
+
+        chip.borrow_mut().load_program(&program).unwrap();
         chip.borrow_mut().run(128).unwrap();
-        // Test passes if no panic - placeholder for future functionality
+
+        // Verify results
+        let chip_ref = chip.borrow();
+        assert_reg(&chip_ref, 0, 42.0); // Read from index 0
+        assert_reg(&chip_ref, 1, 100.0); // Read from index 5
+        assert_reg(&chip_ref, 2, 999.0); // Read from index 511
+        assert_reg(&chip_ref, 3, 77.0); // Read back written value
+        assert_reg(&chip_ref, 4, 55.5); // Read back register-written value
+
+        // Verify the memory was actually written
+        drop(chip_ref);
+        assert_eq!(housing2.borrow().read_stack(1).unwrap(), 77.0);
+        assert_eq!(housing2.borrow().read_stack(2).unwrap(), 55.5);
     }
 
     #[test]
     fn test_clr() {
-        // clr uses device.clear_memory which ICHousing doesn't implement
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, housing, network) = ProgrammableChip::new_with_network();
+
+        // Add another IC housing device to the network
+        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let device_id = housing2.borrow().id();
+        network
+            .borrow_mut()
+            .add_device(housing2.clone(), network.clone());
+
+        // Write some values to housing2's memory
+        housing2.borrow().write_stack(0, 42.0).unwrap();
+        housing2.borrow().write_stack(100, 123.0).unwrap();
+        housing2.borrow().write_stack(511, 999.0).unwrap();
+
+        // Set housing2 as device on pin 0
+        housing.borrow_mut().set_device_pin(0, Some(device_id));
 
         let program = r#"
+# Verify memory has values
+get r0 d0 0
+get r1 d0 100
+get r2 d0 511
+
+# Clear the device memory
+clr d0
+
+# Read back to verify it's cleared
+get r3 d0 0
+get r4 d0 100
+get r5 d0 511
+
 yield
 "#;
+
         chip.borrow_mut().load_program(program).unwrap();
         chip.borrow_mut().run(128).unwrap();
-        // Test passes if no panic - placeholder for future functionality
+
+        // Verify results
+        let chip_ref = chip.borrow();
+        assert_reg(&chip_ref, 0, 42.0); // Before clear
+        assert_reg(&chip_ref, 1, 123.0); // Before clear
+        assert_reg(&chip_ref, 2, 999.0); // Before clear
+        assert_reg(&chip_ref, 3, 0.0); // After clear
+        assert_reg(&chip_ref, 4, 0.0); // After clear
+        assert_reg(&chip_ref, 5, 0.0); // After clear
     }
 
     // ==================== ID-Based Device Access Tests ====================
@@ -1519,34 +1593,175 @@ yield
     }
 
     // ==================== Getd/Putd Tests ====================
-    // NOTE: getd/putd use device.get_memory/set_memory which ICHousing doesn't implement
 
     #[test]
     fn test_getd_putd() {
-        // getd/putd use device.get_memory/set_memory which ICHousing doesn't implement
-        // This test documents the expected behavior when implemented
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
-        let program = r#"
+        // Add two IC housing devices to the network
+        let housing1 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let device_id1 = housing1.borrow().id();
+        network
+            .borrow_mut()
+            .add_device(housing1.clone(), network.clone());
+
+        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let device_id2 = housing2.borrow().id();
+        network
+            .borrow_mut()
+            .add_device(housing2.clone(), network.clone());
+
+        // Write some values to housing1 and housing2's memory
+        housing1.borrow().write_stack(0, 111.0).unwrap();
+        housing1.borrow().write_stack(50, 222.0).unwrap();
+        housing2.borrow().write_stack(0, 333.0).unwrap();
+        housing2.borrow().write_stack(100, 444.0).unwrap();
+
+        let program = format!(
+            r#"
+# Test getd - read from device memory by ID
+getd r0 {} 0      # Read from housing1 index 0
+getd r1 {} 50     # Read from housing1 index 50
+getd r2 {} 0      # Read from housing2 index 0
+getd r3 {} 100    # Read from housing2 index 100
+
+# Test putd - write to device memory by ID
+putd 555.0 {} 10    # Write to housing1 index 10
+getd r4 {} 10       # Read it back
+
+putd 666.0 {} 200   # Write to housing2 index 200
+getd r5 {} 200      # Read it back
+
+# Test with register operands
+move r10 {}
+move r11 25
+move r12 777.0
+putd r12 r10 r11    # Write 777.0 to housing1 index 25
+getd r6 r10 r11     # Read it back
+
 yield
-"#;
-        chip.borrow_mut().load_program(program).unwrap();
+"#,
+            device_id1,
+            device_id1,
+            device_id2,
+            device_id2,
+            device_id1,
+            device_id1,
+            device_id2,
+            device_id2,
+            device_id1
+        );
+
+        chip.borrow_mut().load_program(&program).unwrap();
         chip.borrow_mut().run(128).unwrap();
-        // Test passes if no panic - placeholder for future functionality
+
+        // Verify results
+        let chip_ref = chip.borrow();
+        assert_reg(&chip_ref, 0, 111.0); // Read from housing1 index 0
+        assert_reg(&chip_ref, 1, 222.0); // Read from housing1 index 50
+        assert_reg(&chip_ref, 2, 333.0); // Read from housing2 index 0
+        assert_reg(&chip_ref, 3, 444.0); // Read from housing2 index 100
+        assert_reg(&chip_ref, 4, 555.0); // Read back housing1 written value
+        assert_reg(&chip_ref, 5, 666.0); // Read back housing2 written value
+        assert_reg(&chip_ref, 6, 777.0); // Read back register-written value
+
+        // Verify the memory was actually written
+        drop(chip_ref);
+        assert_eq!(housing1.borrow().read_stack(10).unwrap(), 555.0);
+        assert_eq!(housing1.borrow().read_stack(25).unwrap(), 777.0);
+        assert_eq!(housing2.borrow().read_stack(200).unwrap(), 666.0);
     }
 
     // ==================== Clrd Test ====================
 
     #[test]
     fn test_clrd() {
-        // clrd uses device.clear_memory which ICHousing doesn't implement
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ProgrammableChip::new_with_network();
 
-        let program = r#"
+        // Add two IC housing devices to the network
+        let housing1 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let device_id1 = housing1.borrow().id();
+        network
+            .borrow_mut()
+            .add_device(housing1.clone(), network.clone());
+
+        let housing2 = Rc::new(RefCell::new(ICHousing::new(None, None)));
+        let device_id2 = housing2.borrow().id();
+        network
+            .borrow_mut()
+            .add_device(housing2.clone(), network.clone());
+
+        // Write some values to both housings' memory
+        housing1.borrow().write_stack(0, 111.0).unwrap();
+        housing1.borrow().write_stack(100, 222.0).unwrap();
+        housing1.borrow().write_stack(511, 333.0).unwrap();
+
+        housing2.borrow().write_stack(0, 444.0).unwrap();
+        housing2.borrow().write_stack(100, 555.0).unwrap();
+        housing2.borrow().write_stack(511, 666.0).unwrap();
+
+        let program = format!(
+            r#"
+# Verify memory has values in housing1
+getd r0 {} 0
+getd r1 {} 100
+getd r2 {} 511
+
+# Verify memory has values in housing2
+getd r3 {} 0
+getd r4 {} 100
+getd r5 {} 511
+
+# Clear housing1 memory
+clrd {}
+
+# Read back housing1 to verify it's cleared
+getd r6 {} 0
+getd r7 {} 100
+getd r8 {} 511
+
+# Read back housing2 to verify it's NOT cleared
+getd r9 {} 0
+getd r10 {} 100
+getd r11 {} 511
+
 yield
-"#;
-        chip.borrow_mut().load_program(program).unwrap();
+"#,
+            device_id1,
+            device_id1,
+            device_id1,
+            device_id2,
+            device_id2,
+            device_id2,
+            device_id1,
+            device_id1,
+            device_id1,
+            device_id1,
+            device_id2,
+            device_id2,
+            device_id2
+        );
+
+        chip.borrow_mut().load_program(&program).unwrap();
         chip.borrow_mut().run(128).unwrap();
-        // Test passes if no panic - placeholder for future functionality
+
+        // Verify results
+        let chip_ref = chip.borrow();
+        // Before clear - housing1
+        assert_reg(&chip_ref, 0, 111.0);
+        assert_reg(&chip_ref, 1, 222.0);
+        assert_reg(&chip_ref, 2, 333.0);
+        // Before clear - housing2
+        assert_reg(&chip_ref, 3, 444.0);
+        assert_reg(&chip_ref, 4, 555.0);
+        assert_reg(&chip_ref, 5, 666.0);
+        // After clear - housing1 (should be 0)
+        assert_reg(&chip_ref, 6, 0.0);
+        assert_reg(&chip_ref, 7, 0.0);
+        assert_reg(&chip_ref, 8, 0.0);
+        // After clear - housing2 (should still have values)
+        assert_reg(&chip_ref, 9, 444.0);
+        assert_reg(&chip_ref, 10, 555.0);
+        assert_reg(&chip_ref, 11, 666.0);
     }
 }

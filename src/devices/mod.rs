@@ -236,8 +236,8 @@ pub trait Device: std::fmt::Debug {
         })
     }
 
-    /// Clear all device memory
-    fn clear_memory(&self) -> IC10Result<()> {
+    /// Clear device stack memory (clr/clrd)
+    fn clear(&self) -> IC10Result<()> {
         Err(IC10Error::RuntimeError {
             message: "Device does not support memory clearing".to_string(),
             line: 0,
