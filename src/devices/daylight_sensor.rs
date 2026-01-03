@@ -45,11 +45,16 @@ pub struct DaylightSensor {
 
 impl DaylightSensor {
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Self {
+        let mut base = DeviceBase::new(
+            "Daylight Sensor".to_string(),
+            "StructureDaylightSensor".to_string(),
+        );
+
+        base.logic_types.horizontal = Some(0.0);
+        base.logic_types.vertical = Some(0.0);
+
         Self {
-            base: DeviceBase::new(
-                "Daylight Sensor".to_string(),
-                "StructureDaylightSensor".to_string(),
-            ),
+            base,
             current_tick: 0,
             settings: simulation_settings.unwrap_or_default(),
         }

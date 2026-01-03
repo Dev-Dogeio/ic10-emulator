@@ -18,12 +18,13 @@ pub struct LogicMemory {
 
 impl LogicMemory {
     pub fn new() -> Self {
-        Self {
-            base: DeviceBase::new(
-                "Logic Memory".to_string(),
-                "StructureLogicMemory".to_string(),
-            ),
-        }
+        let mut base = DeviceBase::new(
+            "Logic Memory".to_string(),
+            "StructureLogicMemory".to_string(),
+        );
+
+        base.logic_types.setting = Some(0.0);
+        Self { base }
     }
 }
 

@@ -30,11 +30,15 @@ pub struct ICHousing {
 
 impl ICHousing {
     pub fn new(chip: Option<Rc<RefCell<ProgrammableChip>>>) -> Self {
+        let mut base = DeviceBase::new(
+            "IC Housing".to_string(),
+            "StructureCircuitHousing".to_string(),
+        );
+
+        base.logic_types.setting = Some(0.0);
+
         Self {
-            base: DeviceBase::new(
-                "IC Housing".to_string(),
-                "StructureCircuitHousing".to_string(),
-            ),
+            base,
             chip: chip,
             device_pins: [None; DEVICE_PIN_COUNT],
             registers: [0.0; REGISTER_COUNT],
