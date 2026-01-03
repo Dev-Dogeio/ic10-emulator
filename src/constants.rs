@@ -1,0 +1,52 @@
+//! Built-in constants for IC10
+
+use std::collections::HashMap;
+
+/// Stack size for the IC housing
+pub const STACK_SIZE: usize = 512;
+
+/// Number of registers (r0-r15 general purpose, r16=sp, r17=ra)
+pub const REGISTER_COUNT: usize = 18;
+
+/// Number of device pins on the IC housing (d0-d5)
+pub const DEVICE_PIN_COUNT: usize = 6;
+
+/// Stack pointer register index (r16/sp)
+pub const STACK_POINTER_INDEX: usize = 16;
+
+/// Return address register index (r17/ra)
+pub const RETURN_ADDRESS_INDEX: usize = 17;
+
+/// Built-in IC10 constants
+pub fn get_builtin_constants() -> HashMap<String, f64> {
+    let mut constants = HashMap::new();
+
+    // nan - A constant representing 'not a number'
+    constants.insert("nan".to_string(), f64::NAN);
+
+    // pinf - A constant representing positive infinity
+    constants.insert("pinf".to_string(), f64::INFINITY);
+
+    // ninf - A constant representing negative infinity
+    constants.insert("ninf".to_string(), f64::NEG_INFINITY);
+
+    // pi - Ratio of circumference to diameter
+    constants.insert("pi".to_string(), std::f64::consts::PI);
+
+    // tau - Ratio of circumference to radius (2*pi)
+    constants.insert("tau".to_string(), 2.0 * std::f64::consts::PI);
+
+    // deg2rad - Degrees to radians conversion
+    constants.insert("deg2rad".to_string(), std::f64::consts::PI / 180.0);
+
+    // rad2deg - Radians to degrees conversion (matches C# exactly: 57.295780181884766)
+    constants.insert("rad2deg".to_string(), 57.295780181884766);
+
+    // epsilon - Smallest positive subnormal > 0
+    constants.insert("epsilon".to_string(), 4.94065645841247E-324);
+
+    // rgas - Universal gas constant (J/(mol*K))
+    constants.insert("rgas".to_string(), 8.31446261815324);
+
+    constants
+}

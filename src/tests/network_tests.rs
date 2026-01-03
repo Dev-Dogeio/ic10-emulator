@@ -1,0 +1,362 @@
+#[cfg(test)]
+mod tests {
+    use crate::devices::LogicTypes;
+    use crate::error::IC10Error;
+    use crate::parser::string_to_hash;
+    use crate::{BatchMode, Device, IC10Result, LogicType};
+    use crate::{CableNetwork, devices::ICHousing};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+    };
+
+    /// Test device for network testing
+    #[derive(Debug)]
+    struct TestNetworkDevice {
+        id: i32,
+        prefab_hash: i32,
+        name_hash: i32,
+        setting: Cell<f64>,
+    }
+
+    impl TestNetworkDevice {
+        fn new(id: i32, prefab_hash: i32, name_hash: i32) -> Self {
+            Self {
+                id,
+                prefab_hash,
+                name_hash,
+                setting: Cell::new(0.0),
+            }
+        }
+    }
+
+    impl Device for TestNetworkDevice {
+        fn get_id(&self) -> i32 {
+            self.id
+        }
+
+        fn get_prefab_hash(&self) -> i32 {
+            self.prefab_hash
+        }
+
+        fn get_name_hash(&self) -> i32 {
+            self.name_hash
+        }
+
+        fn get_name(&self) -> &str {
+            "Test"
+        }
+        fn get_network(&self) -> Option<Rc<RefCell<CableNetwork>>> {
+            None
+        }
+        fn get_logic_types(&self) -> &LogicTypes {
+            static LOGIC_TYPES: std::sync::OnceLock<LogicTypes> = std::sync::OnceLock::new();
+            LOGIC_TYPES.get_or_init(|| LogicTypes::new(self.id, self.prefab_hash, "Test"))
+        }
+        fn set_network(&mut self, _network: Option<Rc<RefCell<CableNetwork>>>) {}
+
+        fn set_name(&mut self, _name: &str) {}
+
+        fn can_read(&self, logic_type: LogicType) -> bool {
+            matches!(logic_type, LogicType::Setting)
+        }
+
+        fn can_write(&self, logic_type: LogicType) -> bool {
+            matches!(logic_type, LogicType::Setting)
+        }
+
+        fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
+            match logic_type {
+                LogicType::Setting => Ok(self.setting.get()),
+                _ => Err(IC10Error::RuntimeError {
+                    message: "Unsupported logic type".to_string(),
+                    line: 0,
+                }),
+            }
+        }
+
+        fn write(&mut self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+            match logic_type {
+                LogicType::Setting => {
+                    self.setting.set(value);
+                    Ok(())
+                }
+                _ => Err(IC10Error::RuntimeError {
+                    message: "Unsupported logic type".to_string(),
+                    line: 0,
+                }),
+            }
+        }
+    }
+
+    #[test]
+    fn test_add_and_get_device() {
+        let mut network = CableNetwork::new();
+        let device = Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200)));
+
+        network.add_device(device.clone(), Rc::new(RefCell::new(network.clone())));
+
+        assert!(network.device_exists(1));
+        assert_eq!(network.device_count(), 1);
+
+        let retrieved = network.get_device(1).unwrap();
+        assert_eq!(retrieved.get_id(), 1);
+        assert_eq!(retrieved.get_prefab_hash(), 100);
+    }
+
+    #[test]
+    fn test_remove_device() {
+        let mut network = CableNetwork::new();
+        let device = Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200)));
+
+        network.add_device(device, Rc::new(RefCell::new(network.clone())));
+        assert!(network.device_exists(1));
+
+        network.remove_device(1);
+        assert!(!network.device_exists(1));
+        assert_eq!(network.device_count(), 0);
+    }
+
+    #[test]
+    fn test_get_devices_by_prefab() {
+        let mut network = CableNetwork::new();
+
+        // Add 3 devices with same prefab hash
+        for i in 1..=3 {
+            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i, 100, 200)));
+            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+        }
+
+        // Add 2 devices with different prefab hash
+        for i in 4..=5 {
+            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i, 999, 200)));
+            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+        }
+
+        let prefab_100_devices = network.get_devices_by_prefab(100);
+        assert_eq!(prefab_100_devices.len(), 3);
+
+        let prefab_999_devices = network.get_devices_by_prefab(999);
+        assert_eq!(prefab_999_devices.len(), 2);
+
+        let prefab_empty = network.get_devices_by_prefab(888);
+        assert!(prefab_empty.is_empty());
+    }
+
+    #[test]
+    fn test_get_devices_by_name() {
+        let mut network = CableNetwork::new();
+
+        // Add devices with different name hashes
+        network.add_device(
+            Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200))),
+            Rc::new(RefCell::new(network.clone())),
+        );
+        network.add_device(
+            Rc::new(RefCell::new(TestNetworkDevice::new(2, 100, 200))),
+            Rc::new(RefCell::new(network.clone())),
+        );
+        network.add_device(
+            Rc::new(RefCell::new(TestNetworkDevice::new(3, 100, 300))),
+            Rc::new(RefCell::new(network.clone())),
+        );
+
+        let name_200_devices = network.get_devices_by_name(200);
+        assert_eq!(name_200_devices.len(), 2);
+
+        let name_300_devices = network.get_devices_by_name(300);
+        assert_eq!(name_300_devices.len(), 1);
+    }
+
+    #[test]
+    fn test_batch_read_average() {
+        let mut network = CableNetwork::new();
+
+        // Add devices with different settings
+        for (i, val) in [10.0, 20.0, 30.0].iter().enumerate() {
+            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i as i32 + 1, 100, 200)));
+            device.borrow_mut().setting.set(*val);
+            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+        }
+
+        let avg = network
+            .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Average)
+            .unwrap();
+        assert_eq!(avg, 20.0); // (10 + 20 + 30) / 3
+    }
+
+    #[test]
+    fn test_batch_read_sum() {
+        let mut network = CableNetwork::new();
+
+        for (i, val) in [10.0, 20.0, 30.0].iter().enumerate() {
+            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i as i32 + 1, 100, 200)));
+            device.borrow_mut().setting.set(*val);
+            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+        }
+
+        let sum = network
+            .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Sum)
+            .unwrap();
+        assert_eq!(sum, 60.0);
+    }
+
+    #[test]
+    fn test_batch_read_min_max() {
+        let mut network = CableNetwork::new();
+
+        for (i, val) in [10.0, 5.0, 30.0].iter().enumerate() {
+            let device = Rc::new(RefCell::new(TestNetworkDevice::new(i as i32 + 1, 100, 200)));
+            device.borrow_mut().setting.set(*val);
+            network.add_device(device, Rc::new(RefCell::new(network.clone())));
+        }
+
+        let min = network
+            .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Minimum)
+            .unwrap();
+        assert_eq!(min, 5.0);
+
+        let max = network
+            .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Maximum)
+            .unwrap();
+        assert_eq!(max, 30.0);
+    }
+
+    #[test]
+    fn test_batch_write() {
+        let mut network = CableNetwork::new();
+
+        // Add 3 devices with same prefab hash
+        let devices: Vec<_> = (1..=3)
+            .map(|i| Rc::new(RefCell::new(TestNetworkDevice::new(i, 100, 200))))
+            .collect();
+
+        for device in &devices {
+            network.add_device(device.clone(), Rc::new(RefCell::new(network.clone())));
+        }
+
+        // Batch write to all devices
+        let count = network
+            .batch_write_by_prefab(100, LogicType::Setting, 42.0)
+            .unwrap();
+        assert_eq!(count, 3);
+
+        // Verify all devices were updated
+        for device in &devices {
+            assert_eq!(device.borrow().setting.get(), 42.0);
+        }
+    }
+
+    #[test]
+    fn test_batch_read_by_name() {
+        let mut network = CableNetwork::new();
+
+        // Add devices with different name hashes
+        let device1 = Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200)));
+        device1.borrow_mut().setting.set(10.0);
+        network.add_device(device1, Rc::new(RefCell::new(network.clone())));
+
+        let device2 = Rc::new(RefCell::new(TestNetworkDevice::new(2, 100, 200)));
+        device2.borrow_mut().setting.set(20.0);
+        network.add_device(device2, Rc::new(RefCell::new(network.clone())));
+
+        let device3 = Rc::new(RefCell::new(TestNetworkDevice::new(3, 100, 300)));
+        device3.borrow_mut().setting.set(100.0);
+        network.add_device(device3, Rc::new(RefCell::new(network.clone())));
+
+        // Read only devices with prefab 100 AND name 200
+        let avg = network
+            .batch_read_by_name(100, 200, LogicType::Setting, BatchMode::Average)
+            .unwrap();
+        assert_eq!(avg, 15.0); // (10 + 20) / 2, excludes device3
+    }
+
+    #[test]
+    fn test_batch_write_by_name() {
+        let mut network = CableNetwork::new();
+
+        let device1 = Rc::new(RefCell::new(TestNetworkDevice::new(1, 100, 200)));
+        network.add_device(device1.clone(), Rc::new(RefCell::new(network.clone())));
+
+        let device2 = Rc::new(RefCell::new(TestNetworkDevice::new(2, 100, 200)));
+        network.add_device(device2.clone(), Rc::new(RefCell::new(network.clone())));
+
+        let device3 = Rc::new(RefCell::new(TestNetworkDevice::new(3, 100, 300)));
+        network.add_device(device3.clone(), Rc::new(RefCell::new(network.clone())));
+
+        // Write only to devices with prefab 100 AND name 200
+        let count = network
+            .batch_write_by_name(100, 200, LogicType::Setting, 99.0)
+            .unwrap();
+        assert_eq!(count, 2);
+
+        // Verify only matching devices were updated
+        assert_eq!(device1.borrow().setting.get(), 99.0);
+        assert_eq!(device2.borrow().setting.get(), 99.0);
+        assert_eq!(device3.borrow().setting.get(), 0.0); // unchanged
+    }
+
+    #[test]
+    fn test_batch_mode_from_value() {
+        assert_eq!(BatchMode::from_value(0.0), Some(BatchMode::Average));
+        assert_eq!(BatchMode::from_value(1.0), Some(BatchMode::Sum));
+        assert_eq!(BatchMode::from_value(2.0), Some(BatchMode::Minimum));
+        assert_eq!(BatchMode::from_value(3.0), Some(BatchMode::Maximum));
+        assert_eq!(BatchMode::from_value(4.0), None);
+    }
+
+    #[test]
+    fn test_empty_batch_returns_zero() {
+        let network = CableNetwork::new();
+
+        let result = network
+            .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Average)
+            .unwrap();
+        assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn test_housing_on_network() {
+        let mut network = CableNetwork::new();
+        let housing = Rc::new(RefCell::new(ICHousing::new(None)));
+
+        network.add_device(housing.clone(), Rc::new(RefCell::new(network.clone())));
+
+        assert_eq!(network.device_count(), 1);
+        assert!(network.device_exists(housing.borrow().get_id()));
+    }
+
+    #[test]
+    fn test_device_rename_updates_network() {        
+        let network = Rc::new(RefCell::new(CableNetwork::new()));
+        let housing = Rc::new(RefCell::new(ICHousing::new(None)));
+        let device_id = housing.borrow().get_id();
+
+        // Add device to network
+        network.borrow_mut().add_device(housing.clone(), network.clone());
+
+        // Get initial name hash
+        let old_name_hash = housing.borrow().get_name_hash();
+
+        // Verify device can be found by old name hash
+        let devices_by_old_name = network.borrow().get_devices_by_name(old_name_hash);
+        assert_eq!(devices_by_old_name.len(), 1);
+        assert_eq!(devices_by_old_name[0], device_id);
+
+        // Rename the device
+        housing.borrow_mut().set_name("NewName");
+
+        // Get new name hash
+        let new_name_hash = string_to_hash("NewName");
+        assert_eq!(housing.borrow().get_name_hash(), new_name_hash);
+
+        // Verify device can be found by new name hash
+        let devices_by_new_name = network.borrow().get_devices_by_name(new_name_hash);
+        assert_eq!(devices_by_new_name.len(), 1);
+        assert_eq!(devices_by_new_name[0], device_id);
+
+        // Verify device cannot be found by old name hash
+        let devices_by_old_name = network.borrow().get_devices_by_name(old_name_hash);
+        assert_eq!(devices_by_old_name.len(), 0);
+    }
+}
