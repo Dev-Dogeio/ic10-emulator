@@ -357,7 +357,7 @@ impl Device for AirConditioner {
                 line: 0,
             })?;
 
-        let output2_rc = self
+        let waste_rc = self
             .waste_network
             .as_ref()
             .ok_or(SimulationError::RuntimeError {
@@ -365,7 +365,7 @@ impl Device for AirConditioner {
                 line: 0,
             })?;
 
-        let goal_temperature =
+        let target_temperature =
             self.base
                 .logic_types
                 .borrow()
@@ -375,67 +375,73 @@ impl Device for AirConditioner {
                     line: 0,
                 })?;
 
-        let input_temp = input_rc.borrow().temperature();
+        let input_temperature = input_rc.borrow().temperature();
 
-        // only operate if goal temperature differs from input by at least 1K
-        if (goal_temperature - input_temp).abs() < 1.0 {
+        // only operate if target temperature differs from input by at least 1K
+        if (target_temperature - input_temperature).abs() < 1.0 {
             self.processed_moles.set(0.0);
             return Ok(());
         }
 
         // compute pressure scalar
-        let pressure_kpa = 0.1;
-        let in_pressure_ratio = input_rc.borrow().pressure() / ONE_ATMOSPHERE - pressure_kpa;
-        let out2_pressure_ratio = output2_rc.borrow().pressure() / ONE_ATMOSPHERE - pressure_kpa;
-        let optimal_pressure_scalar = in_pressure_ratio.min(out2_pressure_ratio).clamp(0.0, 1.0);
+        let pressure_offset_kpa = 0.1;
+
+        let input_pressure_ratio =
+            input_rc.borrow().pressure() / ONE_ATMOSPHERE - pressure_offset_kpa;
+        let waste_pressure_ratio =
+            waste_rc.borrow().pressure() / ONE_ATMOSPHERE - pressure_offset_kpa;
+
+        let optimal_pressure_scalar = input_pressure_ratio
+            .min(waste_pressure_ratio)
+            .clamp(0.0, 1.0);
 
         // transfer moles using ideal gas law for internal volume
-        let transfer_moles_amount =
-            calculate_moles(PRESSURE_PER_TICK, INTERNAL_VOLUME_LITRES, input_temp);
+        let transfer_moles =
+            calculate_moles(PRESSURE_PER_TICK, INTERNAL_VOLUME_LITRES, input_temperature);
 
-        if transfer_moles_amount <= 0.0 {
+        if transfer_moles <= 0.0 {
             self.processed_moles.set(0.0);
             return Ok(());
         }
 
         // remove that many moles from the input network
-        let transfer_mixture = input_rc.borrow_mut().remove_moles(transfer_moles_amount);
+        let transferred_mixture = input_rc.borrow_mut().remove_moles(transfer_moles);
 
         // add to internal buffer
         {
             let mut internal = self.internal.borrow_mut();
-            internal.merge(&transfer_mixture);
+            internal.merge(&transferred_mixture);
 
-            // temperature delta evaluation
-            let num3 = if goal_temperature > internal.temperature() {
-                output2_rc.borrow().temperature() - internal.temperature()
+            // temperature gap evaluation (between internal and waste depending on direction)
+            let temperature_gap = if target_temperature > internal.temperature() {
+                waste_rc.borrow().temperature() - internal.temperature()
             } else {
-                internal.temperature() - output2_rc.borrow().temperature()
+                internal.temperature() - waste_rc.borrow().temperature()
             };
 
-            let num4 = self
+            let operational_efficiency = self
                 .input_and_waste_curve
                 .evaluate(internal.temperature())
                 .min(
                     self.input_and_waste_curve
-                        .evaluate(output2_rc.borrow().temperature()),
+                        .evaluate(waste_rc.borrow().temperature()),
                 );
 
-            let energy = ENERGY_COEFFICIENT
-                * self.temperature_delta_curve.evaluate(num3)
-                * num4
+            let energy_joules = ENERGY_COEFFICIENT
+                * self.temperature_delta_curve.evaluate(temperature_gap)
+                * operational_efficiency
                 * optimal_pressure_scalar
                 * 1.0;
 
-            // transfer thermal energy between internal and output2 according to goal direction
-            if goal_temperature > internal.temperature() {
-                // need heating: remove energy from output2 and add to internal
-                let removed = output2_rc.borrow_mut().remove_energy(energy);
-                internal.add_energy(removed);
+            // transfer thermal energy between internal and waste according to target direction
+            if target_temperature > internal.temperature() {
+                // need heating: remove energy from waste and add to internal
+                let energy_removed = waste_rc.borrow_mut().remove_energy(energy_joules);
+                internal.add_energy(energy_removed);
             } else {
-                // need cooling: remove energy from internal and add to output2
-                let removed = internal.remove_energy(energy);
-                output2_rc.borrow_mut().add_energy(removed);
+                // need cooling: remove energy from internal and add to waste
+                let energy_removed = internal.remove_energy(energy_joules);
+                waste_rc.borrow_mut().add_energy(energy_removed);
             }
 
             // move internal gas to primary output and reset internal buffer
@@ -444,11 +450,12 @@ impl Device for AirConditioner {
 
             // store metrics
             self.temperature_differential_efficiency
-                .set(self.temperature_delta_curve.evaluate(num3));
-            self.operational_temperature_limitor.set(num4);
+                .set(self.temperature_delta_curve.evaluate(temperature_gap));
+            self.operational_temperature_limitor
+                .set(operational_efficiency);
             self.optimal_pressure_scalar.set(optimal_pressure_scalar);
-            self.energy_moved.set(energy);
-            self.processed_moles.set(transfer_moles_amount);
+            self.energy_moved.set(energy_joules);
+            self.processed_moles.set(transfer_moles);
         }
 
         Ok(())
