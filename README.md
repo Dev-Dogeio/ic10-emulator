@@ -2,40 +2,39 @@
 
 ## Overview
 
-The IC10 Emulator is a Rust-based project designed to emulate the behavior of Stationeers IC10 programmable chips.
+The IC10 Emulator is a Rust-based project that emulates the Stationeers IC10 programmable chip and simulates device networks and atmospherics for testing and experimentation.
 
 ## Features
 
--   IC10 instruction set support\*
--   Parsing and execution of IC10 programs.
--   Cable network simulation.
--   Peripheral device emulation (eg sensors/memory chips, more devices will be implemented).
--   Unit tests for core functionality.
--   Modular design for easy extension.
+-   IC10 instruction set parsing and execution (not yet entirely complete)
+-   Cable network simulation (`CableNetwork`) with batch read/write modes
+-   Atmospheric simulation subsystem (`atmospherics`) with:
+    -   Gas types, moles, and energy tracking (`GasType`, `Mole`, `GasMixture`)
+    -   Ideal gas helpers and constants
+    -   `AtmosphericNetwork` for shared gas mixtures between devices
+-   Devices API and examples:
+    -   `Filtration`, `DaylightSensor`, `LogicMemory`, `ICHousing` devices
+-   Modular design for easy extension and testing
 
-\* Not yet complete, but the vast majority of instructions/IC10 features are supported
+---
 
 ## Getting Started
 
 ### Prerequisites
 
--   Rust (latest stable version). You can install Rust using [rustup](https://rustup.rs/).
+-   Rust (latest stable). Install via [rustup](https://rustup.rs/).
 
-### Building the Project
+### Building
 
-1. Clone the repository:
-    ```bash
-    git clone https://github.com/Dev-Dogeio/ic10-emulator.git
-    cd IC10-emulator
-    ```
-2. Build the project:
-    ```bash
-    cargo build
-    ```
+```bash
+git clone https://github.com/Dev-Dogeio/ic10-emulator.git
+cd IC10-emulator
+cargo build
+```
 
-### Running the Emulator
+### Running the example
 
-To run the emulator, use the following command:
+The example in `src/main.rs` includes a short Filtration device demo and an IC program test. Run it with:
 
 ```bash
 cargo run
@@ -51,4 +50,6 @@ cargo test
 
 ## Contributing
 
-Contributions are welcome! If you have ideas for improvements or find any issues, feel free to open an issue or submit a pull request.
+Contributions welcome! Open issues or PRs. Please run `cargo test` and `cargo clippy`/`cargo fmt` before submitting changes.
+
+---
