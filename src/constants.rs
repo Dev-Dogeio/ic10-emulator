@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::parser::string_to_hash;
+use crate::{atmospherics::IDEAL_GAS_CONSTANT, parser::string_to_hash};
 
 /// Stack size for the IC housing
 pub const STACK_SIZE: usize = 512;
@@ -51,7 +51,7 @@ pub fn get_builtin_constants() -> HashMap<String, f64> {
     constants.insert("epsilon".to_string(), 4.94065645841247E-324);
 
     // rgas - Universal gas constant (J/(mol*K))
-    constants.insert("rgas".to_string(), 8.31446261815324);
+    constants.insert("rgas".to_string(), IDEAL_GAS_CONSTANT);
 
     constants
 }

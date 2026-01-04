@@ -9,7 +9,7 @@ use crate::{
     CableNetwork, ProgrammableChip,
     constants::{DEVICE_PIN_COUNT, REGISTER_COUNT, STACK_SIZE},
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
-    error::{IC10Error, IC10Result},
+    error::{SimulationError, SimulationResult},
     parser::string_to_hash,
     types::{OptShared, Shared},
 };
@@ -44,7 +44,10 @@ impl ICHousing {
             string_to_hash("StructureCircuitHousing"),
         );
 
-        base.logic_types.borrow_mut().setting = Some(0.0);
+        base.logic_types
+            .borrow_mut()
+            .set(LogicType::Setting, 0.0)
+            .unwrap();
 
         Self {
             base,
@@ -63,9 +66,9 @@ impl ICHousing {
     }
 
     /// Get a register value
-    pub fn get_register(&self, index: usize) -> IC10Result<f64> {
+    pub fn get_register(&self, index: usize) -> SimulationResult<f64> {
         if index >= REGISTER_COUNT {
-            return Err(IC10Error::RuntimeError {
+            return Err(SimulationError::RuntimeError {
                 message: format!("Register index {index} out of bounds"),
                 line: 0,
             });
@@ -74,9 +77,9 @@ impl ICHousing {
     }
 
     /// Set a register value
-    pub fn set_register(&self, index: usize, value: f64) -> IC10Result<()> {
+    pub fn set_register(&self, index: usize, value: f64) -> SimulationResult<()> {
         if index >= REGISTER_COUNT {
-            return Err(IC10Error::RuntimeError {
+            return Err(SimulationError::RuntimeError {
                 message: format!("Register index {index} out of bounds"),
                 line: 0,
             });
@@ -86,9 +89,9 @@ impl ICHousing {
     }
 
     /// Read from stack memory
-    pub fn read_stack(&self, address: usize) -> IC10Result<f64> {
+    pub fn read_stack(&self, address: usize) -> SimulationResult<f64> {
         if address >= STACK_SIZE {
-            return Err(IC10Error::RuntimeError {
+            return Err(SimulationError::RuntimeError {
                 message: format!("Stack address {address} out of bounds"),
                 line: 0,
             });
@@ -97,9 +100,9 @@ impl ICHousing {
     }
 
     /// Write to stack memory
-    pub fn write_stack(&self, address: usize, value: f64) -> IC10Result<()> {
+    pub fn write_stack(&self, address: usize, value: f64) -> SimulationResult<()> {
         if address >= STACK_SIZE {
-            return Err(IC10Error::RuntimeError {
+            return Err(SimulationError::RuntimeError {
                 message: format!("Stack address {address} out of bounds"),
                 line: 0,
             });
@@ -186,23 +189,6 @@ impl ICHousing {
     pub fn get_last_executed_instructions(&self) -> usize {
         *self.last_executed_instructions.borrow()
     }
-
-    /// Run the chip for a specified number of steps
-    pub fn update(&self, _tick: u64) -> Option<IC10Result<usize>> {
-        if let Some(ref chip) = self.chip {
-            let result = chip
-                .borrow_mut()
-                .run(self.settings.max_instructions_per_tick);
-
-            if let Ok(instructions) = result {
-                *self.last_executed_instructions.borrow_mut() = instructions;
-            }
-
-            return Some(result);
-        }
-
-        None
-    }
 }
 
 impl Device for ICHousing {
@@ -241,14 +227,15 @@ impl Device for ICHousing {
                 | LogicType::ReferenceId
                 | LogicType::NameHash
                 | LogicType::Setting
+                | LogicType::On
         )
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
-        matches!(logic_type, LogicType::Setting)
+        matches!(logic_type, LogicType::Setting | LogicType::On)
     }
 
-    fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
+    fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
         match logic_type {
             LogicType::PrefabHash => Ok(self.base.logic_types.borrow().prefab_hash as f64),
             LogicType::ReferenceId => Ok(self.base.logic_types.borrow().reference_id as f64),
@@ -258,48 +245,61 @@ impl Device for ICHousing {
                     .logic_types
                     .borrow()
                     .setting
-                    .ok_or(IC10Error::RuntimeError {
+                    .ok_or(SimulationError::RuntimeError {
                         message: "Setting value not set".to_string(),
                         line: 0,
                     })
             }
-            _ => Err(IC10Error::RuntimeError {
-                message: format!("Housing does not support reading logic type {logic_type:?}"),
+            LogicType::On => {
+                self.base
+                    .logic_types
+                    .borrow()
+                    .on
+                    .ok_or(SimulationError::RuntimeError {
+                        message: "On value not set".to_string(),
+                        line: 0,
+                    })
+            }
+            _ => Err(SimulationError::RuntimeError {
+                message: format!("IC Housing does not support reading logic type {logic_type:?}"),
                 line: 0,
             }),
         }
     }
 
-    fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+    fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
         match logic_type {
-            LogicType::Setting => {
-                self.base.logic_types.borrow_mut().setting = Some(value);
-                Ok(())
-            }
-            _ => Err(IC10Error::RuntimeError {
-                message: format!("Housing does not support writing logic type {logic_type:?}"),
+            LogicType::Setting => self.base.logic_types.borrow_mut().set(logic_type, value),
+            LogicType::On => self.base.logic_types.borrow_mut().set(logic_type, value),
+            _ => Err(SimulationError::RuntimeError {
+                message: format!("IC Housing does not support writing logic type {logic_type:?}"),
                 line: 0,
             }),
         }
     }
 
     /// Read from device internal memory at index
-    fn get_memory(&self, index: usize) -> IC10Result<f64> {
+    fn get_memory(&self, index: usize) -> SimulationResult<f64> {
         self.read_stack(index)
     }
 
     /// Write to device internal memory at index
-    fn set_memory(&self, index: usize, value: f64) -> IC10Result<()> {
+    fn set_memory(&self, index: usize, value: f64) -> SimulationResult<()> {
         self.write_stack(index, value)
     }
 
     /// Clear device stack memory (clr/clrd)
-    fn clear(&self) -> IC10Result<()> {
+    fn clear(&self) -> SimulationResult<()> {
         self.stack.borrow_mut().fill(0.0);
         Ok(())
     }
 
-    fn update(&self, _tick: u64) -> IC10Result<()> {
+    fn update(&self, _tick: u64) -> SimulationResult<()> {
+        // Only run the chip when device is On (non-zero)
+        if self.base.logic_types.borrow().on.unwrap() == 0.0 {
+            return Ok(());
+        }
+
         if let Some(ref chip) = self.chip {
             let instructions = chip
                 .borrow_mut()

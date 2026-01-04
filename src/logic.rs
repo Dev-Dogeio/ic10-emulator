@@ -1,16 +1,16 @@
 use crate::LogicType;
-use crate::cable_network::BatchMode;
 use crate::chip::{AliasTarget, ProgrammableChip};
 use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
 use crate::conversions::{double_to_long, long_to_double};
 use crate::devices::Device;
-use crate::error::{IC10Error, IC10Result};
+use crate::error::{SimulationError, SimulationResult};
 use crate::instruction::{Instruction, ParsedInstruction};
+use crate::networks::BatchMode;
 
 pub fn execute_instruction(
     chip: &mut ProgrammableChip,
     instruction: &ParsedInstruction,
-) -> IC10Result<usize> {
+) -> SimulationResult<usize> {
     match &instruction.instruction {
         // ==================== Data Movement ====================
         Instruction::Move { dest, arg } => {
@@ -26,7 +26,7 @@ pub fn execute_instruction(
                     if let Some(ref_id) = housing.get_device_pin(pin) {
                         AliasTarget::Device(ref_id)
                     } else {
-                        return Err(IC10Error::RuntimeError {
+                        return Err(SimulationError::RuntimeError {
                             message: format!("No device assigned to pin d{pin}"),
                             line: instruction.line_number,
                         });
@@ -262,25 +262,25 @@ pub fn execute_instruction(
             let num_bits = chip.resolve_value(length)? as i32;
 
             if num_bits <= 0 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     message: "EXT: length must be > 0 (ShiftUnderflow)".to_string(),
                     line: instruction.line_number,
                 });
             }
             if start_bit < 0 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     message: "EXT: start must be >= 0 (ShiftUnderflow)".to_string(),
                     line: instruction.line_number,
                 });
             }
             if start_bit >= 53 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     message: "EXT: start must be < 53 (ShiftOverflow)".to_string(),
                     line: instruction.line_number,
                 });
             }
             if num_bits > 53 || start_bit + num_bits > 53 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     message: "EXT: start + length must be <= 53 (PayloadOverflow)".to_string(),
                     line: instruction.line_number,
                 });
@@ -311,25 +311,25 @@ pub fn execute_instruction(
             let insert_value = double_to_long(chip.resolve_value(value)?, false);
 
             if num_bits <= 0 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     message: "INS: bit count must be > 0 (ShiftUnderflow)".to_string(),
                     line: instruction.line_number,
                 });
             }
             if bit_position < 0 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     message: "INS: bit position must be >= 0 (ShiftUnderflow)".to_string(),
                     line: instruction.line_number,
                 });
             }
             if bit_position >= 53 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     message: "INS: bit position must be < 53 (ShiftOverflow)".to_string(),
                     line: instruction.line_number,
                 });
             }
             if num_bits > 53 || bit_position + num_bits > 53 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     message: "INS: position + count must be <= 53 (PayloadOverflow)".to_string(),
                     line: instruction.line_number,
                 });
@@ -1301,7 +1301,7 @@ pub fn execute_instruction(
         Instruction::Pop { dest } => {
             let sp = chip.get_register(STACK_POINTER_INDEX)? as usize;
             if sp == 0 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     line: chip.get_pc(),
                     message: "Stack underflow: cannot pop from empty stack".to_string(),
                 });
@@ -1315,7 +1315,7 @@ pub fn execute_instruction(
         Instruction::Peek { dest } => {
             let sp = chip.get_register(STACK_POINTER_INDEX)? as usize;
             if sp == 0 {
-                return Err(IC10Error::RuntimeError {
+                return Err(SimulationError::RuntimeError {
                     line: chip.get_pc(),
                     message: "Stack underflow: cannot peek from empty stack".to_string(),
                 });
@@ -1340,7 +1340,7 @@ pub fn execute_instruction(
             let ref_id = chip.resolve_device_ref_id(device)?;
             let logic_type_val = chip.resolve_value(logic_type)?;
             let logic_type =
-                LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
+                LogicType::from_value(logic_type_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
@@ -1351,17 +1351,18 @@ pub fn execute_instruction(
                 // Read directly from housing to avoid double borrow
                 chip.get_housing().read(logic_type)?
             } else {
-                let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+                let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                     message: "Housing not connected to network".to_string(),
                     line: instruction.line_number,
                 })?;
                 let network_ref = network.borrow();
-                let device = network_ref
-                    .get_device(ref_id)
-                    .ok_or(IC10Error::RuntimeError {
-                        message: format!("Device with reference ID {ref_id} not found"),
-                        line: instruction.line_number,
-                    })?;
+                let device =
+                    network_ref
+                        .get_device(ref_id)
+                        .ok_or(SimulationError::RuntimeError {
+                            message: format!("Device with reference ID {ref_id} not found"),
+                            line: instruction.line_number,
+                        })?;
                 device.read(logic_type)?
             };
 
@@ -1377,20 +1378,20 @@ pub fn execute_instruction(
             let logic_type_val = chip.resolve_value(logic_type)?;
             let value = chip.resolve_value(value)?;
             let logic_type =
-                LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
+                LogicType::from_value(logic_type_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
             // Check if we're writing to the housing itself (db)
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
@@ -1404,7 +1405,7 @@ pub fn execute_instruction(
             slot_logic_type: _,
         } => {
             // Slot operations not yet fully implemented
-            Err(IC10Error::RuntimeError {
+            Err(SimulationError::RuntimeError {
                 message: "Slot operations not yet implemented".to_string(),
                 line: instruction.line_number,
             })
@@ -1416,7 +1417,7 @@ pub fn execute_instruction(
             value: _,
         } => {
             // Slot operations not yet fully implemented
-            Err(IC10Error::RuntimeError {
+            Err(SimulationError::RuntimeError {
                 message: "Slot operations not yet implemented".to_string(),
                 line: instruction.line_number,
             })
@@ -1428,7 +1429,7 @@ pub fn execute_instruction(
             reagent: _,
         } => {
             // Reagent operations not yet fully implemented
-            Err(IC10Error::RuntimeError {
+            Err(SimulationError::RuntimeError {
                 message: "Reagent operations not yet implemented".to_string(),
                 line: instruction.line_number,
             })
@@ -1439,7 +1440,7 @@ pub fn execute_instruction(
             reagent_hash: _,
         } => {
             // Reagent operations not yet fully implemented
-            Err(IC10Error::RuntimeError {
+            Err(SimulationError::RuntimeError {
                 message: "Reagent operations not yet implemented".to_string(),
                 line: instruction.line_number,
             })
@@ -1454,19 +1455,19 @@ pub fn execute_instruction(
             let ref_id = chip.resolve_value(id)? as i32;
             let logic_type_val = chip.resolve_value(logic_type)?;
             let logic_type =
-                LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
+                LogicType::from_value(logic_type_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
@@ -1485,19 +1486,19 @@ pub fn execute_instruction(
             let logic_type_val = chip.resolve_value(logic_type)?;
             let value = chip.resolve_value(value)?;
             let logic_type =
-                LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
+                LogicType::from_value(logic_type_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
@@ -1518,25 +1519,25 @@ pub fn execute_instruction(
             let batch_mode_val = chip.resolve_value(batch_mode)?;
 
             let logic_type =
-                LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
+                LogicType::from_value(logic_type_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
             let batch_mode =
-                BatchMode::from_value(batch_mode_val).ok_or(IC10Error::RuntimeError {
+                BatchMode::from_value(batch_mode_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid batch mode: {batch_mode_val}"),
                     line: instruction.line_number,
                 })?;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let value = network
                 .borrow()
                 .batch_read_by_prefab(prefab_hash, logic_type, batch_mode)
-                .map_err(|e| IC10Error::RuntimeError {
+                .map_err(|e| SimulationError::RuntimeError {
                     message: e.to_string(),
                     line: instruction.line_number,
                 })?;
@@ -1554,19 +1555,19 @@ pub fn execute_instruction(
             let value = chip.resolve_value(value)?;
 
             let logic_type =
-                LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
+                LogicType::from_value(logic_type_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             network
                 .borrow()
                 .batch_write_by_prefab(prefab_hash, logic_type, value)
-                .map_err(|e| IC10Error::RuntimeError {
+                .map_err(|e| SimulationError::RuntimeError {
                     message: e.to_string(),
                     line: instruction.line_number,
                 })?;
@@ -1585,25 +1586,25 @@ pub fn execute_instruction(
             let batch_mode_val = chip.resolve_value(batch_mode)?;
 
             let logic_type =
-                LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
+                LogicType::from_value(logic_type_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
             let batch_mode =
-                BatchMode::from_value(batch_mode_val).ok_or(IC10Error::RuntimeError {
+                BatchMode::from_value(batch_mode_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid batch mode: {batch_mode_val}"),
                     line: instruction.line_number,
                 })?;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let value = network
                 .borrow()
                 .batch_read_by_name(prefab_hash, name_hash, logic_type, batch_mode)
-                .map_err(|e| IC10Error::RuntimeError {
+                .map_err(|e| SimulationError::RuntimeError {
                     message: e.to_string(),
                     line: instruction.line_number,
                 })?;
@@ -1623,19 +1624,19 @@ pub fn execute_instruction(
             let value = chip.resolve_value(value)?;
 
             let logic_type =
-                LogicType::from_value(logic_type_val).ok_or(IC10Error::RuntimeError {
+                LogicType::from_value(logic_type_val).ok_or(SimulationError::RuntimeError {
                     message: format!("Invalid logic type: {logic_type_val}"),
                     line: instruction.line_number,
                 })?;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             network
                 .borrow()
                 .batch_write_by_name(prefab_hash, name_hash, logic_type, value)
-                .map_err(|e| IC10Error::RuntimeError {
+                .map_err(|e| SimulationError::RuntimeError {
                     message: e.to_string(),
                     line: instruction.line_number,
                 })?;
@@ -1651,20 +1652,20 @@ pub fn execute_instruction(
             let ref_id = chip.resolve_device_ref_id(device)?;
             let index = chip.resolve_value(stack_index)? as usize;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             let value = device
                 .get_memory(index)
-                .map_err(|e| IC10Error::RuntimeError {
+                .map_err(|e| SimulationError::RuntimeError {
                     message: e.to_string(),
                     line: instruction.line_number,
                 })?;
@@ -1681,20 +1682,20 @@ pub fn execute_instruction(
             let index = chip.resolve_value(stack_index)? as usize;
             let val = chip.resolve_value(value)?;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             device
                 .set_memory(index, val)
-                .map_err(|e| IC10Error::RuntimeError {
+                .map_err(|e| SimulationError::RuntimeError {
                     message: e.to_string(),
                     line: instruction.line_number,
                 })?;
@@ -1708,20 +1709,20 @@ pub fn execute_instruction(
             let ref_id = chip.resolve_value(id)? as i32;
             let index = chip.resolve_value(stack_index)? as usize;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             let value = device
                 .get_memory(index)
-                .map_err(|e| IC10Error::RuntimeError {
+                .map_err(|e| SimulationError::RuntimeError {
                     message: e.to_string(),
                     line: instruction.line_number,
                 })?;
@@ -1738,20 +1739,20 @@ pub fn execute_instruction(
             let index = chip.resolve_value(stack_index)? as usize;
             let val = chip.resolve_value(value)?;
 
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
             device
                 .set_memory(index, val)
-                .map_err(|e| IC10Error::RuntimeError {
+                .map_err(|e| SimulationError::RuntimeError {
                     message: e.to_string(),
                     line: instruction.line_number,
                 })?;
@@ -1769,25 +1770,25 @@ pub fn execute_instruction(
         }
         Instruction::Hcf => {
             chip.halt();
-            Err(IC10Error::RuntimeError {
+            Err(SimulationError::RuntimeError {
                 message: "(HCF) - chip execution terminated".to_string(),
                 line: instruction.line_number,
             })
         }
         Instruction::Clr { device } => {
             let ref_id = chip.resolve_device_ref_id(device)?;
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
-            device.clear().map_err(|e| IC10Error::RuntimeError {
+            device.clear().map_err(|e| SimulationError::RuntimeError {
                 message: e.to_string(),
                 line: instruction.line_number,
             })?;
@@ -1795,25 +1796,25 @@ pub fn execute_instruction(
         }
         Instruction::Clrd { id } => {
             let ref_id = chip.resolve_value(id)? as i32;
-            let network = chip.get_network().ok_or(IC10Error::RuntimeError {
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
             let device = network_ref
                 .get_device(ref_id)
-                .ok_or(IC10Error::RuntimeError {
+                .ok_or(SimulationError::RuntimeError {
                     message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
-            device.clear().map_err(|e| IC10Error::RuntimeError {
+            device.clear().map_err(|e| SimulationError::RuntimeError {
                 message: e.to_string(),
                 line: instruction.line_number,
             })?;
             Ok(chip.get_pc() + 1)
         }
         Instruction::Noop => Ok(chip.get_pc() + 1),
-        _ => Err(IC10Error::UnrecognizedInstruction(format!(
+        _ => Err(SimulationError::UnrecognizedInstruction(format!(
             "Unknown or unimplemented instruction {}: {:?}",
             instruction.line_number, instruction.instruction
         ))),

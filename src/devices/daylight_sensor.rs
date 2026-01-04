@@ -10,7 +10,7 @@
 use crate::{
     CableNetwork,
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
-    error::{IC10Error, IC10Result},
+    error::{SimulationError, SimulationResult},
     parser::string_to_hash,
     types::OptShared,
 };
@@ -30,8 +30,14 @@ impl DaylightSensor {
             string_to_hash("StructureDaylightSensor"),
         );
 
-        base.logic_types.borrow_mut().horizontal = Some(0.0);
-        base.logic_types.borrow_mut().vertical = Some(0.0);
+        base.logic_types
+            .borrow_mut()
+            .set(LogicType::Horizontal, 0.0)
+            .unwrap();
+        base.logic_types
+            .borrow_mut()
+            .set(LogicType::Vertical, 0.0)
+            .unwrap();
 
         Self {
             base,
@@ -87,14 +93,15 @@ impl Device for DaylightSensor {
                 | LogicType::NameHash
                 | LogicType::Horizontal
                 | LogicType::Vertical
+                | LogicType::On
         )
     }
 
-    fn can_write(&self, _logic_type: LogicType) -> bool {
-        false // Sensors are read-only
+    fn can_write(&self, logic_type: LogicType) -> bool {
+        matches!(logic_type, LogicType::On)
     }
 
-    fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
+    fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
         match logic_type {
             LogicType::PrefabHash => Ok(self.base.logic_types.borrow().prefab_hash as f64),
             LogicType::ReferenceId => Ok(self.base.logic_types.borrow().reference_id as f64),
@@ -104,7 +111,7 @@ impl Device for DaylightSensor {
                     .logic_types
                     .borrow()
                     .horizontal
-                    .ok_or(IC10Error::RuntimeError {
+                    .ok_or(SimulationError::RuntimeError {
                         message: "Horizontal value not set".to_string(),
                         line: 0,
                     })
@@ -114,12 +121,22 @@ impl Device for DaylightSensor {
                     .logic_types
                     .borrow()
                     .vertical
-                    .ok_or(IC10Error::RuntimeError {
+                    .ok_or(SimulationError::RuntimeError {
                         message: "Vertical value not set".to_string(),
                         line: 0,
                     })
             }
-            _ => Err(IC10Error::RuntimeError {
+            LogicType::On => {
+                self.base
+                    .logic_types
+                    .borrow()
+                    .on
+                    .ok_or(SimulationError::RuntimeError {
+                        message: "On value not set".to_string(),
+                        line: 0,
+                    })
+            }
+            _ => Err(SimulationError::RuntimeError {
                 message: format!(
                     "Daylight sensor does not support reading logic type {logic_type:?}"
                 ),
@@ -128,17 +145,10 @@ impl Device for DaylightSensor {
         }
     }
 
-    fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+    fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
         match logic_type {
-            LogicType::Horizontal => {
-                self.base.logic_types.borrow_mut().horizontal = Some(value);
-                Ok(())
-            }
-            LogicType::Vertical => {
-                self.base.logic_types.borrow_mut().vertical = Some(value);
-                Ok(())
-            }
-            _ => Err(IC10Error::RuntimeError {
+            LogicType::On => self.base.logic_types.borrow_mut().set(LogicType::On, value),
+            _ => Err(SimulationError::RuntimeError {
                 message: format!(
                     "Daylight sensor does not support writing logic type {logic_type:?}"
                 ),
@@ -147,7 +157,12 @@ impl Device for DaylightSensor {
         }
     }
 
-    fn update(&self, tick: u64) -> IC10Result<()> {
+    fn update(&self, tick: u64) -> SimulationResult<()> {
+        // Only update when device is On (non-zero)
+        if self.base.logic_types.borrow().on.unwrap() == 0.0 {
+            return Ok(());
+        }
+
         // Calculate position within the day cycle [0.0, 1.0)
         let day_progress =
             ((tick % self.settings.ticks_per_day as u64) as f64) / self.settings.ticks_per_day;
@@ -172,11 +187,11 @@ impl Device for DaylightSensor {
         self.base
             .logic_types
             .borrow_mut()
-            .set(LogicType::Horizontal, horizontal);
+            .set(LogicType::Horizontal, horizontal)?;
         self.base
             .logic_types
             .borrow_mut()
-            .set(LogicType::Vertical, vertical);
+            .set(LogicType::Vertical, vertical)?;
 
         Ok(())
     }

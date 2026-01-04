@@ -1,7 +1,7 @@
-use crate::IC10Error;
+use crate::SimulationError;
 use crate::constants::is_ic_runner;
 use crate::devices::{Device, LogicType};
-use crate::error::IC10Result;
+use crate::error::SimulationResult;
 use crate::types::{OptShared, Shared};
 use std::cell::{Ref, RefMut};
 use std::collections::BTreeMap;
@@ -221,7 +221,7 @@ impl CableNetwork {
         prefab_hash: i32,
         logic_type: LogicType,
         batch_mode: BatchMode,
-    ) -> IC10Result<f64> {
+    ) -> SimulationResult<f64> {
         let device_ids = self.get_devices_by_prefab(prefab_hash);
         self.batch_read_from_ids(&device_ids, logic_type, batch_mode)
     }
@@ -234,7 +234,7 @@ impl CableNetwork {
         name_hash: i32,
         logic_type: LogicType,
         batch_mode: BatchMode,
-    ) -> IC10Result<f64> {
+    ) -> SimulationResult<f64> {
         // Get devices that match both prefab and name hash
         let prefab_devices = self.get_devices_by_prefab(prefab_hash);
         let name_devices = self.get_devices_by_name(name_hash);
@@ -254,7 +254,7 @@ impl CableNetwork {
         device_ids: &[i32],
         logic_type: LogicType,
         batch_mode: BatchMode,
-    ) -> IC10Result<f64> {
+    ) -> SimulationResult<f64> {
         if device_ids.is_empty() {
             // Return 0 for empty batch
             return Ok(0.0);
@@ -265,7 +265,7 @@ impl CableNetwork {
         for &ref_id in device_ids {
             let device = self
                 .get_device(ref_id)
-                .ok_or_else(|| IC10Error::RuntimeError {
+                .ok_or_else(|| SimulationError::RuntimeError {
                     message: format!(
                         "Device with reference ID {} not found for batch read",
                         ref_id
@@ -288,7 +288,7 @@ impl CableNetwork {
         prefab_hash: i32,
         logic_type: LogicType,
         value: f64,
-    ) -> IC10Result<usize> {
+    ) -> SimulationResult<usize> {
         let device_ids = self.get_devices_by_prefab(prefab_hash);
         self.batch_write_to_ids(&device_ids, logic_type, value)
     }
@@ -301,7 +301,7 @@ impl CableNetwork {
         name_hash: i32,
         logic_type: LogicType,
         value: f64,
-    ) -> IC10Result<usize> {
+    ) -> SimulationResult<usize> {
         // Get devices that match both prefab and name hash
         let prefab_devices = self.get_devices_by_prefab(prefab_hash);
         let name_devices = self.get_devices_by_name(name_hash);
@@ -321,13 +321,13 @@ impl CableNetwork {
         device_ids: &[i32],
         logic_type: LogicType,
         value: f64,
-    ) -> IC10Result<usize> {
+    ) -> SimulationResult<usize> {
         let mut write_count = 0;
 
         for &ref_id in device_ids {
             let device = self
                 .get_device(ref_id)
-                .ok_or_else(|| IC10Error::RuntimeError {
+                .ok_or_else(|| SimulationError::RuntimeError {
                     message: format!(
                         "Device with reference ID {} not found for batch write",
                         ref_id

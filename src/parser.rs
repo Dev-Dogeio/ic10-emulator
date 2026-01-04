@@ -1,9 +1,9 @@
-use crate::error::{IC10Error, IC10Result};
+use crate::error::{SimulationError, SimulationResult};
 use crc::{CRC_32_ISO_HDLC, Crc};
 use regex::Regex;
 
 /// Preprocess source code (handle defines, includes, etc.)
-pub fn preprocess(source: &str) -> IC10Result<String> {
+pub fn preprocess(source: &str) -> SimulationResult<String> {
     // 1. Remove comments (everything after #)
     let comment_re = Regex::new(r"#.*$").unwrap();
     // 2. String packing: STR("text") - packs ASCII into double (max 6 chars)
@@ -116,18 +116,18 @@ pub fn parse_hex_str(hex_str: &str) -> Option<i64> {
 }
 
 /// Parse hexadecimal literal (e.g., $FF, $1A_2B)
-pub fn parse_hex(input: &str) -> IC10Result<i64> {
+pub fn parse_hex(input: &str) -> SimulationResult<i64> {
     let hex_str = input.trim_start_matches('$');
-    parse_hex_str(hex_str).ok_or_else(|| IC10Error::ParseError {
+    parse_hex_str(hex_str).ok_or_else(|| SimulationError::IC10ParseError {
         line: 0,
         message: format!("Invalid hexadecimal literal: {input}"),
     })
 }
 
 /// Parse binary literal (e.g., %1010, %1010_1111)
-pub fn parse_binary(input: &str) -> IC10Result<i64> {
+pub fn parse_binary(input: &str) -> SimulationResult<i64> {
     let bin_str = input.trim_start_matches('%');
-    parse_binary_str(bin_str).ok_or_else(|| IC10Error::ParseError {
+    parse_binary_str(bin_str).ok_or_else(|| SimulationError::IC10ParseError {
         line: 0,
         message: format!("Invalid binary literal: {input}"),
     })

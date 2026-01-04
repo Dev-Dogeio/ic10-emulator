@@ -1,14 +1,13 @@
-use crate::cable_network::CableNetwork;
 use crate::constants::{
     DEVICE_PIN_COUNT, REGISTER_COUNT, RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX, STACK_SIZE,
 };
 use crate::devices::ICHousing;
-use crate::error::{IC10Error, IC10Result};
-use crate::get_builtin_constants;
+use crate::error::{SimulationError, SimulationResult};
 use crate::instruction::{Instruction, ParsedInstruction};
-use crate::logic;
 use crate::parser::preprocess;
 use crate::types::{OptShared, Shared, shared};
+use crate::{CableNetwork, LogicType, get_builtin_constants};
+use crate::{Device, logic};
 use std::collections::HashMap;
 
 /// The main IC10 programmable chip
@@ -89,7 +88,7 @@ impl ProgrammableChip {
     }
 
     /// Load a program from source code
-    pub fn load_program(&mut self, source: &str) -> IC10Result<()> {
+    pub fn load_program(&mut self, source: &str) -> SimulationResult<()> {
         self.program.clear();
         self.labels.clear();
         self.pc = 0;
@@ -107,7 +106,7 @@ impl ProgrammableChip {
             if trimmed.ends_with(':') && !trimmed.starts_with('#') {
                 let label_name = trimmed[..trimmed.len() - 1].trim().to_string();
                 if self.labels.contains_key(&label_name) {
-                    return Err(IC10Error::ParseError {
+                    return Err(SimulationError::IC10ParseError {
                         line: line_num,
                         message: format!("Duplicate label: {label_name}"),
                     });
@@ -129,7 +128,7 @@ impl ProgrammableChip {
                 // pin_idx in parsed instruction is the pin index (stored as i32)
                 let pin = pin_idx as usize;
                 if pin >= DEVICE_PIN_COUNT {
-                    return Err(IC10Error::ParseError {
+                    return Err(SimulationError::IC10ParseError {
                         line: line_num,
                         message: format!(
                             "Device pin out of range: d{} (max d{})",
@@ -147,7 +146,7 @@ impl ProgrammableChip {
     }
 
     /// Execute one instruction
-    pub fn step(&mut self) -> IC10Result<bool> {
+    pub fn step(&mut self) -> SimulationResult<bool> {
         if self.halted {
             return Ok(false);
         }
@@ -174,7 +173,7 @@ impl ProgrammableChip {
 
     /// Execute multiple steps, stopping at yield, sleep, or max_steps
     /// Housing's last_executed_instructions is not updated here
-    pub fn run(&mut self, max_steps: usize) -> IC10Result<usize> {
+    pub fn run(&mut self, max_steps: usize) -> SimulationResult<usize> {
         let mut steps = 0;
 
         while steps < max_steps {
@@ -205,16 +204,16 @@ impl ProgrammableChip {
     }
 
     /// Execute a single instruction and return the next PC
-    fn execute_instruction(&mut self, instruction: &ParsedInstruction) -> IC10Result<usize> {
+    fn execute_instruction(&mut self, instruction: &ParsedInstruction) -> SimulationResult<usize> {
         logic::execute_instruction(self, instruction)
     }
 
     /// Resolve a value from an operand
-    pub(crate) fn resolve_value(&self, operand: &Operand) -> IC10Result<f64> {
+    pub(crate) fn resolve_value(&self, operand: &Operand) -> SimulationResult<f64> {
         match operand {
             Operand::Register(idx) => self.get_register(*idx),
             Operand::Immediate(val) => Ok(*val),
-            Operand::DevicePin(_) => Err(IC10Error::RuntimeError {
+            Operand::DevicePin(_) => Err(SimulationError::RuntimeError {
                 line: self.pc,
                 message: "Cannot use device pin as a value".to_string(),
             }),
@@ -226,7 +225,7 @@ impl ProgrammableChip {
                 // Then check aliases
                 match self.aliases.get(name) {
                     Some(AliasTarget::Register(idx)) => self.get_register(*idx),
-                    Some(AliasTarget::Device(_)) => Err(IC10Error::RuntimeError {
+                    Some(AliasTarget::Device(_)) => Err(SimulationError::RuntimeError {
                         line: self.pc,
                         message: format!("Cannot use device alias '{name}' as a value"),
                     }),
@@ -240,7 +239,7 @@ impl ProgrammableChip {
                         match name.as_str() {
                             "sp" => self.get_register(STACK_POINTER_INDEX),
                             "ra" => self.get_register(RETURN_ADDRESS_INDEX),
-                            _ => Err(IC10Error::RuntimeError {
+                            _ => Err(SimulationError::RuntimeError {
                                 line: self.pc,
                                 message: format!("Undefined alias, define, or label: {name}"),
                             }),
@@ -252,14 +251,14 @@ impl ProgrammableChip {
     }
 
     /// Resolve an operand to a register index (for use as a destination)
-    pub(crate) fn resolve_register(&self, operand: &Operand) -> IC10Result<usize> {
+    pub(crate) fn resolve_register(&self, operand: &Operand) -> SimulationResult<usize> {
         match operand {
             Operand::Register(idx) => Ok(*idx),
-            Operand::Immediate(_) => Err(IC10Error::RuntimeError {
+            Operand::Immediate(_) => Err(SimulationError::RuntimeError {
                 line: self.pc,
                 message: "Cannot use immediate value as a register destination".to_string(),
             }),
-            Operand::DevicePin(_) => Err(IC10Error::RuntimeError {
+            Operand::DevicePin(_) => Err(SimulationError::RuntimeError {
                 line: self.pc,
                 message: "Cannot use device pin as a register destination".to_string(),
             }),
@@ -267,7 +266,7 @@ impl ProgrammableChip {
                 // Check aliases first
                 match self.aliases.get(name) {
                     Some(AliasTarget::Register(idx)) => Ok(*idx),
-                    Some(AliasTarget::Device(_)) => Err(IC10Error::RuntimeError {
+                    Some(AliasTarget::Device(_)) => Err(SimulationError::RuntimeError {
                         line: self.pc,
                         message: format!(
                             "Cannot use device alias '{name}' as a register destination"
@@ -278,7 +277,7 @@ impl ProgrammableChip {
                         match name.as_str() {
                             "sp" => Ok(STACK_POINTER_INDEX),
                             "ra" => Ok(RETURN_ADDRESS_INDEX),
-                            _ => Err(IC10Error::RuntimeError {
+                            _ => Err(SimulationError::RuntimeError {
                                 line: self.pc,
                                 message: format!("Undefined alias: {name}"),
                             }),
@@ -291,7 +290,7 @@ impl ProgrammableChip {
 
     /// Resolve an operand to a device reference ID
     /// For device pins (d0-d5), looks up the reference ID stored in the housing's pin
-    pub(crate) fn resolve_device_ref_id(&self, operand: &Operand) -> IC10Result<i32> {
+    pub(crate) fn resolve_device_ref_id(&self, operand: &Operand) -> SimulationResult<i32> {
         match operand {
             Operand::DevicePin(pin_idx) => {
                 // Direct device pin access (d0-d5) - get the reference ID stored at this pin
@@ -299,7 +298,7 @@ impl ProgrammableChip {
                 if let Some(ref_id) = housing.get_device_pin(*pin_idx) {
                     Ok(ref_id)
                 } else {
-                    Err(IC10Error::RuntimeError {
+                    Err(SimulationError::RuntimeError {
                         line: self.pc,
                         message: format!("No device assigned to pin d{pin_idx}"),
                     })
@@ -323,7 +322,7 @@ impl ProgrammableChip {
                         let ref_id = self.get_register(*idx)? as i32;
                         Ok(ref_id)
                     }
-                    None => Err(IC10Error::RuntimeError {
+                    None => Err(SimulationError::RuntimeError {
                         line: self.pc,
                         message: format!("Undefined device alias: {name}"),
                     }),
@@ -344,35 +343,35 @@ impl ProgrammableChip {
     }
 
     /// Get a register value
-    pub fn get_register(&self, index: usize) -> IC10Result<f64> {
+    pub fn get_register(&self, index: usize) -> SimulationResult<f64> {
         self.housing
             .borrow()
             .get_register(index)
-            .map_err(|_| IC10Error::RegisterOutOfBounds(index))
+            .map_err(|_| SimulationError::RegisterOutOfBounds(index))
     }
 
     /// Set a register value
-    pub fn set_register(&self, index: usize, value: f64) -> IC10Result<()> {
+    pub fn set_register(&self, index: usize, value: f64) -> SimulationResult<()> {
         self.housing
             .borrow()
             .set_register(index, value)
-            .map_err(|_| IC10Error::RegisterOutOfBounds(index))
+            .map_err(|_| SimulationError::RegisterOutOfBounds(index))
     }
 
     /// Read from stack memory
-    pub fn read_stack(&self, address: usize) -> IC10Result<f64> {
+    pub fn read_stack(&self, address: usize) -> SimulationResult<f64> {
         self.housing
             .borrow()
             .read_stack(address)
-            .map_err(|_| IC10Error::StackOutOfBounds(address))
+            .map_err(|_| SimulationError::StackOutOfBounds(address))
     }
 
     /// Write to stack memory
-    pub fn write_stack(&self, address: usize, value: f64) -> IC10Result<()> {
+    pub fn write_stack(&self, address: usize, value: f64) -> SimulationResult<()> {
         self.housing
             .borrow()
             .write_stack(address, value)
-            .map_err(|_| IC10Error::StackOutOfBounds(address))
+            .map_err(|_| SimulationError::StackOutOfBounds(address))
     }
 
     /// Insert a define (compile-time constant)
@@ -450,6 +449,15 @@ impl ProgrammableChip {
     /// Print debug information: registers and non-zero stack values
     pub fn print_debug_info(&self) {
         let housing = self.housing.borrow();
+        println!(
+            "On: {}",
+            if self.housing.borrow().read(LogicType::On).unwrap() == 1.0 {
+                "Yes"
+            } else {
+                "No"
+            }
+        );
+        println!("Halted: {}", if !self.halted { "Yes" } else { "No" });
         println!("Non-zero Registers:");
         for i in 0..REGISTER_COUNT {
             if let Ok(value) = housing.get_register(i)

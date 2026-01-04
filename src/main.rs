@@ -1,13 +1,62 @@
 use ic10_emulator::{
-    DaylightSensor, Device, LogicType, ProgrammableChip, conversions::packed_number_to_text,
-    devices::LogicMemory, parser::preprocess, types::shared,
+    DaylightSensor, Device, LogicType, ProgrammableChip,
+    atmospherics::GasType,
+    conversions::packed_number_to_text,
+    devices::{AtmosphericDevice, FilterConnectionType, Filtration, LogicMemory},
+    networks::AtmosphericNetwork,
+    parser::preprocess,
+    types::shared,
 };
 use std::{thread::sleep, time::Duration};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Filtration device test
+    let input = shared(AtmosphericNetwork::new(10.0));
+    let filtered = shared(AtmosphericNetwork::new(20.0));
+    let waste = shared(AtmosphericNetwork::new(10.0));
+
+    let filtration = shared(Filtration::new(None));
+    {
+        let mut f = filtration.borrow_mut();
+        f.add_filter(GasType::Oxygen)?;
+        f.set_atmospheric_network(FilterConnectionType::Input, Some(input.clone()))?;
+        f.set_atmospheric_network(FilterConnectionType::Output, Some(filtered.clone()))?;
+        f.set_atmospheric_network(FilterConnectionType::Output2, Some(waste.clone()))?;
+    }
+
+    input.borrow_mut().add_gas(GasType::Oxygen, 63.0, 273.15);
+    input
+        .borrow_mut()
+        .add_gas(GasType::CarbonDioxide, 4.0, 273.15);
+
+    println!(
+        "Initial state:\n Input: {}\n Filtered: {}\n Waste: {}\n\n\n",
+        input.borrow().mixture(),
+        filtered.borrow().mixture(),
+        waste.borrow().mixture()
+    );
+
+    let mut n = 1;
+
+    while !input.borrow().is_empty() {
+        // Run the filtration until input network is empty
+        filtration.borrow().update(0)?;
+
+        println!(
+            "After filtration #{n}:\n Input: {}\n Filtered: {}\n Waste: {}\n\n\n",
+            input.borrow().mixture(),
+            filtered.borrow().mixture(),
+            waste.borrow().mixture()
+        );
+        n += 1;
+    }
+
+    // IC program test
+
     // Create a network
     let (chip, housing, network) = ProgrammableChip::new_with_network();
 
+    // normal devices used by the example
     let sensor = shared(DaylightSensor::new(None));
     let memory_aio = shared(LogicMemory::new(None));
     let memory_hours = shared(LogicMemory::new(None));
@@ -135,7 +184,7 @@ j ra"#;
     let mut tick: u64 = 0;
 
     // Run the simulation until the script is done
-    while !(chip.borrow().is_halted()) {
+    while !(chip.borrow().is_halted() || chip.borrow().get_housing().read(LogicType::On)? == 0.0) {
         network.borrow().update(tick);
         let steps = housing.borrow().get_last_executed_instructions();
 

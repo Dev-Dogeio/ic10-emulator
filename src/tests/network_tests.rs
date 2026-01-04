@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::error::IC10Error;
+    use crate::error::SimulationError;
     use crate::parser::string_to_hash;
     use crate::types::{OptShared, shared};
-    use crate::{BatchMode, Device, IC10Result, LogicType};
+    use crate::{BatchMode, Device, LogicType, SimulationResult};
     use crate::{CableNetwork, devices::ICHousing};
     use std::cell::Cell;
 
@@ -58,23 +58,23 @@ mod tests {
             matches!(logic_type, LogicType::Setting)
         }
 
-        fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
+        fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
             match logic_type {
                 LogicType::Setting => Ok(self.setting.get()),
-                _ => Err(IC10Error::RuntimeError {
+                _ => Err(SimulationError::RuntimeError {
                     message: "Unsupported logic type".to_string(),
                     line: 0,
                 }),
             }
         }
 
-        fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+        fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
             match logic_type {
                 LogicType::Setting => {
                     self.setting.set(value);
                     Ok(())
                 }
-                _ => Err(IC10Error::RuntimeError {
+                _ => Err(SimulationError::RuntimeError {
                     message: "Unsupported logic type".to_string(),
                     line: 0,
                 }),

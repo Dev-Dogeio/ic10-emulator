@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
     use crate::Device;
-    use crate::IC10Result;
-    use crate::cable_network::{BatchMode, CableNetwork};
+    use crate::SimulationResult;
     use crate::devices::LogicType;
-    use crate::error::IC10Error;
+    use crate::error::SimulationError;
+    use crate::networks::{BatchMode, CableNetwork};
     use crate::types::{OptShared, shared};
     use std::cell::{Cell, RefCell};
 
@@ -101,19 +101,19 @@ mod tests {
             )
         }
 
-        fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
+        fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
             match logic_type {
                 LogicType::Setting => Ok(self.setting.get()),
                 LogicType::Horizontal => Ok(self.horizontal.get()),
                 LogicType::Vertical => Ok(self.vertical.get()),
-                _ => Err(IC10Error::RuntimeError {
+                _ => Err(SimulationError::RuntimeError {
                     message: format!("Cannot read {:?}", logic_type),
                     line: 0,
                 }),
             }
         }
 
-        fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+        fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
             match logic_type {
                 LogicType::Setting => {
                     self.setting.set(value);
@@ -127,7 +127,7 @@ mod tests {
                     self.vertical.set(value);
                     Ok(())
                 }
-                _ => Err(IC10Error::RuntimeError {
+                _ => Err(SimulationError::RuntimeError {
                     message: format!("Cannot write {:?}", logic_type),
                     line: 0,
                 }),

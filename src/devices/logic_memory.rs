@@ -6,7 +6,7 @@
 use crate::{
     CableNetwork,
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
-    error::{IC10Error, IC10Result},
+    error::{SimulationError, SimulationResult},
     parser::string_to_hash,
     types::OptShared,
 };
@@ -27,7 +27,10 @@ impl LogicMemory {
             string_to_hash("StructureLogicMemory"),
         );
 
-        base.logic_types.borrow_mut().setting = Some(0.0);
+        base.logic_types
+            .borrow_mut()
+            .set(LogicType::Setting, 0.0)
+            .unwrap();
         Self {
             base,
             settings: simulation_settings.unwrap_or_default(),
@@ -78,7 +81,7 @@ impl Device for LogicMemory {
         matches!(logic_type, LogicType::Setting)
     }
 
-    fn read(&self, logic_type: LogicType) -> IC10Result<f64> {
+    fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
         match logic_type {
             LogicType::PrefabHash => Ok(self.base.logic_types.borrow().prefab_hash as f64),
             LogicType::ReferenceId => Ok(self.base.logic_types.borrow().reference_id as f64),
@@ -88,33 +91,26 @@ impl Device for LogicMemory {
                     .logic_types
                     .borrow()
                     .setting
-                    .ok_or(IC10Error::RuntimeError {
+                    .ok_or(SimulationError::RuntimeError {
                         message: "Setting value not set".to_string(),
                         line: 0,
                     })
             }
-            _ => Err(IC10Error::RuntimeError {
+            _ => Err(SimulationError::RuntimeError {
                 message: format!("Logic Memory does not support reading logic type {logic_type:?}"),
                 line: 0,
             }),
         }
     }
 
-    fn write(&self, logic_type: LogicType, value: f64) -> IC10Result<()> {
+    fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
         match logic_type {
-            LogicType::Setting => {
-                self.base.logic_types.borrow_mut().setting = Some(value);
-                Ok(())
-            }
-            _ => Err(IC10Error::RuntimeError {
+            LogicType::Setting => self.base.logic_types.borrow_mut().set(logic_type, value),
+            _ => Err(SimulationError::RuntimeError {
                 message: format!("Logic Memory does not support writing logic type {logic_type:?}"),
                 line: 0,
             }),
         }
-    }
-
-    fn get_supported_logic_types(&self) -> Vec<LogicType> {
-        vec![LogicType::Setting]
     }
 }
 

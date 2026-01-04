@@ -1,9 +1,9 @@
-use crate::cable_network::BatchMode;
+use crate::BatchMode;
 use crate::chip::{AliasTarget, Operand};
 use crate::constants::REGISTER_COUNT;
 use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
 use crate::devices::LogicType;
-use crate::error::{IC10Error, IC10Result};
+use crate::error::{SimulationError, SimulationResult};
 
 /// All IC10 instructions
 #[derive(Debug, Clone, PartialEq)]
@@ -762,7 +762,7 @@ fn parse_batch_mode_operand(token: &str) -> Operand {
     parse_operand(token)
 }
 
-fn parse_alias_target(token: &str) -> IC10Result<AliasTarget> {
+fn parse_alias_target(token: &str) -> SimulationResult<AliasTarget> {
     if token == "sp" {
         return Ok(AliasTarget::Register(STACK_POINTER_INDEX));
     }
@@ -773,12 +773,12 @@ fn parse_alias_target(token: &str) -> IC10Result<AliasTarget> {
     if let Some(stripped) = token.strip_prefix('r') {
         let idx = stripped
             .parse::<usize>()
-            .map_err(|_| IC10Error::ParseError {
+            .map_err(|_| SimulationError::IC10ParseError {
                 line: 0,
                 message: format!("Invalid register for alias: {token}"),
             })?;
         if idx >= REGISTER_COUNT {
-            return Err(IC10Error::ParseError {
+            return Err(SimulationError::IC10ParseError {
                 line: 0,
                 message: format!("Register index out of range (r0-r17): {token}"),
             });
@@ -787,14 +787,14 @@ fn parse_alias_target(token: &str) -> IC10Result<AliasTarget> {
     } else if let Some(stripped) = token.strip_prefix('d') {
         let idx = stripped
             .parse::<usize>()
-            .map_err(|_| IC10Error::ParseError {
+            .map_err(|_| SimulationError::IC10ParseError {
                 line: 0,
                 message: format!("Invalid device for alias: {token}"),
             })?;
         // Store as i32 (will be interpreted as pin index during execution and resolved to ref ID)
         Ok(AliasTarget::Device(idx as i32))
     } else {
-        Err(IC10Error::ParseError {
+        Err(SimulationError::IC10ParseError {
             line: 0,
             message: format!("Invalid alias target: {token}"),
         })
@@ -810,7 +810,7 @@ pub struct ParsedInstruction {
 }
 
 impl ParsedInstruction {
-    pub fn parse(line: &str, line_number: usize) -> IC10Result<Self> {
+    pub fn parse(line: &str, line_number: usize) -> SimulationResult<Self> {
         let original_line = line.to_string();
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') || line.ends_with(':') {
@@ -834,7 +834,7 @@ impl ParsedInstruction {
             // ==================== Data Movement ====================
             "move" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "move".to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -850,7 +850,7 @@ impl ParsedInstruction {
             }
             "alias" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "alias".to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -866,19 +866,20 @@ impl ParsedInstruction {
             }
             "define" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "define".to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
                     });
                 }
                 let name = tokens[1].to_string();
-                let value = tokens[2]
-                    .parse::<f64>()
-                    .map_err(|_| IC10Error::ParseError {
-                        line: line_number,
-                        message: format!("Invalid value for define: {}", tokens[2]),
-                    })?;
+                let value =
+                    tokens[2]
+                        .parse::<f64>()
+                        .map_err(|_| SimulationError::IC10ParseError {
+                            line: line_number,
+                            message: format!("Invalid value for define: {}", tokens[2]),
+                        })?;
                 Ok(ParsedInstruction {
                     instruction: Instruction::Define { name, value },
                     line_number,
@@ -889,7 +890,7 @@ impl ParsedInstruction {
             // ==================== Arithmetic Operations ====================
             "add" | "sub" | "mul" | "div" | "mod" | "pow" | "max" | "min" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -917,7 +918,7 @@ impl ParsedInstruction {
             }
             "sqrt" | "abs" | "exp" | "log" | "ceil" | "floor" | "round" | "trunc" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -944,7 +945,7 @@ impl ParsedInstruction {
             }
             "rand" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "rand".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -959,7 +960,7 @@ impl ParsedInstruction {
             }
             "lerp" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "lerp".to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -984,7 +985,7 @@ impl ParsedInstruction {
             // ==================== Trigonometric Operations ====================
             "sin" | "cos" | "tan" | "asin" | "acos" | "atan" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1009,7 +1010,7 @@ impl ParsedInstruction {
             }
             "atan2" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "atan2".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1028,7 +1029,7 @@ impl ParsedInstruction {
             // ==================== Bitwise Operations ====================
             "and" | "or" | "xor" | "nor" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1052,7 +1053,7 @@ impl ParsedInstruction {
             }
             "not" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "not".to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1070,7 +1071,7 @@ impl ParsedInstruction {
             // ==================== Bit Shifting Operations ====================
             "sll" | "sla" | "srl" | "sra" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1096,7 +1097,7 @@ impl ParsedInstruction {
             // ==================== Bit Field Operations ====================
             "ext" | "ins" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -1131,7 +1132,7 @@ impl ParsedInstruction {
             // ==================== Comparison Operations (Set Instructions) ====================
             "slt" | "sgt" | "sle" | "sge" | "seq" | "sne" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1157,7 +1158,7 @@ impl ParsedInstruction {
             }
             "sltz" | "sgtz" | "slez" | "sgez" | "seqz" | "snez" | "snan" | "snanz" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1186,7 +1187,7 @@ impl ParsedInstruction {
             // ==================== Approximate Comparison ====================
             "sap" | "sna" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -1219,7 +1220,7 @@ impl ParsedInstruction {
             }
             "sapz" | "snaz" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1243,7 +1244,7 @@ impl ParsedInstruction {
             // ==================== Device State Detection ====================
             "sdse" | "sdns" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1266,7 +1267,7 @@ impl ParsedInstruction {
             // ==================== Branch Instructions (Absolute) ====================
             "beq" | "bne" | "blt" | "bgt" | "ble" | "bge" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1316,7 +1317,7 @@ impl ParsedInstruction {
             }
             "beqz" | "bnez" | "bltz" | "bgez" | "blez" | "bgtz" | "bnan" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1344,7 +1345,7 @@ impl ParsedInstruction {
             // ==================== Branch Instructions (Relative) ====================
             "breq" | "brne" | "brlt" | "brgt" | "brle" | "brge" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1370,7 +1371,7 @@ impl ParsedInstruction {
             }
             "breqz" | "brnez" | "brltz" | "brgez" | "brlez" | "brgtz" | "brnan" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1398,7 +1399,7 @@ impl ParsedInstruction {
             // ==================== Branch and Link Variants ====================
             "beqal" | "bneal" | "bltal" | "bgtal" | "bleal" | "bgeal" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1448,7 +1449,7 @@ impl ParsedInstruction {
             }
             "beqzal" | "bnezal" | "bltzal" | "bgezal" | "blezal" | "bgtzal" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1475,7 +1476,7 @@ impl ParsedInstruction {
             // ==================== Approximate Branches ====================
             "bap" | "bna" | "bapal" | "bnaal" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -1520,7 +1521,7 @@ impl ParsedInstruction {
             }
             "brap" | "brna" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -1553,7 +1554,7 @@ impl ParsedInstruction {
             }
             "bapz" | "bnaz" | "bapzal" | "bnazal" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1593,7 +1594,7 @@ impl ParsedInstruction {
             }
             "brapz" | "brnaz" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1617,7 +1618,7 @@ impl ParsedInstruction {
             // ==================== Device State Branches ====================
             "bdse" | "bdns" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1644,7 +1645,7 @@ impl ParsedInstruction {
             }
             "brdse" | "brdns" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1665,7 +1666,7 @@ impl ParsedInstruction {
             }
             "bdseal" | "bdnsal" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1692,7 +1693,7 @@ impl ParsedInstruction {
             }
             "bdnvl" | "bdnvs" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: tokens[0].to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1724,7 +1725,7 @@ impl ParsedInstruction {
             // ==================== Jump Instructions ====================
             "j" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "j".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -1739,7 +1740,7 @@ impl ParsedInstruction {
             }
             "jr" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "jr".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -1754,7 +1755,7 @@ impl ParsedInstruction {
             }
             "jal" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "jal".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -1771,7 +1772,7 @@ impl ParsedInstruction {
             // ==================== Stack Operations ====================
             "push" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "push".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -1786,7 +1787,7 @@ impl ParsedInstruction {
             }
             "pop" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "pop".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -1801,7 +1802,7 @@ impl ParsedInstruction {
             }
             "peek" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "peek".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -1816,7 +1817,7 @@ impl ParsedInstruction {
             }
             "poke" => {
                 if tokens.len() != 3 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "poke".to_string(),
                         expected: 2,
                         actual: tokens.len() - 1,
@@ -1834,7 +1835,7 @@ impl ParsedInstruction {
             // ==================== Device I/O Instructions ====================
             "l" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "l".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1855,7 +1856,7 @@ impl ParsedInstruction {
             }
             "s" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "s".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1876,7 +1877,7 @@ impl ParsedInstruction {
             }
             "ls" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "ls".to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -1899,7 +1900,7 @@ impl ParsedInstruction {
             }
             "ss" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "ss".to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -1922,7 +1923,7 @@ impl ParsedInstruction {
             }
             "lr" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "lr".to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -1945,7 +1946,7 @@ impl ParsedInstruction {
             }
             "rmap" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "rmap".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1968,7 +1969,7 @@ impl ParsedInstruction {
             // ==================== ID-Based Device Access ====================
             "ld" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "ld".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -1989,7 +1990,7 @@ impl ParsedInstruction {
             }
             "sd" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "sd".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -2012,7 +2013,7 @@ impl ParsedInstruction {
             // ==================== Batch Device Access ====================
             "lb" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "lb".to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -2035,7 +2036,7 @@ impl ParsedInstruction {
             }
             "sb" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "sb".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -2056,7 +2057,7 @@ impl ParsedInstruction {
             }
             "lbn" => {
                 if tokens.len() != 6 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "lbn".to_string(),
                         expected: 5,
                         actual: tokens.len() - 1,
@@ -2081,7 +2082,7 @@ impl ParsedInstruction {
             }
             "sbn" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "sbn".to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -2104,7 +2105,7 @@ impl ParsedInstruction {
             }
             "lbs" => {
                 if tokens.len() != 6 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "lbs".to_string(),
                         expected: 5,
                         actual: tokens.len() - 1,
@@ -2129,7 +2130,7 @@ impl ParsedInstruction {
             }
             "sbs" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "sbs".to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -2152,7 +2153,7 @@ impl ParsedInstruction {
             }
             "lbns" => {
                 if tokens.len() != 7 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "lbns".to_string(),
                         expected: 6,
                         actual: tokens.len() - 1,
@@ -2181,7 +2182,7 @@ impl ParsedInstruction {
             // ==================== Memory Access Instructions ====================
             "get" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "get".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -2202,7 +2203,7 @@ impl ParsedInstruction {
             }
             "put" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "put".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -2223,7 +2224,7 @@ impl ParsedInstruction {
             }
             "getd" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "getd".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -2244,7 +2245,7 @@ impl ParsedInstruction {
             }
             "putd" => {
                 if tokens.len() != 4 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "putd".to_string(),
                         expected: 3,
                         actual: tokens.len() - 1,
@@ -2267,7 +2268,7 @@ impl ParsedInstruction {
             // ==================== Special Instructions ====================
             "yield" => {
                 if tokens.len() != 1 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "yield".to_string(),
                         expected: 0,
                         actual: tokens.len() - 1,
@@ -2281,7 +2282,7 @@ impl ParsedInstruction {
             }
             "sleep" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "sleep".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -2296,7 +2297,7 @@ impl ParsedInstruction {
             }
             "hcf" => {
                 if tokens.len() != 1 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "hcf".to_string(),
                         expected: 0,
                         actual: tokens.len() - 1,
@@ -2310,7 +2311,7 @@ impl ParsedInstruction {
             }
             "select" => {
                 if tokens.len() != 5 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "select".to_string(),
                         expected: 4,
                         actual: tokens.len() - 1,
@@ -2333,7 +2334,7 @@ impl ParsedInstruction {
             }
             "clr" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "clr".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -2348,7 +2349,7 @@ impl ParsedInstruction {
             }
             "clrd" => {
                 if tokens.len() != 2 {
-                    return Err(IC10Error::IncorrectArgumentCount {
+                    return Err(SimulationError::IncorrectArgumentCount {
                         instruction: "clrd".to_string(),
                         expected: 1,
                         actual: tokens.len() - 1,
@@ -2362,7 +2363,9 @@ impl ParsedInstruction {
                 })
             }
 
-            _ => Err(IC10Error::UnrecognizedInstruction(tokens[0].to_string())),
+            _ => Err(SimulationError::UnrecognizedInstruction(
+                tokens[0].to_string(),
+            )),
         }
     }
 }

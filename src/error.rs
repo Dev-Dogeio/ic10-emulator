@@ -1,9 +1,9 @@
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone, PartialEq)]
-pub enum IC10Error {
+pub enum SimulationError {
     #[error("Parse error at line {line}: {message}")]
-    ParseError { line: usize, message: String },
+    IC10ParseError { line: usize, message: String },
 
     #[error("Runtime error at line {line}: {message}")]
     RuntimeError { line: usize, message: String },
@@ -25,4 +25,4 @@ pub enum IC10Error {
     },
 }
 
-pub type IC10Result<T> = Result<T, IC10Error>;
+pub type SimulationResult<T> = Result<T, SimulationError>;
