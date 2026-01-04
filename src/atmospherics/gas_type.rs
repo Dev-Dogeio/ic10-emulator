@@ -20,8 +20,8 @@ pub enum GasType {
     Pollutant = 16,
     /// Nitrous Oxide (N2O/NOS)
     NitrousOxide = 64,
-    /// Water
-    Water = 1024,
+    /// Steam
+    Steam = 1024,
 }
 
 impl GasType {
@@ -34,7 +34,7 @@ impl GasType {
             GasType::Volatiles => "VOL",
             GasType::Pollutant => "X",
             GasType::NitrousOxide => "N2O",
-            GasType::Water => "H2O",
+            GasType::Steam => "H2O",
         }
     }
 
@@ -47,7 +47,7 @@ impl GasType {
             GasType::Volatiles => "Volatiles",
             GasType::Pollutant => "Pollutant",
             GasType::NitrousOxide => "Nitrous Oxide",
-            GasType::Water => "Water",
+            GasType::Steam => "Steam",
         }
     }
 
@@ -61,7 +61,7 @@ impl GasType {
             GasType::Volatiles => 20.4,
             GasType::Pollutant => 24.8,
             GasType::NitrousOxide => 37.2,
-            GasType::Water => 72.0,
+            GasType::Steam => 72.0,
         }
     }
 
@@ -74,7 +74,7 @@ impl GasType {
             GasType::Volatiles,
             GasType::Pollutant,
             GasType::NitrousOxide,
-            GasType::Water,
+            GasType::Steam,
         ]
         .into_iter()
     }

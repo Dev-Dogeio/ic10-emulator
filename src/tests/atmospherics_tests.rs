@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_temperature_consistency() {
-        let mut mole = Mole::new(GasType::Water, 5.0, 400.0);
+        let mut mole = Mole::new(GasType::Steam, 5.0, 400.0);
         mole.set_temperature(500.0);
         assert!((mole.temperature() - 500.0).abs() < 0.01);
     }

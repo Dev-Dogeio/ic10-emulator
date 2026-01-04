@@ -7,12 +7,14 @@ use crate::{
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicI32, Ordering};
 
+pub mod air_conditioner;
 pub mod atmospheric_device;
 pub mod daylight_sensor;
 pub mod filtration;
 pub mod ic_housing;
 pub mod logic_memory;
 
+pub use air_conditioner::AirConditioner;
 pub use atmospheric_device::AtmosphericDevice;
 pub use filtration::Filtration;
 
@@ -53,6 +55,7 @@ pub enum LogicType {
     Horizontal,
     Vertical,
     On,
+    Mode,
     PrefabHash,
 
     // Atmospheric Input 1
@@ -63,7 +66,7 @@ pub enum LogicType {
     RatioNitrogenInput,
     RatioPollutantInput,
     RatioVolatilesInput,
-    RatioWaterInput,
+    RatioSteamInput,
     RatioNitrousOxideInput,
     TotalMolesInput,
 
@@ -75,7 +78,7 @@ pub enum LogicType {
     RatioNitrogenInput2,
     RatioPollutantInput2,
     RatioVolatilesInput2,
-    RatioWaterInput2,
+    RatioSteamInput2,
     RatioNitrousOxideInput2,
     TotalMolesInput2,
 
@@ -87,7 +90,7 @@ pub enum LogicType {
     RatioNitrogenOutput,
     RatioPollutantOutput,
     RatioVolatilesOutput,
-    RatioWaterOutput,
+    RatioSteamOutput,
     RatioNitrousOxideOutput,
     TotalMolesOutput,
 
@@ -99,9 +102,14 @@ pub enum LogicType {
     RatioNitrogenOutput2,
     RatioPollutantOutput2,
     RatioVolatilesOutput2,
-    RatioWaterOutput2,
+    RatioSteamOutput2,
     RatioNitrousOxideOutput2,
     TotalMolesOutput2,
+
+    // AirConditioner
+    OperationalTemperatureEfficiency,
+    TemperatureDifferentialEfficiency,
+    PressureEfficiency,
 
     ReferenceId,
     NameHash,
@@ -111,6 +119,7 @@ impl LogicType {
     /// Convert from a numeric value to LogicType
     pub fn from_value(value: f64) -> Option<Self> {
         match value as i32 {
+            3 => Some(LogicType::Mode),
             12 => Some(LogicType::Setting),
             20 => Some(LogicType::Horizontal),
             21 => Some(LogicType::Vertical),
@@ -125,7 +134,7 @@ impl LogicType {
             110 => Some(LogicType::RatioNitrogenInput),
             111 => Some(LogicType::RatioPollutantInput),
             112 => Some(LogicType::RatioVolatilesInput),
-            113 => Some(LogicType::RatioWaterInput),
+            113 => Some(LogicType::RatioSteamInput),
             114 => Some(LogicType::RatioNitrousOxideInput),
             115 => Some(LogicType::TotalMolesInput),
 
@@ -137,7 +146,7 @@ impl LogicType {
             120 => Some(LogicType::RatioNitrogenInput2),
             121 => Some(LogicType::RatioPollutantInput2),
             122 => Some(LogicType::RatioVolatilesInput2),
-            123 => Some(LogicType::RatioWaterInput2),
+            123 => Some(LogicType::RatioSteamInput2),
             124 => Some(LogicType::RatioNitrousOxideInput2),
             125 => Some(LogicType::TotalMolesInput2),
 
@@ -149,7 +158,7 @@ impl LogicType {
             130 => Some(LogicType::RatioNitrogenOutput),
             131 => Some(LogicType::RatioPollutantOutput),
             132 => Some(LogicType::RatioVolatilesOutput),
-            133 => Some(LogicType::RatioWaterOutput),
+            133 => Some(LogicType::RatioSteamOutput),
             134 => Some(LogicType::RatioNitrousOxideOutput),
             135 => Some(LogicType::TotalMolesOutput),
 
@@ -161,9 +170,14 @@ impl LogicType {
             140 => Some(LogicType::RatioNitrogenOutput2),
             141 => Some(LogicType::RatioPollutantOutput2),
             142 => Some(LogicType::RatioVolatilesOutput2),
-            143 => Some(LogicType::RatioWaterOutput2),
+            143 => Some(LogicType::RatioSteamOutput2),
             144 => Some(LogicType::RatioNitrousOxideOutput2),
             145 => Some(LogicType::TotalMolesOutput2),
+
+            // AirConditioner
+            150 => Some(LogicType::OperationalTemperatureEfficiency),
+            151 => Some(LogicType::TemperatureDifferentialEfficiency),
+            152 => Some(LogicType::PressureEfficiency),
 
             217 => Some(LogicType::ReferenceId),
             268 => Some(LogicType::NameHash),
@@ -175,6 +189,7 @@ impl LogicType {
     /// Convert LogicType to its numeric value
     pub fn to_value(self) -> f64 {
         match self {
+            LogicType::Mode => 3.0,
             LogicType::Setting => 12.0,
             LogicType::Horizontal => 20.0,
             LogicType::Vertical => 21.0,
@@ -189,7 +204,7 @@ impl LogicType {
             LogicType::RatioNitrogenInput => 110.0,
             LogicType::RatioPollutantInput => 111.0,
             LogicType::RatioVolatilesInput => 112.0,
-            LogicType::RatioWaterInput => 113.0,
+            LogicType::RatioSteamInput => 113.0,
             LogicType::RatioNitrousOxideInput => 114.0,
             LogicType::TotalMolesInput => 115.0,
 
@@ -201,7 +216,7 @@ impl LogicType {
             LogicType::RatioNitrogenInput2 => 120.0,
             LogicType::RatioPollutantInput2 => 121.0,
             LogicType::RatioVolatilesInput2 => 122.0,
-            LogicType::RatioWaterInput2 => 123.0,
+            LogicType::RatioSteamInput2 => 123.0,
             LogicType::RatioNitrousOxideInput2 => 124.0,
             LogicType::TotalMolesInput2 => 125.0,
 
@@ -213,7 +228,7 @@ impl LogicType {
             LogicType::RatioNitrogenOutput => 130.0,
             LogicType::RatioPollutantOutput => 131.0,
             LogicType::RatioVolatilesOutput => 132.0,
-            LogicType::RatioWaterOutput => 133.0,
+            LogicType::RatioSteamOutput => 133.0,
             LogicType::RatioNitrousOxideOutput => 134.0,
             LogicType::TotalMolesOutput => 135.0,
 
@@ -225,9 +240,14 @@ impl LogicType {
             LogicType::RatioNitrogenOutput2 => 140.0,
             LogicType::RatioPollutantOutput2 => 141.0,
             LogicType::RatioVolatilesOutput2 => 142.0,
-            LogicType::RatioWaterOutput2 => 143.0,
+            LogicType::RatioSteamOutput2 => 143.0,
             LogicType::RatioNitrousOxideOutput2 => 144.0,
             LogicType::TotalMolesOutput2 => 145.0,
+
+            // AirConditioner
+            LogicType::OperationalTemperatureEfficiency => 150.0,
+            LogicType::TemperatureDifferentialEfficiency => 151.0,
+            LogicType::PressureEfficiency => 152.0,
 
             LogicType::ReferenceId => 217.0,
             LogicType::NameHash => 268.0,
@@ -237,6 +257,7 @@ impl LogicType {
     /// Parse LogicType from a string name
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
+            "Mode" => Some(LogicType::Mode),
             "Setting" => Some(LogicType::Setting),
             "Horizontal" => Some(LogicType::Horizontal),
             "Vertical" => Some(LogicType::Vertical),
@@ -251,7 +272,7 @@ impl LogicType {
             "RatioNitrogenInput" => Some(LogicType::RatioNitrogenInput),
             "RatioPollutantInput" => Some(LogicType::RatioPollutantInput),
             "RatioVolatilesInput" => Some(LogicType::RatioVolatilesInput),
-            "RatioWaterInput" => Some(LogicType::RatioWaterInput),
+            "RatioSteamInput" => Some(LogicType::RatioSteamInput),
             "RatioNitrousOxideInput" => Some(LogicType::RatioNitrousOxideInput),
             "TotalMolesInput" => Some(LogicType::TotalMolesInput),
 
@@ -263,7 +284,7 @@ impl LogicType {
             "RatioNitrogenInput2" => Some(LogicType::RatioNitrogenInput2),
             "RatioPollutantInput2" => Some(LogicType::RatioPollutantInput2),
             "RatioVolatilesInput2" => Some(LogicType::RatioVolatilesInput2),
-            "RatioWaterInput2" => Some(LogicType::RatioWaterInput2),
+            "RatioSteamInput2" => Some(LogicType::RatioSteamInput2),
             "RatioNitrousOxideInput2" => Some(LogicType::RatioNitrousOxideInput2),
             "TotalMolesInput2" => Some(LogicType::TotalMolesInput2),
 
@@ -275,7 +296,7 @@ impl LogicType {
             "RatioNitrogenOutput" => Some(LogicType::RatioNitrogenOutput),
             "RatioPollutantOutput" => Some(LogicType::RatioPollutantOutput),
             "RatioVolatilesOutput" => Some(LogicType::RatioVolatilesOutput),
-            "RatioWaterOutput" => Some(LogicType::RatioWaterOutput),
+            "RatioSteamOutput" => Some(LogicType::RatioSteamOutput),
             "RatioNitrousOxideOutput" => Some(LogicType::RatioNitrousOxideOutput),
             "TotalMolesOutput" => Some(LogicType::TotalMolesOutput),
 
@@ -287,9 +308,16 @@ impl LogicType {
             "RatioNitrogenOutput2" => Some(LogicType::RatioNitrogenOutput2),
             "RatioPollutantOutput2" => Some(LogicType::RatioPollutantOutput2),
             "RatioVolatilesOutput2" => Some(LogicType::RatioVolatilesOutput2),
-            "RatioWaterOutput2" => Some(LogicType::RatioWaterOutput2),
+            "RatioSteamOutput2" => Some(LogicType::RatioSteamOutput2),
             "RatioNitrousOxideOutput2" => Some(LogicType::RatioNitrousOxideOutput2),
             "TotalMolesOutput2" => Some(LogicType::TotalMolesOutput2),
+
+            // AirConditioner
+            "OperationalTemperatureEfficiency" => Some(LogicType::OperationalTemperatureEfficiency),
+            "TemperatureDifferentialEfficiency" => {
+                Some(LogicType::TemperatureDifferentialEfficiency)
+            }
+            "PressureEfficiency" => Some(LogicType::PressureEfficiency),
 
             "ReferenceId" => Some(LogicType::ReferenceId),
             "NameHash" => Some(LogicType::NameHash),
@@ -396,6 +424,7 @@ pub struct LogicTypes {
     horizontal: Option<f64>,
     vertical: Option<f64>,
     on: Option<f64>,
+    mode: Option<f64>,
     prefab_hash: i32,
     reference_id: i32,
     name_hash: i32,
@@ -409,6 +438,7 @@ impl LogicTypes {
             horizontal: None,
             vertical: None,
             on: Some(1.0),
+            mode: Some(1.0),
             prefab_hash,
             reference_id: id,
             name_hash: string_to_hash(name),
@@ -432,6 +462,10 @@ impl LogicTypes {
             }
             LogicType::On => {
                 self.on = Some(if value < 1.0 { 0.0 } else { 1.0 });
+                Ok(())
+            }
+            LogicType::Mode => {
+                self.mode = Some(if value < 1.0 { 0.0 } else { 1.0 });
                 Ok(())
             }
             LogicType::NameHash => {

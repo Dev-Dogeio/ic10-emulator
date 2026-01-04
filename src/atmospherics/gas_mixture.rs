@@ -27,7 +27,7 @@ impl GasMixture {
                 Mole::zero(GasType::Volatiles),
                 Mole::zero(GasType::Pollutant),
                 Mole::zero(GasType::NitrousOxide),
-                Mole::zero(GasType::Water),
+                Mole::zero(GasType::Steam),
             ],
             volume: volume.max(chemistry::MINIMUM_GAS_VOLUME),
         }
@@ -42,7 +42,7 @@ impl GasMixture {
             GasType::Volatiles => 3,
             GasType::Pollutant => 4,
             GasType::NitrousOxide => 5,
-            GasType::Water => 6,
+            GasType::Steam => 6,
         }
     }
 
@@ -303,11 +303,11 @@ impl fmt::Display for GasMixture {
         writeln!(f, "GasMixture ({:.1} L):", self.volume)?;
         writeln!(
             f,
-            "  Temperature: {:.2} K ({:.2} °C)",
+            "  Temperature: {:.4} K ({:.4} °C)",
             self.temperature(),
             chemistry::kelvin_to_celsius(self.temperature())
         )?;
-        writeln!(f, "  Pressure: {:.2} kPa", self.pressure())?;
+        writeln!(f, "  Pressure: {:.4} kPa", self.pressure())?;
         writeln!(f, "  Total Moles: {:.4}", self.total_moles())?;
         writeln!(f, "  Gases:")?;
 

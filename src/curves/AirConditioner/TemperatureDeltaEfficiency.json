@@ -1,0 +1,60 @@
+{
+    "keys": [
+        {
+            "time": -500.0,
+            "value": 0.0,
+            "inTangent": 0.0,
+            "outTangent": 0.0,
+            "inWeight": 0.333333343,
+            "outWeight": 0.333333343,
+            "weightedMode": 0,
+            "tangentMode": 0
+        },
+        {
+            "time": -200.0,
+            "value": 0.0,
+            "inTangent": 0.0,
+            "outTangent": 0.0,
+            "inWeight": 0.333333343,
+            "outWeight": 0.333333343,
+            "weightedMode": 0,
+            "tangentMode": 0
+        },
+        {
+            "time": -100.0,
+            "value": 0.1,
+            "inTangent": 0.002,
+            "outTangent": 0.002,
+            "inWeight": 0.333333343,
+            "outWeight": 0.333333343,
+            "weightedMode": 0,
+            "tangentMode": 0
+        },
+        {
+            "time": 0.0,
+            "value": 1.0,
+            "inTangent": 0.000928571448,
+            "outTangent": 0.0005,
+            "inWeight": 0.333333343,
+            "outWeight": 0.333333343,
+            "weightedMode": 0,
+            "tangentMode": 0
+        },
+        {
+            "time": 2000.0,
+            "value": 2.0,
+            "inTangent": 0.0005,
+            "outTangent": 0.0005,
+            "inWeight": 0.333333343,
+            "outWeight": 0.333333343,
+            "weightedMode": 0,
+            "tangentMode": 0
+        }
+    ],
+    "length": 5,
+    "preWrapMode": 8,
+    "postWrapMode": 8,
+    "min": -2000,
+    "max": 5000,
+    "time_label": "Temperature Delta (K)"
+}

@@ -100,3 +100,8 @@ pub fn packed_number_to_text(packed: u64) -> String {
     }
     text
 }
+
+/// Linear clamped interpolation between two values.
+pub fn lerp(a: f64, b: f64, t: f64) -> f64 {
+    a + (b - a) * t.clamp(0.0, 1.0)
+}

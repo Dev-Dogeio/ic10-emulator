@@ -1,7 +1,7 @@
 use crate::LogicType;
 use crate::chip::{AliasTarget, ProgrammableChip};
 use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
-use crate::conversions::{double_to_long, long_to_double};
+use crate::conversions::{double_to_long, lerp, long_to_double};
 use crate::devices::Device;
 use crate::error::{SimulationError, SimulationResult};
 use crate::instruction::{Instruction, ParsedInstruction};
@@ -148,8 +148,8 @@ pub fn execute_instruction(
         } => {
             let a = chip.resolve_value(arg1)?;
             let b = chip.resolve_value(arg2)?;
-            let t = chip.resolve_value(arg3)?.clamp(0.0, 1.0);
-            chip.set_register(chip.resolve_register(dest)?, a + (b - a) * t)?;
+            let t = chip.resolve_value(arg3)?;
+            chip.set_register(chip.resolve_register(dest)?, lerp(a, b, t))?;
             Ok(chip.get_pc() + 1)
         }
 

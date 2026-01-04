@@ -1,3 +1,4 @@
+pub mod animation_curve;
 pub mod atmospherics;
 pub mod chip;
 pub mod constants;

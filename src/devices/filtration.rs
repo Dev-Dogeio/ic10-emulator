@@ -10,6 +10,7 @@
 use crate::{
     CableNetwork,
     atmospherics::{GasType, MAX_PRESSURE_GAS_PIPE, PIPE_VOLUME, calculate_moles},
+    conversions::lerp,
     devices::{
         AtmosphericDevice, Device, DeviceBase, FilterConnectionType, LogicType, SimulationSettings,
     },
@@ -170,6 +171,7 @@ impl Device for Filtration {
                 | LogicType::ReferenceId
                 | LogicType::NameHash
                 | LogicType::On
+                | LogicType::Mode
                 | LogicType::PressureInput
                 | LogicType::TemperatureInput
                 | LogicType::RatioOxygenInput
@@ -177,7 +179,7 @@ impl Device for Filtration {
                 | LogicType::RatioNitrogenInput
                 | LogicType::RatioPollutantInput
                 | LogicType::RatioVolatilesInput
-                | LogicType::RatioWaterInput
+                | LogicType::RatioSteamInput
                 | LogicType::RatioNitrousOxideInput
                 | LogicType::TotalMolesInput
                 | LogicType::PressureOutput
@@ -187,7 +189,7 @@ impl Device for Filtration {
                 | LogicType::RatioNitrogenOutput
                 | LogicType::RatioPollutantOutput
                 | LogicType::RatioVolatilesOutput
-                | LogicType::RatioWaterOutput
+                | LogicType::RatioSteamOutput
                 | LogicType::RatioNitrousOxideOutput
                 | LogicType::TotalMolesOutput
                 | LogicType::PressureOutput2
@@ -197,14 +199,14 @@ impl Device for Filtration {
                 | LogicType::RatioNitrogenOutput2
                 | LogicType::RatioPollutantOutput2
                 | LogicType::RatioVolatilesOutput2
-                | LogicType::RatioWaterOutput2
+                | LogicType::RatioSteamOutput2
                 | LogicType::RatioNitrousOxideOutput2
                 | LogicType::TotalMolesOutput2
         )
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
-        matches!(logic_type, LogicType::On)
+        matches!(logic_type, LogicType::On | LogicType::Mode)
     }
 
     #[rustfmt::skip]
@@ -223,6 +225,16 @@ impl Device for Filtration {
                         line: 0,
                     })
             }
+            LogicType::Mode => {
+                self.base
+                    .logic_types
+                    .borrow()
+                    .mode
+                    .ok_or(SimulationError::RuntimeError {
+                        message: "Mode value not set".to_string(),
+                        line: 0,
+                    })
+            }
 
             LogicType::PressureInput => read!(self.input_network, pressure),
             LogicType::TemperatureInput => read!(self.input_network, temperature),
@@ -231,7 +243,7 @@ impl Device for Filtration {
             LogicType::RatioNitrogenInput => read!(self.input_network, gas_ratio, GasType::Nitrogen),
             LogicType::RatioPollutantInput => read!(self.input_network, gas_ratio, GasType::Pollutant),
             LogicType::RatioVolatilesInput => read!(self.input_network, gas_ratio, GasType::Volatiles),
-            LogicType::RatioWaterInput => read!(self.input_network, gas_ratio, GasType::Water),
+            LogicType::RatioSteamInput => read!(self.input_network, gas_ratio, GasType::Steam),
             LogicType::RatioNitrousOxideInput => read!(self.input_network, gas_ratio, GasType::NitrousOxide),
             LogicType::TotalMolesInput => read!(self.input_network, total_moles),
 
@@ -242,20 +254,20 @@ impl Device for Filtration {
             LogicType::RatioNitrogenOutput => read!(self.filtered_network, gas_ratio, GasType::Nitrogen),
             LogicType::RatioPollutantOutput => read!(self.filtered_network, gas_ratio, GasType::Pollutant),
             LogicType::RatioVolatilesOutput => read!(self.filtered_network, gas_ratio, GasType::Volatiles),
-            LogicType::RatioWaterOutput => read!(self.filtered_network, gas_ratio, GasType::Water),
+            LogicType::RatioSteamOutput => read!(self.filtered_network, gas_ratio, GasType::Steam),
             LogicType::RatioNitrousOxideOutput => read!(self.filtered_network, gas_ratio, GasType::NitrousOxide),
             LogicType::TotalMolesOutput => read!(self.filtered_network, total_moles),
 
-            LogicType::PressureInput2 => read!(self.waste_network, pressure),
-            LogicType::TemperatureInput2 => read!(self.waste_network, temperature),
-            LogicType::RatioOxygenInput2 => read!(self.waste_network, gas_ratio, GasType::Oxygen),
-            LogicType::RatioCarbonDioxideInput2 => read!(self.waste_network, gas_ratio, GasType::CarbonDioxide),
-            LogicType::RatioNitrogenInput2 => read!(self.waste_network, gas_ratio, GasType::Nitrogen),
-            LogicType::RatioPollutantInput2 => read!(self.waste_network, gas_ratio, GasType::Pollutant),
-            LogicType::RatioVolatilesInput2 => read!(self.waste_network, gas_ratio, GasType::Volatiles),
-            LogicType::RatioWaterInput2 => read!(self.waste_network, gas_ratio, GasType::Water),
-            LogicType::RatioNitrousOxideInput2 => read!(self.waste_network, gas_ratio, GasType::NitrousOxide),
-            LogicType::TotalMolesInput2 => read!(self.waste_network, total_moles),
+            LogicType::PressureOutput2 => read!(self.waste_network, pressure),
+            LogicType::TemperatureOutput2 => read!(self.waste_network, temperature),
+            LogicType::RatioOxygenOutput2 => read!(self.waste_network, gas_ratio, GasType::Oxygen),
+            LogicType::RatioCarbonDioxideOutput2 => read!(self.waste_network, gas_ratio, GasType::CarbonDioxide),
+            LogicType::RatioNitrogenOutput2 => read!(self.waste_network, gas_ratio, GasType::Nitrogen),
+            LogicType::RatioPollutantOutput2 => read!(self.waste_network, gas_ratio, GasType::Pollutant),
+            LogicType::RatioVolatilesOutput2 => read!(self.waste_network, gas_ratio, GasType::Volatiles),
+            LogicType::RatioSteamOutput2 => read!(self.waste_network, gas_ratio, GasType::Steam),
+            LogicType::RatioNitrousOxideOutput2 => read!(self.waste_network, gas_ratio, GasType::NitrousOxide),
+            LogicType::TotalMolesOutput2 => read!(self.waste_network, total_moles),
 
             _ => Err(SimulationError::RuntimeError {
                 message: format!("Filtration does not support reading logic type {logic_type:?}"),
@@ -271,6 +283,11 @@ impl Device for Filtration {
                 .logic_types
                 .borrow_mut()
                 .set(LogicType::On, _value),
+            LogicType::Mode => self
+                .base
+                .logic_types
+                .borrow_mut()
+                .set(LogicType::Mode, _value),
             _ => Err(SimulationError::RuntimeError {
                 message: format!("Filtration does not support writing logic type {logic_type:?}"),
                 line: 0,
@@ -279,8 +296,15 @@ impl Device for Filtration {
     }
 
     fn update(&self, _tick: u64) -> SimulationResult<()> {
-        // Only run filtration when device is On
-        if self.base.logic_types.borrow().on.unwrap() == 0.0 {
+        // Only run filtration when device is On and Mode is enabled
+        let stop = {
+            let lt = self.base.logic_types.borrow();
+            let on = lt.on.unwrap_or(1.0);
+            let mode = lt.mode.unwrap_or(1.0);
+            on == 0.0 || mode == 0.0
+        };
+
+        if stop {
             return Ok(());
         }
 
@@ -323,9 +347,11 @@ impl Device for Filtration {
 
         let input_pressure_delta = (input_pressure - max_output_pressure).max(0.0);
 
-        let t = (input_pressure_delta / MAX_PRESSURE_GAS_PIPE).clamp(0.0, 1.0);
-        let scale_pressure =
-            PRESSURE_PER_TICK + (MAX_PRESSURE_GAS_PIPE / 3.0 - PRESSURE_PER_TICK) * t;
+        let scale_pressure = lerp(
+            PRESSURE_PER_TICK,
+            MAX_PRESSURE_GAS_PIPE / 3.0,
+            input_pressure_delta / MAX_PRESSURE_GAS_PIPE,
+        );
 
         // transfer moles using ideal gas law for pipe volume
         let transfer_moles_amount =
