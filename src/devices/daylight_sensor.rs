@@ -11,6 +11,7 @@ use crate::{
     CableNetwork,
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
     error::{IC10Error, IC10Result},
+    parser::string_to_hash,
     types::OptShared,
 };
 
@@ -26,7 +27,7 @@ impl DaylightSensor {
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Self {
         let base = DeviceBase::new(
             "Daylight Sensor".to_string(),
-            "StructureDaylightSensor".to_string(),
+            string_to_hash("StructureDaylightSensor"),
         );
 
         base.logic_types.borrow_mut().horizontal = Some(0.0);
@@ -146,7 +147,7 @@ impl Device for DaylightSensor {
         }
     }
 
-    fn update(&self, tick: u64) {
+    fn update(&self, tick: u64) -> IC10Result<()> {
         // Calculate position within the day cycle [0.0, 1.0)
         let day_progress =
             ((tick % self.settings.ticks_per_day as u64) as f64) / self.settings.ticks_per_day;
@@ -176,6 +177,8 @@ impl Device for DaylightSensor {
             .logic_types
             .borrow_mut()
             .set(LogicType::Vertical, vertical);
+
+        Ok(())
     }
 }
 

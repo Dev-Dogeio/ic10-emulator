@@ -1,8 +1,10 @@
+use crate::IC10Error;
+use crate::constants::is_ic_runner;
 use crate::devices::{Device, LogicType};
 use crate::error::IC10Result;
 use crate::types::{OptShared, Shared};
 use std::cell::{Ref, RefMut};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 /// A cable network that connects multiple devices together.
@@ -15,30 +17,30 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 pub struct CableNetwork {
     /// All devices on the network, keyed by their reference ID
-    devices: HashMap<i32, Shared<dyn Device>>,
+    devices: BTreeMap<i32, Shared<dyn Device>>,
 
     /// Index for quick lookup by prefab hash
     /// Maps prefab_hash -> list of device reference IDs
-    prefab_index: HashMap<i32, Vec<i32>>,
+    prefab_index: BTreeMap<i32, Vec<i32>>,
 
     /// Index for quick lookup by name hash
     /// Maps name_hash -> list of device reference IDs
-    name_index: HashMap<i32, Vec<i32>>,
+    name_index: BTreeMap<i32, Vec<i32>>,
 }
 
 impl CableNetwork {
     /// Create a new empty cable network
     pub fn new() -> Self {
         Self {
-            devices: HashMap::new(),
-            prefab_index: HashMap::new(),
-            name_index: HashMap::new(),
+            devices: BTreeMap::new(),
+            prefab_index: BTreeMap::new(),
+            name_index: BTreeMap::new(),
         }
     }
 
     /// Add a device to the network and set up the bidirectional connection
-    ///
     /// The device will be indexed by its reference ID, prefab hash, and name hash
+    /// The devices list will remain sorted by reference ID
     pub fn add_device(&mut self, device: Shared<dyn Device>, network_rc: Shared<CableNetwork>) {
         // Set the device's network reference
         device.borrow_mut().set_network(Some(network_rc));
@@ -52,14 +54,19 @@ impl CableNetwork {
         // Add to main device map
         self.devices.insert(ref_id, Rc::clone(&device));
 
-        // Add to prefab index
-        self.prefab_index
-            .entry(prefab_hash)
-            .or_default()
-            .push(ref_id);
+        // Add to prefab index and insert in sorted order
+        let prefab_ids = self.prefab_index.entry(prefab_hash).or_default();
+        match prefab_ids.binary_search(&ref_id) {
+            Ok(_) => {}
+            Err(pos) => prefab_ids.insert(pos, ref_id),
+        }
 
-        // Add to name index
-        self.name_index.entry(name_hash).or_default().push(ref_id);
+        // Add to name index and insert in sorted order
+        let name_ids = self.name_index.entry(name_hash).or_default();
+        match name_ids.binary_search(&ref_id) {
+            Ok(_) => {}
+            Err(pos) => name_ids.insert(pos, ref_id),
+        }
     }
 
     /// Remove a device from the network by its reference ID
@@ -105,11 +112,12 @@ impl CableNetwork {
             }
         }
 
-        // Add to new name index
-        self.name_index
-            .entry(new_name_hash)
-            .or_default()
-            .push(ref_id);
+        // Add to new name index and insert in sorted order
+        let ids = self.name_index.entry(new_name_hash).or_default();
+        match ids.binary_search(&ref_id) {
+            Ok(_) => {}
+            Err(pos) => ids.insert(pos, ref_id),
+        }
     }
 
     /// Check if a device with the given reference ID exists on the network
@@ -118,13 +126,12 @@ impl CableNetwork {
     }
 
     /// Get a device by its reference ID (immutable borrow)
-    /// Returns the Rc so the caller can borrow as needed
     pub fn get_device(&self, ref_id: i32) -> Option<Ref<'_, dyn Device>> {
-        self.devices.get(&ref_id).map(|d| d.borrow())
+        let device = self.devices.get(&ref_id)?;
+        Some(device.borrow())
     }
 
     /// Get a device by its reference ID (mutable borrow)
-    /// Returns the Rc so the caller can borrow as needed
     pub fn get_device_mut(&self, ref_id: i32) -> Option<RefMut<'_, dyn Device>> {
         let device = self.devices.get(&ref_id)?;
         Some(device.borrow_mut())
@@ -178,6 +185,33 @@ impl CableNetwork {
         self.name_index.clear();
     }
 
+    /// Update all devices in the network
+    /// Devices are updated in descending order of their reference IDs,
+    /// with IC runners (identified by prefab hash) updated last
+    pub fn update(&self, tick: u64) {
+        let mut circuit_housings = Vec::new();
+
+        // Iterate over all devices in descending order
+        for (&ref_id, device) in self.devices.iter().rev() {
+            let device_borrowed = device.borrow();
+
+            if is_ic_runner(device_borrowed.get_prefab_hash()) {
+                // Collect IC runners for later
+                circuit_housings.push(ref_id);
+            } else {
+                // Update non-IC runners devices immediately
+                device_borrowed.update(tick).unwrap();
+            }
+        }
+
+        // Update IC runners
+        // Vec is already in descending order
+        for ref_id in circuit_housings {
+            let device = self.devices.get(&ref_id).unwrap();
+            device.borrow().update(tick).unwrap();
+        }
+    }
+
     // ==================== Batch Read Operations ====================
 
     /// Read a logic value from all devices matching a prefab hash
@@ -222,25 +256,24 @@ impl CableNetwork {
         batch_mode: BatchMode,
     ) -> IC10Result<f64> {
         if device_ids.is_empty() {
-            // Return 0 for empty batch (matches game behavior)
+            // Return 0 for empty batch
             return Ok(0.0);
         }
 
-        let mut values: Vec<f64> = Vec::new();
+        let mut values = Vec::with_capacity(device_ids.len());
 
         for &ref_id in device_ids {
-            if let Some(device) = self.get_device(ref_id)
-                && device.can_read(logic_type)
-            {
-                match device.read(logic_type) {
-                    Ok(val) => values.push(val),
-                    Err(_) => continue, // Skip devices that error
-                }
-            }
-        }
+            let device = self
+                .get_device(ref_id)
+                .ok_or_else(|| IC10Error::RuntimeError {
+                    message: format!(
+                        "Device with reference ID {} not found for batch read",
+                        ref_id
+                    ),
+                    line: 0,
+                })?;
 
-        if values.is_empty() {
-            return Ok(0.0);
+            values.push(device.read(logic_type)?);
         }
 
         Ok(batch_mode.aggregate(&values))
@@ -292,12 +325,18 @@ impl CableNetwork {
         let mut write_count = 0;
 
         for &ref_id in device_ids {
-            if let Some(device) = self.get_device(ref_id)
-                && device.can_write(logic_type)
-                && device.write(logic_type, value).is_ok()
-            {
-                write_count += 1;
-            }
+            let device = self
+                .get_device(ref_id)
+                .ok_or_else(|| IC10Error::RuntimeError {
+                    message: format!(
+                        "Device with reference ID {} not found for batch write",
+                        ref_id
+                    ),
+                    line: 0,
+                })?;
+
+            device.write(logic_type, value)?;
+            write_count += 1;
         }
 
         Ok(write_count)

@@ -1,11 +1,11 @@
 use crate::LogicType;
+use crate::cable_network::BatchMode;
 use crate::chip::{AliasTarget, ProgrammableChip};
 use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
 use crate::conversions::{double_to_long, long_to_double};
 use crate::devices::Device;
 use crate::error::{IC10Error, IC10Result};
 use crate::instruction::{Instruction, ParsedInstruction};
-use crate::network::BatchMode;
 
 pub fn execute_instruction(
     chip: &mut ProgrammableChip,
@@ -1533,10 +1533,13 @@ pub fn execute_instruction(
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
-            let value =
-                network
-                    .borrow()
-                    .batch_read_by_prefab(prefab_hash, logic_type, batch_mode)?;
+            let value = network
+                .borrow()
+                .batch_read_by_prefab(prefab_hash, logic_type, batch_mode)
+                .map_err(|e| IC10Error::RuntimeError {
+                    message: e.to_string(),
+                    line: instruction.line_number,
+                })?;
 
             chip.set_register(chip.resolve_register(dest)?, value)?;
             Ok(chip.get_pc() + 1)
@@ -1562,7 +1565,11 @@ pub fn execute_instruction(
             })?;
             network
                 .borrow()
-                .batch_write_by_prefab(prefab_hash, logic_type, value)?;
+                .batch_write_by_prefab(prefab_hash, logic_type, value)
+                .map_err(|e| IC10Error::RuntimeError {
+                    message: e.to_string(),
+                    line: instruction.line_number,
+                })?;
             Ok(chip.get_pc() + 1)
         }
         Instruction::Lbn {
@@ -1593,12 +1600,13 @@ pub fn execute_instruction(
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
-            let value = network.borrow().batch_read_by_name(
-                prefab_hash,
-                name_hash,
-                logic_type,
-                batch_mode,
-            )?;
+            let value = network
+                .borrow()
+                .batch_read_by_name(prefab_hash, name_hash, logic_type, batch_mode)
+                .map_err(|e| IC10Error::RuntimeError {
+                    message: e.to_string(),
+                    line: instruction.line_number,
+                })?;
 
             chip.set_register(chip.resolve_register(dest)?, value)?;
             Ok(chip.get_pc() + 1)
@@ -1626,7 +1634,11 @@ pub fn execute_instruction(
             })?;
             network
                 .borrow()
-                .batch_write_by_name(prefab_hash, name_hash, logic_type, value)?;
+                .batch_write_by_name(prefab_hash, name_hash, logic_type, value)
+                .map_err(|e| IC10Error::RuntimeError {
+                    message: e.to_string(),
+                    line: instruction.line_number,
+                })?;
             Ok(chip.get_pc() + 1)
         }
 

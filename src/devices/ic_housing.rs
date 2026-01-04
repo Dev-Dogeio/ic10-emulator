@@ -10,6 +10,7 @@ use crate::{
     constants::{DEVICE_PIN_COUNT, REGISTER_COUNT, STACK_SIZE},
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
     error::{IC10Error, IC10Result},
+    parser::string_to_hash,
     types::{OptShared, Shared},
 };
 use std::{cell::RefCell, rc::Rc};
@@ -29,6 +30,8 @@ pub struct ICHousing {
     stack: RefCell<[f64; STACK_SIZE]>,
     /// Simulation settings
     settings: SimulationSettings,
+    /// Number of instructions executed during the last update
+    last_executed_instructions: RefCell<usize>,
 }
 
 impl ICHousing {
@@ -38,7 +41,7 @@ impl ICHousing {
     ) -> Self {
         let base = DeviceBase::new(
             "IC Housing".to_string(),
-            "StructureCircuitHousing".to_string(),
+            string_to_hash("StructureCircuitHousing"),
         );
 
         base.logic_types.borrow_mut().setting = Some(0.0);
@@ -50,6 +53,7 @@ impl ICHousing {
             registers: RefCell::new([0.0; REGISTER_COUNT]),
             stack: RefCell::new([0.0; STACK_SIZE]),
             settings: simulation_settings.unwrap_or_default(),
+            last_executed_instructions: RefCell::new(0),
         }
     }
 
@@ -178,12 +182,22 @@ impl ICHousing {
         self.settings.max_instructions_per_tick
     }
 
+    /// Get the number of instructions executed during the last update
+    pub fn get_last_executed_instructions(&self) -> usize {
+        *self.last_executed_instructions.borrow()
+    }
+
     /// Run the chip for a specified number of steps
     pub fn update(&self, _tick: u64) -> Option<IC10Result<usize>> {
         if let Some(ref chip) = self.chip {
             let result = chip
                 .borrow_mut()
                 .run(self.settings.max_instructions_per_tick);
+
+            if let Ok(instructions) = result {
+                *self.last_executed_instructions.borrow_mut() = instructions;
+            }
+
             return Some(result);
         }
 
@@ -282,6 +296,20 @@ impl Device for ICHousing {
     /// Clear device stack memory (clr/clrd)
     fn clear(&self) -> IC10Result<()> {
         self.stack.borrow_mut().fill(0.0);
+        Ok(())
+    }
+
+    fn update(&self, _tick: u64) -> IC10Result<()> {
+        if let Some(ref chip) = self.chip {
+            let instructions = chip
+                .borrow_mut()
+                .run(self.settings.max_instructions_per_tick)?;
+
+            *self.last_executed_instructions.borrow_mut() = instructions;
+
+            return Ok(());
+        }
+
         Ok(())
     }
 }

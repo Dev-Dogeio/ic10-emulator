@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use crate::parser::string_to_hash;
+
 /// Stack size for the IC housing
 pub const STACK_SIZE: usize = 512;
 
@@ -16,6 +18,9 @@ pub const STACK_POINTER_INDEX: usize = 16;
 
 /// Return address register index (r17/ra)
 pub const RETURN_ADDRESS_INDEX: usize = 17;
+
+/// Prefab hash for the IC Housing
+pub const IC_HOUSING_PREFAB_HASH: i32 = string_to_hash("StructureCircuitHousing");
 
 /// Built-in IC10 constants
 pub fn get_builtin_constants() -> HashMap<String, f64> {
@@ -49,4 +54,9 @@ pub fn get_builtin_constants() -> HashMap<String, f64> {
     constants.insert("rgas".to_string(), 8.31446261815324);
 
     constants
+}
+
+/// Check if a prefab hash corresponds to an IC runner device
+pub const fn is_ic_runner(prefab_hash: i32) -> bool {
+    prefab_hash == IC_HOUSING_PREFAB_HASH
 }

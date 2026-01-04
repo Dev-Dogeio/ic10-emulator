@@ -1,9 +1,9 @@
+use crate::cable_network::BatchMode;
 use crate::chip::{AliasTarget, Operand};
 use crate::constants::REGISTER_COUNT;
 use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
 use crate::devices::LogicType;
 use crate::error::{IC10Error, IC10Result};
-use crate::network::BatchMode;
 
 /// All IC10 instructions
 #[derive(Debug, Clone, PartialEq)]

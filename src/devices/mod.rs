@@ -122,9 +122,9 @@ pub struct DeviceBase {
 }
 
 impl DeviceBase {
-    pub fn new(name: String, prefab_name: String) -> Self {
+    pub fn new(name: String, prefab_hash: i32) -> Self {
         let id = allocate_device_id();
-        let logic_types = LogicTypes::new(id, string_to_hash(&prefab_name), &name);
+        let logic_types = LogicTypes::new(id, prefab_hash, &name);
         Self {
             name,
             network: None,
@@ -277,5 +277,7 @@ pub trait Device: std::fmt::Debug {
 
     /// Update the device state based on the global tick count
     /// Default implementation does nothing - devices can override if they need tick-based updates
-    fn update(&self, _tick: u64) {}
+    fn update(&self, _tick: u64) -> IC10Result<()> {
+        Ok(())
+    }
 }

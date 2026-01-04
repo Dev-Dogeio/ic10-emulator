@@ -1,3 +1,4 @@
+use crate::cable_network::CableNetwork;
 use crate::constants::{
     DEVICE_PIN_COUNT, REGISTER_COUNT, RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX, STACK_SIZE,
 };
@@ -6,7 +7,6 @@ use crate::error::{IC10Error, IC10Result};
 use crate::get_builtin_constants;
 use crate::instruction::{Instruction, ParsedInstruction};
 use crate::logic;
-use crate::network::CableNetwork;
 use crate::parser::preprocess;
 use crate::types::{OptShared, Shared, shared};
 use std::collections::HashMap;
@@ -29,7 +29,7 @@ pub struct ProgrammableChip {
     /// Compile-time constants
     defines: HashMap<String, f64>,
 
-    /// Circuit housing (the IC housing device itself)
+    /// IC housing
     housing: Shared<ICHousing>,
 
     /// Execution state
@@ -173,6 +173,7 @@ impl ProgrammableChip {
     }
 
     /// Execute multiple steps, stopping at yield, sleep, or max_steps
+    /// Housing's last_executed_instructions is not updated here
     pub fn run(&mut self, max_steps: usize) -> IC10Result<usize> {
         let mut steps = 0;
 
@@ -474,11 +475,6 @@ impl ProgrammableChip {
                 }
             }
         }
-    }
-
-    /// Check if the script is over
-    pub fn is_script_over(&self) -> bool {
-        self.halted || self.pc >= self.program.len()
     }
 }
 

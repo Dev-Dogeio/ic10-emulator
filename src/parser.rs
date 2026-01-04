@@ -89,7 +89,7 @@ pub fn pack_ascii6(text: &str) -> Option<i64> {
 }
 
 /// Unity Animator.StringToHash algorithm (CRC32, UTF-8, case-sensitive)
-pub fn string_to_hash(text: &str) -> i32 {
+pub const fn string_to_hash(text: &str) -> i32 {
     const CRC32: Crc<u32> = Crc::<u32>::new(&CRC_32_ISO_HDLC);
     let checksum = CRC32.checksum(text.as_bytes());
     checksum as i32

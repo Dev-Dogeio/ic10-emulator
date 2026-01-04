@@ -7,6 +7,7 @@ use crate::{
     CableNetwork,
     devices::{Device, DeviceBase, LogicType, SimulationSettings},
     error::{IC10Error, IC10Result},
+    parser::string_to_hash,
     types::OptShared,
 };
 
@@ -23,7 +24,7 @@ impl LogicMemory {
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Self {
         let base = DeviceBase::new(
             "Logic Memory".to_string(),
-            "StructureLogicMemory".to_string(),
+            string_to_hash("StructureLogicMemory"),
         );
 
         base.logic_types.borrow_mut().setting = Some(0.0);

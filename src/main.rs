@@ -135,9 +135,9 @@ j ra"#;
     let mut tick: u64 = 0;
 
     // Run the simulation until the script is done
-    while !(chip.borrow().is_script_over()) {
-        sensor.borrow().update(tick);
-        let steps = housing.borrow().update(tick).unwrap()?;
+    while !(chip.borrow().is_halted()) {
+        network.borrow().update(tick);
+        let steps = housing.borrow().get_last_executed_instructions();
 
         let aio_text = packed_number_to_text(memory_aio.borrow().read(LogicType::Setting)? as u64);
         let formatted_aio = if aio_text.len() >= 6 {
