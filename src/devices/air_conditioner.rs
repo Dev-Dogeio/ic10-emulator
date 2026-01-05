@@ -206,9 +206,8 @@ impl Device for AirConditioner {
         self.name = name.to_string();
 
         if let Some(network) = &self.network {
-            let reference_id = self.reference_id;
             network.borrow_mut().update_device_name(
-                reference_id,
+                self.reference_id,
                 old_name_hash,
                 string_to_hash(name),
             );

@@ -68,15 +68,15 @@ impl Device for LogicMemory {
     }
 
     fn set_name(&mut self, name: &str) {
-        let old_name_hash = string_to_hash(&self.name);
+        let old_name_hash = string_to_hash(self.name.as_str());
         self.name = name.to_string();
-        let new_name_hash = string_to_hash(&self.name);
 
         if let Some(network) = &self.network {
-            let reference_id = self.reference_id;
-            network
-                .borrow_mut()
-                .update_device_name(reference_id, old_name_hash, new_name_hash);
+            network.borrow_mut().update_device_name(
+                self.reference_id,
+                old_name_hash,
+                string_to_hash(name),
+            );
         }
     }
 
