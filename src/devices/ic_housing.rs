@@ -7,7 +7,7 @@
 
 use crate::{
     CableNetwork, allocate_global_id,
-    constants::IC_HOUSING_PREFAB_HASH,
+    constants::STACK_SIZE,
     devices::{
         ChipSlot, Device, ICHostDevice, ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
     },
@@ -67,7 +67,7 @@ impl Device for ICHousing {
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        IC_HOUSING_PREFAB_HASH
+        string_to_hash("StructureCircuitHousing")
     }
 
     fn get_name_hash(&self) -> i32 {
@@ -107,11 +107,16 @@ impl Device for ICHousing {
                 | LogicType::NameHash
                 | LogicType::Setting
                 | LogicType::On
+                | LogicType::StackSize
+                | LogicType::LineNumber
         )
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
-        matches!(logic_type, LogicType::Setting | LogicType::On)
+        matches!(
+            logic_type,
+            LogicType::Setting | LogicType::On | LogicType::LineNumber
+        )
     }
 
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
@@ -121,6 +126,14 @@ impl Device for ICHousing {
             LogicType::NameHash => Ok(self.get_name_hash() as f64),
             LogicType::Setting => Ok(*self.setting.borrow()),
             LogicType::On => Ok(*self.on.borrow()),
+            LogicType::StackSize => Ok(STACK_SIZE as f64),
+            LogicType::LineNumber => {
+                if let Some(chip) = self.get_chip() {
+                    Ok(chip.borrow().get_pc() as f64)
+                } else {
+                    Ok(0.0)
+                }
+            }
             _ => Err(SimulationError::RuntimeError {
                 message: format!("IC Housing does not support reading logic type {logic_type:?}"),
                 line: 0,
@@ -137,6 +150,25 @@ impl Device for ICHousing {
             LogicType::On => {
                 *self.on.borrow_mut() = if value < 1.0 { 0.0 } else { 1.0 };
                 Ok(())
+            }
+            LogicType::LineNumber => {
+                if value.is_nan() || value.is_infinite() || value < 0.0 {
+                    return Err(SimulationError::RuntimeError {
+                        message: "Invalid line number".to_string(),
+                        line: 0,
+                    });
+                }
+
+                let pc = value as usize;
+                if let Some(chip) = self.get_chip() {
+                    chip.borrow_mut().set_pc(pc);
+                    Ok(())
+                } else {
+                    Err(SimulationError::RuntimeError {
+                        message: "No chip installed".to_string(),
+                        line: 0,
+                    })
+                }
             }
             _ => Err(SimulationError::RuntimeError {
                 message: format!("IC Housing does not support writing logic type {logic_type:?}"),

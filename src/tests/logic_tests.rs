@@ -4,6 +4,7 @@ mod tests {
 
     use crate::CableNetwork;
     use crate::ItemIntegratedCircuit10;
+    use crate::LogicType;
     use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
     use crate::devices::ICHostDevice;
     use crate::devices::{DaylightSensor, Device, ICHousing};
@@ -1512,6 +1513,44 @@ yield
 
         // BatchMode 1 is Sum, 4 housings total * 5 = 20
         assert_eq!(chip.borrow().get_register(0).unwrap(), 20.0);
+    }
+
+    #[test]
+    fn test_ichousing_line_number_and_stack_size() {
+        let (chip, housing, _network) = ItemIntegratedCircuit10::new_with_network();
+
+        // Initially PC is 0
+        assert_eq!(housing.borrow().read(LogicType::LineNumber).unwrap(), 0.0);
+
+        chip.borrow_mut().set_pc(10);
+        assert_eq!(housing.borrow().read(LogicType::LineNumber).unwrap(), 10.0);
+
+        assert_eq!(
+            housing.borrow().read(LogicType::StackSize).unwrap(),
+            crate::constants::STACK_SIZE as f64
+        );
+    }
+
+    #[test]
+    fn test_ichousing_line_number_write_sets_pc() {
+        let (chip, housing, _network) = ItemIntegratedCircuit10::new_with_network();
+
+        // Write a valid line number
+        housing.borrow().write(LogicType::LineNumber, 42.0).unwrap();
+        assert_eq!(chip.borrow().get_pc(), 42);
+        assert_eq!(housing.borrow().read(LogicType::LineNumber).unwrap(), 42.0);
+
+        // Write a fractional value should truncate
+        housing.borrow().write(LogicType::LineNumber, 10.7).unwrap();
+        assert_eq!(chip.borrow().get_pc(), 10);
+    }
+
+    #[test]
+    fn test_ichousing_line_number_write_no_chip_errors() {
+        let housing = ICHousing::new(None);
+
+        let res = housing.borrow().write(LogicType::LineNumber, 5.0);
+        assert!(res.is_err());
     }
 
     #[test]

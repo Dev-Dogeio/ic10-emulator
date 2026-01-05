@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, f64};
 
-use crate::{atmospherics::IDEAL_GAS_CONSTANT, parser::string_to_hash};
+use crate::atmospherics::IDEAL_GAS_CONSTANT;
 
 /// Stack size for the IC housing
 pub const STACK_SIZE: usize = 512;
@@ -15,9 +15,6 @@ pub const STACK_POINTER_INDEX: usize = 16;
 
 /// Return address register index (r17/ra)
 pub const RETURN_ADDRESS_INDEX: usize = 17;
-
-/// Prefab hash for the IC Housing
-pub const IC_HOUSING_PREFAB_HASH: i32 = string_to_hash("StructureCircuitHousing");
 
 /// Built-in IC10 constants
 pub fn get_builtin_constants() -> HashMap<String, f64> {

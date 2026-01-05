@@ -107,6 +107,8 @@ pub enum LogicType {
     PressureEfficiency,
 
     ReferenceId,
+    LineNumber,
+    StackSize,
     NameHash,
 }
 
@@ -174,7 +176,9 @@ impl LogicType {
             151 => Some(LogicType::TemperatureDifferentialEfficiency),
             152 => Some(LogicType::PressureEfficiency),
 
+            173 => Some(LogicType::LineNumber),
             217 => Some(LogicType::ReferenceId),
+            280 => Some(LogicType::StackSize),
             268 => Some(LogicType::NameHash),
 
             _ => None,
@@ -244,8 +248,10 @@ impl LogicType {
             LogicType::TemperatureDifferentialEfficiency => 151.0,
             LogicType::PressureEfficiency => 152.0,
 
+            LogicType::LineNumber => 173.0,
             LogicType::ReferenceId => 217.0,
             LogicType::NameHash => 268.0,
+            LogicType::StackSize => 280.0,
         }
     }
 
@@ -315,6 +321,8 @@ impl LogicType {
             "PressureEfficiency" => Some(LogicType::PressureEfficiency),
 
             "ReferenceId" => Some(LogicType::ReferenceId),
+            "LineNumber" => Some(LogicType::LineNumber),
+            "StackSize" => Some(LogicType::StackSize),
             "NameHash" => Some(LogicType::NameHash),
             _ => None,
         }
