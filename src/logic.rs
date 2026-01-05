@@ -33,6 +33,7 @@ pub fn execute_instruction(
                     }
                 }
                 AliasTarget::Register(_) => target.clone(),
+                AliasTarget::Alias(other_name) => chip.resolve_alias(other_name)?,
             };
             chip.insert_alias(name, resolved_target);
             Ok(chip.get_pc() + 1)

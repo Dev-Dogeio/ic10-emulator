@@ -45,15 +45,21 @@ pub struct ProgrammableChip {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AliasTarget {
     Register(usize),
-    Device(i32), // Stores device reference ID
+    Device(i32),   // Stores device reference ID
+    Alias(String), // References another alias by name
 }
 
 impl ProgrammableChip {
     /// Create a new programmable chip with a housing
     pub fn new(housing: Shared<ICHousing>) -> Self {
         let mut aliases = HashMap::new();
-        // db is a default alias that points to the housing itself
         let housing_id = housing.borrow().id();
+
+        aliases.insert("sp".to_string(), AliasTarget::Register(STACK_POINTER_INDEX));
+        aliases.insert(
+            "ra".to_string(),
+            AliasTarget::Register(RETURN_ADDRESS_INDEX),
+        );
         aliases.insert("db".to_string(), AliasTarget::Device(housing_id));
 
         Self {
@@ -229,21 +235,22 @@ impl ProgrammableChip {
                         line: self.pc,
                         message: format!("Cannot use device alias '{name}' as a value"),
                     }),
+                    Some(AliasTarget::Alias(other_name)) => Err(SimulationError::RuntimeError {
+                        line: self.pc,
+                        message: format!(
+                            "Alias '{name}' referencing another alias '{other_name}' at runtime"
+                        ),
+                    }),
                     None => {
                         // Check for labels
                         if let Some(&line) = self.labels.get(name) {
                             return Ok(line as f64);
                         }
 
-                        // Check for default sp/ra aliases
-                        match name.as_str() {
-                            "sp" => self.get_register(STACK_POINTER_INDEX),
-                            "ra" => self.get_register(RETURN_ADDRESS_INDEX),
-                            _ => Err(SimulationError::RuntimeError {
-                                line: self.pc,
-                                message: format!("Undefined alias, define, or label: {name}"),
-                            }),
-                        }
+                        Err(SimulationError::RuntimeError {
+                            line: self.pc,
+                            message: format!("Undefined alias, define, or label: {name}"),
+                        })
                     }
                 }
             }
@@ -272,17 +279,10 @@ impl ProgrammableChip {
                             "Cannot use device alias '{name}' as a register destination"
                         ),
                     }),
-                    None => {
-                        // Check for default sp/ra aliases
-                        match name.as_str() {
-                            "sp" => Ok(STACK_POINTER_INDEX),
-                            "ra" => Ok(RETURN_ADDRESS_INDEX),
-                            _ => Err(SimulationError::RuntimeError {
-                                line: self.pc,
-                                message: format!("Undefined alias: {name}"),
-                            }),
-                        }
-                    }
+                    _ => Err(SimulationError::RuntimeError {
+                        line: self.pc,
+                        message: format!("Undefined alias: {name}"),
+                    }),
                 }
             }
         }
@@ -322,12 +322,27 @@ impl ProgrammableChip {
                         let ref_id = self.get_register(*idx)? as i32;
                         Ok(ref_id)
                     }
+                    Some(AliasTarget::Alias(_)) => Err(SimulationError::RuntimeError {
+                        line: self.pc,
+                        message: format!("Alias '{name}' referencing another alias at runtime"),
+                    }),
                     None => Err(SimulationError::RuntimeError {
                         line: self.pc,
                         message: format!("Undefined device alias: {name}"),
                     }),
                 }
             }
+        }
+    }
+
+    /// Resolve an alias to its target
+    pub(crate) fn resolve_alias(&self, name: &str) -> SimulationResult<AliasTarget> {
+        match self.aliases.get(name) {
+            Some(target) => Ok(target.clone()),
+            None => Err(SimulationError::RuntimeError {
+                line: self.pc,
+                message: format!("Undefined alias: {name}"),
+            }),
         }
     }
 

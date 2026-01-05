@@ -1,7 +1,6 @@
 use crate::BatchMode;
 use crate::chip::{AliasTarget, Operand};
 use crate::constants::REGISTER_COUNT;
-use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
 use crate::devices::LogicType;
 use crate::error::{SimulationError, SimulationResult};
 
@@ -720,11 +719,6 @@ fn parse_dest_operand(token: &str) -> Operand {
 }
 
 fn parse_operand(token: &str) -> Operand {
-    // Check for special register labels
-    if token == "sp" || token == "ra" {
-        return Operand::Alias(token.to_string());
-    }
-
     // Check for device pins (d0, d1, d2, etc.)
     if let Some(stripped) = token.strip_prefix('d')
         && let Ok(idx) = stripped.parse::<usize>()
@@ -763,15 +757,9 @@ fn parse_batch_mode_operand(token: &str) -> Operand {
 }
 
 fn parse_alias_target(token: &str) -> SimulationResult<AliasTarget> {
-    if token == "sp" {
-        return Ok(AliasTarget::Register(STACK_POINTER_INDEX));
-    }
-    if token == "ra" {
-        return Ok(AliasTarget::Register(RETURN_ADDRESS_INDEX));
-    }
-
-    if let Some(stripped) = token.strip_prefix('r') {
-        let idx = stripped
+    // Match only register aliases
+    if token.len() > 1 && token.starts_with('r') && token[1..].chars().all(|c| c.is_ascii_digit()) {
+        let idx = token[1..]
             .parse::<usize>()
             .map_err(|_| SimulationError::IC10ParseError {
                 line: 0,
@@ -783,16 +771,20 @@ fn parse_alias_target(token: &str) -> SimulationResult<AliasTarget> {
                 message: format!("Register index out of range (r0-r17): {token}"),
             });
         }
-        Ok(AliasTarget::Register(idx))
-    } else if let Some(stripped) = token.strip_prefix('d') {
-        let idx = stripped
+        return Ok(AliasTarget::Register(idx));
+    // Match only device aliases
+    } else if token.len() > 1 && token.starts_with('d') && token[1..].chars().all(|c| c.is_ascii_digit()) {
+        let idx = token[1..]
             .parse::<usize>()
             .map_err(|_| SimulationError::IC10ParseError {
                 line: 0,
                 message: format!("Invalid device for alias: {token}"),
             })?;
         // Store as i32 (will be interpreted as pin index during execution and resolved to ref ID)
-        Ok(AliasTarget::Device(idx as i32))
+        return Ok(AliasTarget::Device(idx as i32));
+    } else if !token.is_empty() {
+        // If the target is at least one character long, treat it as an alias
+        return Ok(AliasTarget::Alias(token.to_string()));
     } else {
         Err(SimulationError::IC10ParseError {
             line: 0,
