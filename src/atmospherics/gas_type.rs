@@ -51,6 +51,19 @@ impl GasType {
         }
     }
 
+    /// Get the prefab name used for ItemGasFilter prefabs
+    pub fn filter_name(&self) -> &'static str {
+        match self {
+            GasType::Oxygen => "Oxygen",
+            GasType::Nitrogen => "Nitrogen",
+            GasType::CarbonDioxide => "CarbonDioxide",
+            GasType::Volatiles => "Volatiles",
+            GasType::Pollutant => "Pollutants",
+            GasType::NitrousOxide => "NitrousOxide",
+            GasType::Steam => "Water",
+        }
+    }
+
     /// Get the specific heat capacity (J/(mol·K)) for this gas type
     /// Used for energy calculations: E = n * Cv * T
     pub fn specific_heat(&self) -> f64 {

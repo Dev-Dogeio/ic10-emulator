@@ -7,82 +7,97 @@
 //!
 //! Note: Doesn't match the game, just a simple simulation for testing purposes.
 
+use std::{cell::RefCell, f64};
+
 use crate::{
-    CableNetwork,
-    devices::{Device, DeviceBase, LogicType, SimulationSettings},
+    CableNetwork, allocate_global_id,
+    devices::{Device, LogicType, SimulationSettings},
     error::{SimulationError, SimulationResult},
     parser::string_to_hash,
-    types::OptShared,
+    types::{OptShared, Shared, shared},
 };
 
 /// Daylight Sensor - tracks the sun's position in the sky
 #[derive(Debug)]
 pub struct DaylightSensor {
-    base: DeviceBase,
-    /// Sensor simulation settings
+    /// Device name
+    name: String,
+    /// Connected network
+    network: OptShared<CableNetwork>,
+
+    /// The device reference ID
+    reference_id: i32,
+    /// The On state
+    on: RefCell<f64>,
+    /// The horizontal angle (degrees)
+    horizontal: RefCell<f64>,
+    /// The vertical angle (degrees)
+    vertical: RefCell<f64>,
+
+    /// Simulation settings
     settings: SimulationSettings,
 }
 
 impl DaylightSensor {
-    pub fn new(simulation_settings: Option<SimulationSettings>) -> Self {
-        let base = DeviceBase::new(
-            "Daylight Sensor".to_string(),
-            string_to_hash("StructureDaylightSensor"),
-        );
-
-        base.logic_types
-            .borrow_mut()
-            .set(LogicType::Horizontal, 0.0)
-            .unwrap();
-        base.logic_types
-            .borrow_mut()
-            .set(LogicType::Vertical, 0.0)
-            .unwrap();
-
-        Self {
-            base,
+    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+        shared(Self {
+            name: "Daylight Sensor".to_string(),
+            network: None,
+            reference_id: allocate_global_id(),
+            on: RefCell::new(1.0),
+            horizontal: RefCell::new(0.0),
+            vertical: RefCell::new(0.0),
             settings: simulation_settings.unwrap_or_default(),
-        }
+        })
     }
 
     /// Get the current horizontal angle
     pub fn horizontal(&self) -> f64 {
-        self.base.logic_types.borrow().horizontal.unwrap()
+        *self.horizontal.borrow()
     }
 
     /// Get the current vertical angle
     pub fn vertical(&self) -> f64 {
-        self.base.logic_types.borrow().vertical.unwrap()
+        *self.vertical.borrow()
     }
 }
 
 impl Device for DaylightSensor {
     fn get_id(&self) -> i32 {
-        self.base.logic_types.borrow().reference_id
+        self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        self.base.logic_types.borrow().prefab_hash
+        string_to_hash("StructureDaylightSensor")
     }
 
     fn get_name_hash(&self) -> i32 {
-        self.base.logic_types.borrow().name_hash
+        string_to_hash(&self.name)
     }
 
     fn get_name(&self) -> &str {
-        &self.base.name
+        &self.name
     }
 
     fn get_network(&self) -> OptShared<CableNetwork> {
-        self.base.network.clone()
+        self.network.clone()
     }
 
     fn set_network(&mut self, network: OptShared<CableNetwork>) {
-        self.base.network = network;
+        self.network = network;
     }
 
     fn set_name(&mut self, name: &str) {
-        self.base.set_name(name.to_string());
+        let old_name_hash = string_to_hash(&self.name);
+        self.name = name.to_string();
+        let new_name_hash = string_to_hash(&self.name);
+
+        if let Some(network) = &self.network {
+            let reference_id = self.reference_id;
+            network
+                .borrow_mut()
+                .update_device_name(reference_id, old_name_hash, new_name_hash);
+        }
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
@@ -103,39 +118,12 @@ impl Device for DaylightSensor {
 
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
         match logic_type {
-            LogicType::PrefabHash => Ok(self.base.logic_types.borrow().prefab_hash as f64),
-            LogicType::ReferenceId => Ok(self.base.logic_types.borrow().reference_id as f64),
-            LogicType::NameHash => Ok(self.base.logic_types.borrow().name_hash as f64),
-            LogicType::Horizontal => {
-                self.base
-                    .logic_types
-                    .borrow()
-                    .horizontal
-                    .ok_or(SimulationError::RuntimeError {
-                        message: "Horizontal value not set".to_string(),
-                        line: 0,
-                    })
-            }
-            LogicType::Vertical => {
-                self.base
-                    .logic_types
-                    .borrow()
-                    .vertical
-                    .ok_or(SimulationError::RuntimeError {
-                        message: "Vertical value not set".to_string(),
-                        line: 0,
-                    })
-            }
-            LogicType::On => {
-                self.base
-                    .logic_types
-                    .borrow()
-                    .on
-                    .ok_or(SimulationError::RuntimeError {
-                        message: "On value not set".to_string(),
-                        line: 0,
-                    })
-            }
+            LogicType::PrefabHash => Ok(self.get_prefab_hash() as f64),
+            LogicType::ReferenceId => Ok(self.reference_id as f64),
+            LogicType::NameHash => Ok(self.get_name_hash() as f64),
+            LogicType::Horizontal => Ok(*self.horizontal.borrow()),
+            LogicType::Vertical => Ok(*self.vertical.borrow()),
+            LogicType::On => Ok(*self.on.borrow()),
             _ => Err(SimulationError::RuntimeError {
                 message: format!(
                     "Daylight sensor does not support reading logic type {logic_type:?}"
@@ -147,7 +135,10 @@ impl Device for DaylightSensor {
 
     fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
         match logic_type {
-            LogicType::On => self.base.logic_types.borrow_mut().set(LogicType::On, value),
+            LogicType::On => {
+                *self.on.borrow_mut() = if value < 1.0 { 0.0 } else { 1.0 };
+                Ok(())
+            }
             _ => Err(SimulationError::RuntimeError {
                 message: format!(
                     "Daylight sensor does not support writing logic type {logic_type:?}"
@@ -159,7 +150,7 @@ impl Device for DaylightSensor {
 
     fn update(&self, tick: u64) -> SimulationResult<()> {
         // Only update when device is On (non-zero)
-        if self.base.logic_types.borrow().on.unwrap() == 0.0 {
+        if *self.on.borrow() == 0.0 {
             return Ok(());
         }
 
@@ -180,25 +171,13 @@ impl Device for DaylightSensor {
         //
         // Formula: vertical = 90 + 90 * cos(2π * progress)
         // This gives: 180 at progress=0, 0 at progress=0.5, 180 at progress=1
-        let angle_radians = 2.0 * std::f64::consts::PI * day_progress;
+        let angle_radians = 2.0 * f64::consts::PI * day_progress;
         let vertical = 90.0 + 90.0 * angle_radians.cos();
 
-        // Update the logic types with the new angles
-        self.base
-            .logic_types
-            .borrow_mut()
-            .set(LogicType::Horizontal, horizontal)?;
-        self.base
-            .logic_types
-            .borrow_mut()
-            .set(LogicType::Vertical, vertical)?;
+        // Update the logic fields with the new angles
+        *self.horizontal.borrow_mut() = horizontal;
+        *self.vertical.borrow_mut() = vertical;
 
         Ok(())
-    }
-}
-
-impl Default for DaylightSensor {
-    fn default() -> Self {
-        Self::new(None)
     }
 }

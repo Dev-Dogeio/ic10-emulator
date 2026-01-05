@@ -7,17 +7,20 @@
 //!
 //! The device can be configured to filter up to 2 different gas types.
 
+use std::cell::RefCell;
+
 use crate::{
-    CableNetwork,
+    CableNetwork, Filter, ItemType, Slot, allocate_global_id,
     atmospherics::{GasType, MAX_PRESSURE_GAS_PIPE, PIPE_VOLUME, calculate_moles},
     conversions::lerp,
     devices::{
-        AtmosphericDevice, Device, DeviceBase, FilterConnectionType, LogicType, SimulationSettings,
+        AtmosphericDevice, ChipSlot, Device, FilterConnectionType, ICHostDevice,
+        ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
     },
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
     parser::string_to_hash,
-    types::OptShared,
+    types::{OptShared, Shared, shared},
 };
 
 /// Maximum number of filter slots on a Filtration device
@@ -28,20 +31,34 @@ const PRESSURE_PER_TICK: f64 = 1000.0;
 /// Filtration device - separates specific gases from a gas mixture
 #[derive(Debug)]
 pub struct Filtration {
-    base: DeviceBase,
+    /// Device name
+    name: String,
+    /// Connected network
+    network: OptShared<CableNetwork>,
+
+    /// The device reference ID
+    reference_id: i32,
+    /// The On state
+    on: RefCell<f64>,
+    /// The Mode state (0 = off, 1 = on)
+    mode: RefCell<f64>,
+
+    /// The input network
+    input_network: OptShared<AtmosphericNetwork>,
+    /// The filtered network
+    filtered_network: OptShared<AtmosphericNetwork>,
+    /// The waste network
+    waste_network: OptShared<AtmosphericNetwork>,
+
+    /// Device slots: Filter, Filter
+    slots: Vec<Slot>,
+
     /// Simulation settings
     #[allow(dead_code)]
     settings: SimulationSettings,
 
-    /// Input atmospheric network connection
-    input_network: OptShared<AtmosphericNetwork>,
-    /// Filtered atmospheric network connection
-    filtered_network: OptShared<AtmosphericNetwork>,
-    /// Waste atmospheric network connection
-    waste_network: OptShared<AtmosphericNetwork>,
-
-    /// Filters list (max length defined by `MAX_FILTERS`)
-    filters: Vec<GasType>,
+    /// Chip hosting helper (slot 0 may hold an IC10 chip)
+    chip_host: Shared<ChipSlot>,
 }
 
 /// Minimum mole fraction threshold to also siphon remaining gas from the input atmosphere
@@ -49,80 +66,65 @@ const MIN_RATIO_TO_FILTER_ALL: f64 = 1.0 / 1000.0;
 
 impl Filtration {
     /// Create a new Filtration device
-    pub fn new(simulation_settings: Option<SimulationSettings>) -> Self {
-        let base = DeviceBase::new(
-            "Filtration".to_string(),
-            string_to_hash("StructureFiltration"),
-        );
-
-        Self {
-            base,
+    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+        let s = shared(Self {
+            name: "Filtration".to_string(),
+            network: None,
+            on: RefCell::new(1.0),
+            mode: RefCell::new(0.0),
+            reference_id: allocate_global_id(),
             settings: simulation_settings.unwrap_or_default(),
             input_network: None,
             waste_network: None,
             filtered_network: None,
-            filters: Vec::new(),
+            slots: {
+                let mut s = Vec::with_capacity(MAX_FILTERS);
+                for _ in 0..MAX_FILTERS {
+                    s.push(Slot::new(Some(ItemType::Filter)));
+                }
+                s
+            },
+            chip_host: ChipSlot::new(6),
+        });
+
+        // Attach the shared ChipSlot back to the chip so it can query network/device pins
+        s.borrow()
+            .chip_host
+            .borrow_mut()
+            .set_host_device(Some(s.clone()));
+
+        s
+    }
+
+    /// Get a reference to a slot by index
+    pub fn get_slot(&self, index: usize) -> Option<&Slot> {
+        self.slots.get(index)
+    }
+
+    /// Get a mutable reference to a slot by index
+    pub fn get_slot_mut(&mut self, index: usize) -> Option<&mut Slot> {
+        self.slots.get_mut(index)
+    }
+
+    /// Number of filter slots
+    pub fn slot_count(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// Get the currently active filters from inserted physical filter items (quantity > 0)
+    pub fn active_filters(&self) -> Vec<GasType> {
+        let mut out = Vec::new();
+
+        for slot in &self.slots {
+            if let Some(item) = slot.get_item()
+                && item.item_type() == ItemType::Filter
+                && let Some(filter_item) = item.as_any().downcast_ref::<Filter>()
+            {
+                out.push(filter_item.gas_type());
+            }
         }
-    }
 
-    /// Replace the current filters with `filters` (must not exceed `MAX_FILTERS`)
-    pub fn set_filters(&mut self, filters: Vec<GasType>) -> SimulationResult<()> {
-        if filters.len() > MAX_FILTERS {
-            return Err(SimulationError::RuntimeError {
-                message: format!("Cannot set more than {} filters", MAX_FILTERS),
-                line: 0,
-            });
-        }
-        self.filters = filters;
-        Ok(())
-    }
-
-    /// Add a gas type to the filters (no-op if already present)
-    pub fn add_filter(&mut self, gas_type: GasType) -> SimulationResult<()> {
-        if self.filters.contains(&gas_type) {
-            return Ok(());
-        }
-
-        if self.filters.len() >= MAX_FILTERS {
-            return Err(SimulationError::RuntimeError {
-                message: format!(
-                    "Cannot add filter: maximum of {} filters reached",
-                    MAX_FILTERS
-                ),
-                line: 0,
-            });
-        }
-
-        self.filters.push(gas_type);
-        Ok(())
-    }
-
-    /// Remove a gas type from the filters (no-op if not present)
-    pub fn remove_filter(&mut self, gas_type: GasType) -> SimulationResult<()> {
-        if let Some(pos) = self.filters.iter().position(|g| *g == gas_type) {
-            self.filters.remove(pos);
-        }
-        Ok(())
-    }
-
-    /// Get a copy of the current filters
-    pub fn get_filters(&self) -> Vec<GasType> {
-        self.filters.clone()
-    }
-
-    /// Get the input network connection
-    pub fn get_input_network(&self) -> OptShared<AtmosphericNetwork> {
-        self.input_network.clone()
-    }
-
-    /// Get the waste network connection
-    pub fn get_waste_network(&self) -> OptShared<AtmosphericNetwork> {
-        self.waste_network.clone()
-    }
-
-    /// Get the filtered network connection
-    pub fn get_filtered_network(&self) -> OptShared<AtmosphericNetwork> {
-        self.filtered_network.clone()
+        out
     }
 }
 
@@ -137,31 +139,40 @@ macro_rules! read {
 
 impl Device for Filtration {
     fn get_id(&self) -> i32 {
-        self.base.logic_types.borrow().reference_id
+        self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        self.base.logic_types.borrow().prefab_hash
+        string_to_hash("StructureFiltration")
     }
 
     fn get_name_hash(&self) -> i32 {
-        self.base.logic_types.borrow().name_hash
+        string_to_hash(&self.name)
     }
 
     fn get_name(&self) -> &str {
-        &self.base.name
+        &self.name
     }
 
     fn get_network(&self) -> OptShared<CableNetwork> {
-        self.base.network.clone()
+        self.network.clone()
     }
 
     fn set_network(&mut self, network: OptShared<CableNetwork>) {
-        self.base.network = network;
+        self.network = network;
     }
 
     fn set_name(&mut self, name: &str) {
-        self.base.set_name(name.to_string());
+        let old_name_hash = string_to_hash(&self.name);
+        self.name = name.to_string();
+        let new_name_hash = string_to_hash(&self.name);
+
+        if let Some(network) = &self.network {
+            let reference_id = self.reference_id;
+            network
+                .borrow_mut()
+                .update_device_name(reference_id, old_name_hash, new_name_hash);
+        }
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
@@ -212,29 +223,11 @@ impl Device for Filtration {
     #[rustfmt::skip]
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
         match logic_type {
-            LogicType::PrefabHash => Ok(self.base.logic_types.borrow().prefab_hash as f64),
-            LogicType::ReferenceId => Ok(self.base.logic_types.borrow().reference_id as f64),
-            LogicType::NameHash => Ok(self.base.logic_types.borrow().name_hash as f64),
-            LogicType::On => {
-                self.base
-                    .logic_types
-                    .borrow()
-                    .on
-                    .ok_or(SimulationError::RuntimeError {
-                        message: "On value not set".to_string(),
-                        line: 0,
-                    })
-            }
-            LogicType::Mode => {
-                self.base
-                    .logic_types
-                    .borrow()
-                    .mode
-                    .ok_or(SimulationError::RuntimeError {
-                        message: "Mode value not set".to_string(),
-                        line: 0,
-                    })
-            }
+            LogicType::PrefabHash => Ok(self.get_prefab_hash() as f64),
+            LogicType::ReferenceId => Ok(self.reference_id as f64),
+            LogicType::NameHash => Ok(self.get_name_hash() as f64),
+            LogicType::On => Ok(*self.on.borrow()),
+            LogicType::Mode => Ok(*self.mode.borrow()),
 
             LogicType::PressureInput => read!(self.input_network, pressure),
             LogicType::TemperatureInput => read!(self.input_network, temperature),
@@ -278,16 +271,14 @@ impl Device for Filtration {
 
     fn write(&self, logic_type: LogicType, _value: f64) -> SimulationResult<()> {
         match logic_type {
-            LogicType::On => self
-                .base
-                .logic_types
-                .borrow_mut()
-                .set(LogicType::On, _value),
-            LogicType::Mode => self
-                .base
-                .logic_types
-                .borrow_mut()
-                .set(LogicType::Mode, _value),
+            LogicType::On => {
+                *self.on.borrow_mut() = if _value < 1.0 { 0.0 } else { 1.0 };
+                Ok(())
+            }
+            LogicType::Mode => {
+                *self.mode.borrow_mut() = if _value < 1.0 { 0.0 } else { 1.0 };
+                Ok(())
+            }
             _ => Err(SimulationError::RuntimeError {
                 message: format!("Filtration does not support writing logic type {logic_type:?}"),
                 line: 0,
@@ -297,14 +288,7 @@ impl Device for Filtration {
 
     fn update(&self, _tick: u64) -> SimulationResult<()> {
         // Only run filtration when device is On and Mode is enabled
-        let stop = {
-            let lt = self.base.logic_types.borrow();
-            let on = lt.on.unwrap_or(1.0);
-            let mode = lt.mode.unwrap_or(1.0);
-            on == 0.0 || mode == 0.0
-        };
-
-        if stop {
+        if *self.on.borrow() == 0.0 || *self.mode.borrow() == 0.0 {
             return Ok(());
         }
 
@@ -366,9 +350,12 @@ impl Device for Filtration {
 
         let mut filtered_mut = filtered_rc.borrow_mut();
 
+        // Determine the filters to apply (physical slots with quantity > 0 take precedence)
+        let filters_to_apply = self.active_filters();
+
         // For each configured filter, remove that gas from the transfer mixture and add to filtered output
         // Then, if the remaining input atmosphere has that gas below the min ratio, siphon all of it too
-        for filter_type in &self.filters {
+        for filter_type in &filters_to_apply {
             let mol = transfer_mixture.remove_all_gas(*filter_type);
             if !mol.is_empty() {
                 filtered_mut.add_mole(&mol);
@@ -393,7 +380,45 @@ impl Device for Filtration {
 
         Ok(())
     }
+
+    fn run(&self) -> SimulationResult<()> {
+        if *self.on.borrow() != 0.0 {
+            self.chip_host
+                .borrow()
+                .run(self.settings.max_instructions_per_tick)?
+        }
+
+        Ok(())
+    }
+
+    fn get_memory(&self, index: usize) -> SimulationResult<f64> {
+        ICHostDevice::get_memory(self, index)
+    }
+
+    fn set_memory(&self, index: usize, value: f64) -> SimulationResult<()> {
+        ICHostDevice::set_memory(self, index, value)
+    }
+
+    fn clear(&self) -> SimulationResult<()> {
+        ICHostDevice::clear(self)
+    }
 }
+
+impl ICHostDevice for Filtration {
+    fn ichost_get_id(&self) -> i32 {
+        self.reference_id
+    }
+
+    fn chip_slot(&self) -> Shared<ChipSlot> {
+        self.chip_host.clone()
+    }
+
+    fn max_instructions_per_tick(&self) -> usize {
+        self.settings.max_instructions_per_tick
+    }
+}
+
+impl ICHostDeviceMemoryOverride for Filtration {}
 
 impl AtmosphericDevice for Filtration {
     fn set_atmospheric_network(
@@ -401,7 +426,7 @@ impl AtmosphericDevice for Filtration {
         connection: FilterConnectionType,
         network: OptShared<AtmosphericNetwork>,
     ) -> SimulationResult<()> {
-        use crate::devices::FilterConnectionType::*;
+        use FilterConnectionType::*;
         match connection {
             Input => {
                 let _: () = self.input_network = network;
@@ -423,11 +448,5 @@ impl AtmosphericDevice for Filtration {
                 line: 0,
             }),
         }
-    }
-}
-
-impl Default for Filtration {
-    fn default() -> Self {
-        Self::new(None)
     }
 }

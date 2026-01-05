@@ -1,6 +1,6 @@
 //! Built-in constants for IC10
 
-use std::collections::HashMap;
+use std::{collections::HashMap, f64};
 
 use crate::{atmospherics::IDEAL_GAS_CONSTANT, parser::string_to_hash};
 
@@ -9,9 +9,6 @@ pub const STACK_SIZE: usize = 512;
 
 /// Number of registers (r0-r15 general purpose, r16=sp, r17=ra)
 pub const REGISTER_COUNT: usize = 18;
-
-/// Number of device pins on the IC housing (d0-d5)
-pub const DEVICE_PIN_COUNT: usize = 6;
 
 /// Stack pointer register index (r16/sp)
 pub const STACK_POINTER_INDEX: usize = 16;
@@ -36,13 +33,13 @@ pub fn get_builtin_constants() -> HashMap<String, f64> {
     constants.insert("ninf".to_string(), f64::NEG_INFINITY);
 
     // pi - Ratio of circumference to diameter
-    constants.insert("pi".to_string(), std::f64::consts::PI);
+    constants.insert("pi".to_string(), f64::consts::PI);
 
     // tau - Ratio of circumference to radius (2*pi)
-    constants.insert("tau".to_string(), 2.0 * std::f64::consts::PI);
+    constants.insert("tau".to_string(), 2.0 * f64::consts::PI);
 
     // deg2rad - Degrees to radians conversion
-    constants.insert("deg2rad".to_string(), std::f64::consts::PI / 180.0);
+    constants.insert("deg2rad".to_string(), f64::consts::PI / 180.0);
 
     // rad2deg - Radians to degrees conversion (matches C# exactly: 57.295780181884766)
     constants.insert("rad2deg".to_string(), 57.295780181884766);
@@ -54,9 +51,4 @@ pub fn get_builtin_constants() -> HashMap<String, f64> {
     constants.insert("rgas".to_string(), IDEAL_GAS_CONSTANT);
 
     constants
-}
-
-/// Check if a prefab hash corresponds to an IC runner device
-pub const fn is_ic_runner(prefab_hash: i32) -> bool {
-    prefab_hash == IC_HOUSING_PREFAB_HASH
 }

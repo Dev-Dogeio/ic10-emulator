@@ -46,12 +46,12 @@ mod tests {
         let b = AirConditioner::new(Some(SimulationSettings::default()));
 
         // Compare the arc pointers for curve equality
-        let p1 = Arc::as_ptr(&a.get_temperature_delta_curve());
-        let p2 = Arc::as_ptr(&b.get_temperature_delta_curve());
+        let p1 = Arc::as_ptr(&a.borrow().get_temperature_delta_curve());
+        let p2 = Arc::as_ptr(&b.borrow().get_temperature_delta_curve());
         assert_eq!(p1, p2, "Temperature delta curve should be shared");
 
-        let q1 = Arc::as_ptr(&a.get_input_and_waste_curve());
-        let q2 = Arc::as_ptr(&b.get_input_and_waste_curve());
+        let q1 = Arc::as_ptr(&a.borrow().get_input_and_waste_curve());
+        let q2 = Arc::as_ptr(&b.borrow().get_input_and_waste_curve());
         assert_eq!(q1, q2, "Input & waste curve should be shared");
     }
 }

@@ -1,9 +1,9 @@
-//! Tests for IC10 instruction parsing
-
 #[cfg(test)]
 mod tests {
-    use crate::chip::{AliasTarget, Operand};
-    use crate::instruction::{Instruction, ParsedInstruction};
+    use crate::{
+        instruction::{Instruction, ParsedInstruction},
+        items::item_integrated_circuit_10::{AliasTarget, Operand},
+    };
 
     fn parse(line: &str) -> Instruction {
         ParsedInstruction::parse(line, 1).unwrap().instruction

@@ -1,8 +1,8 @@
 use crate::BatchMode;
-use crate::chip::{AliasTarget, Operand};
 use crate::constants::REGISTER_COUNT;
 use crate::devices::LogicType;
 use crate::error::{SimulationError, SimulationResult};
+use crate::items::item_integrated_circuit_10::{AliasTarget, Operand};
 
 /// All IC10 instructions
 #[derive(Debug, Clone, PartialEq)]
@@ -771,9 +771,12 @@ fn parse_alias_target(token: &str) -> SimulationResult<AliasTarget> {
                 message: format!("Register index out of range (r0-r17): {token}"),
             });
         }
-        return Ok(AliasTarget::Register(idx));
+        Ok(AliasTarget::Register(idx))
     // Match only device aliases
-    } else if token.len() > 1 && token.starts_with('d') && token[1..].chars().all(|c| c.is_ascii_digit()) {
+    } else if token.len() > 1
+        && token.starts_with('d')
+        && token[1..].chars().all(|c| c.is_ascii_digit())
+    {
         let idx = token[1..]
             .parse::<usize>()
             .map_err(|_| SimulationError::IC10ParseError {
@@ -781,10 +784,10 @@ fn parse_alias_target(token: &str) -> SimulationResult<AliasTarget> {
                 message: format!("Invalid device for alias: {token}"),
             })?;
         // Store as i32 (will be interpreted as pin index during execution and resolved to ref ID)
-        return Ok(AliasTarget::Device(idx as i32));
+        Ok(AliasTarget::Device(idx as i32))
     } else if !token.is_empty() {
         // If the target is at least one character long, treat it as an alias
-        return Ok(AliasTarget::Alias(token.to_string()));
+        Ok(AliasTarget::Alias(token.to_string()))
     } else {
         Err(SimulationError::IC10ParseError {
             line: 0,

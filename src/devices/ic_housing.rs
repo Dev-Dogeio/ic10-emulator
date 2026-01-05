@@ -6,218 +6,98 @@
 //! - 512 stack memory entries
 
 use crate::{
-    CableNetwork, ProgrammableChip,
-    constants::{DEVICE_PIN_COUNT, REGISTER_COUNT, STACK_SIZE},
-    devices::{Device, DeviceBase, LogicType, SimulationSettings},
+    CableNetwork, allocate_global_id,
+    constants::IC_HOUSING_PREFAB_HASH,
+    devices::{
+        ChipSlot, Device, ICHostDevice, ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
+    },
     error::{SimulationError, SimulationResult},
     parser::string_to_hash,
-    types::{OptShared, Shared},
+    types::{OptShared, Shared, shared},
 };
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
 
 /// IC Housing - a housing unit that holds an IC10 chip and connects to devices
 /// that can reference ANY device on the cable network by its reference ID.
 #[derive(Debug)]
 pub struct ICHousing {
-    base: DeviceBase,
-    chip: OptShared<ProgrammableChip>,
-    /// Device pins (d0-d5) - store reference IDs to devices on the network
-    /// None means no device is assigned to that pin
-    device_pins: [Option<i32>; DEVICE_PIN_COUNT],
-    /// 18 registers (r0-r15 general purpose, r16=sp, r17=ra)
-    registers: RefCell<[f64; REGISTER_COUNT]>,
-    /// Stack memory (512 entries) - accessed via get/put instructions
-    stack: RefCell<[f64; STACK_SIZE]>,
+    /// Device name
+    name: String,
+    /// Connected network
+    network: OptShared<CableNetwork>,
+
+    /// The device reference ID
+    reference_id: i32,
+    /// The On state
+    on: RefCell<f64>,
+    /// The Setting state
+    setting: RefCell<f64>,
+
+    /// Chip hosting helper (shared so it can be referenced by chips)
+    chip_host: Shared<ChipSlot>,
+
     /// Simulation settings
     settings: SimulationSettings,
-    /// Number of instructions executed during the last update
-    last_executed_instructions: RefCell<usize>,
 }
 
 impl ICHousing {
-    pub fn new(
-        simulation_settings: Option<SimulationSettings>,
-        chip: OptShared<ProgrammableChip>,
-    ) -> Self {
-        let base = DeviceBase::new(
-            "IC Housing".to_string(),
-            string_to_hash("StructureCircuitHousing"),
-        );
-
-        base.logic_types
-            .borrow_mut()
-            .set(LogicType::Setting, 0.0)
-            .unwrap();
-
-        Self {
-            base,
-            chip,
-            device_pins: [None; DEVICE_PIN_COUNT],
-            registers: RefCell::new([0.0; REGISTER_COUNT]),
-            stack: RefCell::new([0.0; STACK_SIZE]),
+    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+        let s = shared(Self {
+            name: "IC Housing".to_string(),
+            network: None,
+            setting: RefCell::new(0.0),
+            on: RefCell::new(1.0),
+            reference_id: allocate_global_id(),
+            chip_host: ChipSlot::new(6),
             settings: simulation_settings.unwrap_or_default(),
-            last_executed_instructions: RefCell::new(0),
-        }
-    }
+        });
 
-    /// Get a reference to the connected network
-    pub fn get_network(&self) -> OptShared<CableNetwork> {
-        self.base.get_network()
-    }
+        s.borrow()
+            .chip_host
+            .borrow_mut()
+            .set_host_device(Some(s.clone()));
 
-    /// Get a register value
-    pub fn get_register(&self, index: usize) -> SimulationResult<f64> {
-        if index >= REGISTER_COUNT {
-            return Err(SimulationError::RuntimeError {
-                message: format!("Register index {index} out of bounds"),
-                line: 0,
-            });
-        }
-        Ok(self.registers.borrow()[index])
-    }
-
-    /// Set a register value
-    pub fn set_register(&self, index: usize, value: f64) -> SimulationResult<()> {
-        if index >= REGISTER_COUNT {
-            return Err(SimulationError::RuntimeError {
-                message: format!("Register index {index} out of bounds"),
-                line: 0,
-            });
-        }
-        self.registers.borrow_mut()[index] = value;
-        Ok(())
-    }
-
-    /// Read from stack memory
-    pub fn read_stack(&self, address: usize) -> SimulationResult<f64> {
-        if address >= STACK_SIZE {
-            return Err(SimulationError::RuntimeError {
-                message: format!("Stack address {address} out of bounds"),
-                line: 0,
-            });
-        }
-        Ok(self.stack.borrow()[address])
-    }
-
-    /// Write to stack memory
-    pub fn write_stack(&self, address: usize, value: f64) -> SimulationResult<()> {
-        if address >= STACK_SIZE {
-            return Err(SimulationError::RuntimeError {
-                message: format!("Stack address {address} out of bounds"),
-                line: 0,
-            });
-        }
-        self.stack.borrow_mut()[address] = value;
-        Ok(())
-    }
-
-    /// Clear device stack memory (clr/clrd)
-    pub fn clear(&self) {
-        self.stack.borrow_mut().fill(0.0);
-    }
-
-    /// Get the unique id of the housing
-    pub fn id(&self) -> i32 {
-        self.base.logic_types.borrow().reference_id
-    }
-
-    /// Get the prefab hash of the housing
-    pub fn prefab_hash(&self) -> i32 {
-        self.base.logic_types.borrow().prefab_hash
-    }
-
-    /// Get the name hash of the housing
-    pub fn name_hash(&self) -> i32 {
-        self.base.logic_types.borrow().name_hash
-    }
-
-    /// Set a device pin to reference a device by its reference ID
-    /// The device must exist on the network (caller's responsibility to verify)
-    pub fn set_device_pin(&mut self, pin: usize, device_ref_id: Option<i32>) {
-        if pin < DEVICE_PIN_COUNT {
-            self.device_pins[pin] = device_ref_id;
-        }
-    }
-
-    /// Get the reference ID of the device at a specific pin
-    pub fn get_device_pin(&self, pin: usize) -> Option<i32> {
-        if pin < DEVICE_PIN_COUNT {
-            self.device_pins[pin]
-        } else {
-            None
-        }
-    }
-
-    /// Check if a pin has a device assigned
-    pub fn is_pin_set(&self, pin: usize) -> bool {
-        pin < DEVICE_PIN_COUNT && self.device_pins[pin].is_some()
-    }
-
-    /// Clear a device pin
-    pub fn clear_device_pin(&mut self, pin: usize) {
-        if pin < DEVICE_PIN_COUNT {
-            self.device_pins[pin] = None;
-        }
-    }
-
-    /// Check if a pin index is valid (0-5)
-    pub fn is_valid_pin(&self, pin: usize) -> bool {
-        pin < DEVICE_PIN_COUNT
-    }
-
-    /// Set the cable network reference
-    pub fn set_network(&mut self, network: OptShared<CableNetwork>) {
-        self.base.set_network(network);
-    }
-
-    /// Set the chip for the housing
-    pub fn set_chip(&mut self, chip: Shared<ProgrammableChip>) {
-        self.chip = Some(chip);
-    }
-
-    /// Get the chip of the housing
-    pub fn get_chip(&self) -> OptShared<ProgrammableChip> {
-        self.chip.as_ref().map(Rc::clone)
-    }
-
-    /// Get the maximum instructions per tick setting
-    pub fn get_max_instructions_per_tick(&self) -> usize {
-        self.settings.max_instructions_per_tick
-    }
-
-    /// Get the number of instructions executed during the last update
-    pub fn get_last_executed_instructions(&self) -> usize {
-        *self.last_executed_instructions.borrow()
+        s
     }
 }
 
 impl Device for ICHousing {
     fn get_id(&self) -> i32 {
-        self.base.logic_types.borrow().reference_id
+        self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        self.base.logic_types.borrow().prefab_hash
+        IC_HOUSING_PREFAB_HASH
     }
 
     fn get_name_hash(&self) -> i32 {
-        self.base.logic_types.borrow().name_hash
+        string_to_hash(&self.name)
     }
 
     fn get_name(&self) -> &str {
-        &self.base.name
+        &self.name
     }
 
     fn get_network(&self) -> OptShared<CableNetwork> {
-        self.base.network.clone()
+        self.network.clone()
     }
 
     fn set_network(&mut self, network: OptShared<CableNetwork>) {
-        self.base.network = network;
+        self.network = network;
     }
 
     fn set_name(&mut self, name: &str) {
-        self.base.set_name(name.to_string());
+        // Update the network index if connected
+        let old_name_hash = string_to_hash(&self.name);
+        self.name = name.to_string();
+        let new_name_hash = string_to_hash(&self.name);
+
+        if let Some(network) = &self.network {
+            let reference_id = self.reference_id;
+            network
+                .borrow_mut()
+                .update_device_name(reference_id, old_name_hash, new_name_hash);
+        }
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
@@ -237,29 +117,11 @@ impl Device for ICHousing {
 
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
         match logic_type {
-            LogicType::PrefabHash => Ok(self.base.logic_types.borrow().prefab_hash as f64),
-            LogicType::ReferenceId => Ok(self.base.logic_types.borrow().reference_id as f64),
-            LogicType::NameHash => Ok(self.base.logic_types.borrow().name_hash as f64),
-            LogicType::Setting => {
-                self.base
-                    .logic_types
-                    .borrow()
-                    .setting
-                    .ok_or(SimulationError::RuntimeError {
-                        message: "Setting value not set".to_string(),
-                        line: 0,
-                    })
-            }
-            LogicType::On => {
-                self.base
-                    .logic_types
-                    .borrow()
-                    .on
-                    .ok_or(SimulationError::RuntimeError {
-                        message: "On value not set".to_string(),
-                        line: 0,
-                    })
-            }
+            LogicType::PrefabHash => Ok(self.get_prefab_hash() as f64),
+            LogicType::ReferenceId => Ok(self.reference_id as f64),
+            LogicType::NameHash => Ok(self.get_name_hash() as f64),
+            LogicType::Setting => Ok(*self.setting.borrow()),
+            LogicType::On => Ok(*self.on.borrow()),
             _ => Err(SimulationError::RuntimeError {
                 message: format!("IC Housing does not support reading logic type {logic_type:?}"),
                 line: 0,
@@ -269,8 +131,14 @@ impl Device for ICHousing {
 
     fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
         match logic_type {
-            LogicType::Setting => self.base.logic_types.borrow_mut().set(logic_type, value),
-            LogicType::On => self.base.logic_types.borrow_mut().set(logic_type, value),
+            LogicType::Setting => {
+                *self.setting.borrow_mut() = value;
+                Ok(())
+            }
+            LogicType::On => {
+                *self.on.borrow_mut() = if value < 1.0 { 0.0 } else { 1.0 };
+                Ok(())
+            }
             _ => Err(SimulationError::RuntimeError {
                 message: format!("IC Housing does not support writing logic type {logic_type:?}"),
                 line: 0,
@@ -278,44 +146,39 @@ impl Device for ICHousing {
         }
     }
 
-    /// Read from device internal memory at index
+    fn run(&self) -> SimulationResult<()> {
+        if *self.on.borrow() != 0.0 {
+            ICHostDevice::run(self)?;
+        }
+
+        Ok(())
+    }
+
     fn get_memory(&self, index: usize) -> SimulationResult<f64> {
-        self.read_stack(index)
+        ICHostDevice::get_memory(self, index)
     }
 
-    /// Write to device internal memory at index
     fn set_memory(&self, index: usize, value: f64) -> SimulationResult<()> {
-        self.write_stack(index, value)
+        ICHostDevice::set_memory(self, index, value)
     }
 
-    /// Clear device stack memory (clr/clrd)
     fn clear(&self) -> SimulationResult<()> {
-        self.stack.borrow_mut().fill(0.0);
-        Ok(())
-    }
-
-    fn update(&self, _tick: u64) -> SimulationResult<()> {
-        // Only run the chip when device is On (non-zero)
-        if self.base.logic_types.borrow().on.unwrap() == 0.0 {
-            return Ok(());
-        }
-
-        if let Some(ref chip) = self.chip {
-            let instructions = chip
-                .borrow_mut()
-                .run(self.settings.max_instructions_per_tick)?;
-
-            *self.last_executed_instructions.borrow_mut() = instructions;
-
-            return Ok(());
-        }
-
-        Ok(())
+        ICHostDevice::clear(self)
     }
 }
 
-impl Default for ICHousing {
-    fn default() -> Self {
-        Self::new(None, None)
+impl ICHostDevice for ICHousing {
+    fn ichost_get_id(&self) -> i32 {
+        self.reference_id
+    }
+
+    fn chip_slot(&self) -> Shared<ChipSlot> {
+        self.chip_host.clone()
+    }
+
+    fn max_instructions_per_tick(&self) -> usize {
+        self.settings.max_instructions_per_tick
     }
 }
+
+impl ICHostDeviceMemoryOverride for ICHousing {}

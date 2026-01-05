@@ -1,5 +1,4 @@
 use crate::SimulationError;
-use crate::constants::is_ic_runner;
 use crate::devices::{Device, LogicType};
 use crate::error::SimulationResult;
 use crate::types::{OptShared, Shared};
@@ -186,29 +185,17 @@ impl CableNetwork {
     }
 
     /// Update all devices in the network
-    /// Devices are updated in descending order of their reference IDs,
-    /// with IC runners (identified by prefab hash) updated last
+    /// Devices are updated in descending order of their reference IDs
+    /// After updating all devices, IC runners are executed in the same order
     pub fn update(&self, tick: u64) {
-        let mut circuit_housings = Vec::new();
-
-        // Iterate over all devices in descending order
-        for (&ref_id, device) in self.devices.iter().rev() {
-            let device_borrowed = device.borrow();
-
-            if is_ic_runner(device_borrowed.get_prefab_hash()) {
-                // Collect IC runners for later
-                circuit_housings.push(ref_id);
-            } else {
-                // Update non-IC runners devices immediately
-                device_borrowed.update(tick).unwrap();
-            }
+        // Iterate over all devices in descending order and run update
+        for device in self.devices.values().rev() {
+            device.borrow().update(tick).unwrap();
         }
 
-        // Update IC runners
-        // Vec is already in descending order
-        for ref_id in circuit_housings {
-            let device = self.devices.get(&ref_id).unwrap();
-            device.borrow().update(tick).unwrap();
+        // Iterate over all devices again and execute IC runners
+        for device in self.devices.values().rev() {
+            device.borrow().run().unwrap();
         }
     }
 

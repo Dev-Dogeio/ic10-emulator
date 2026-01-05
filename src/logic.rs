@@ -1,14 +1,13 @@
-use crate::LogicType;
-use crate::chip::{AliasTarget, ProgrammableChip};
 use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
 use crate::conversions::{double_to_long, lerp, long_to_double};
-use crate::devices::Device;
 use crate::error::{SimulationError, SimulationResult};
 use crate::instruction::{Instruction, ParsedInstruction};
+use crate::items::item_integrated_circuit_10::AliasTarget;
 use crate::networks::BatchMode;
+use crate::{ItemIntegratedCircuit10, LogicType};
 
 pub fn execute_instruction(
-    chip: &mut ProgrammableChip,
+    chip: &mut ItemIntegratedCircuit10,
     instruction: &ParsedInstruction,
 ) -> SimulationResult<usize> {
     match &instruction.instruction {
@@ -22,8 +21,8 @@ pub fn execute_instruction(
             let resolved_target = match target {
                 AliasTarget::Device(pin_idx) => {
                     let pin = *pin_idx as usize;
-                    let housing = chip.get_housing();
-                    if let Some(ref_id) = housing.get_device_pin(pin) {
+                    let chip_slot = chip.get_chip_slot();
+                    if let Some(ref_id) = chip_slot.get_device_pin(pin) {
                         AliasTarget::Device(ref_id)
                     } else {
                         return Err(SimulationError::RuntimeError {
@@ -1346,11 +1345,12 @@ pub fn execute_instruction(
                     line: instruction.line_number,
                 })?;
 
-            // Check if we're reading from the housing itself (db)
-            let housing_id = chip.get_housing().id();
-            let value = if ref_id == housing_id {
-                // Read directly from housing to avoid double borrow
-                chip.get_housing().read(logic_type)?
+            // Check if we're reading from the chip slot itself (db)
+            let value = if let Some(id) = chip.get_chip_slot().id()
+                && ref_id == id
+            {
+                // Read directly from chip slot to avoid double borrow
+                chip.get_chip_slot().read(logic_type)?
             } else {
                 let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                     message: "Housing not connected to network".to_string(),

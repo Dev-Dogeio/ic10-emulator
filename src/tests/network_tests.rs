@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn test_housing_on_network() {
         let mut network = CableNetwork::new();
-        let housing = shared(ICHousing::new(None, None));
+        let housing = ICHousing::new(None);
 
         network.add_device(housing.clone(), shared(network.clone()));
 
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_device_rename_updates_network() {
         let network = shared(CableNetwork::new());
-        let housing = shared(ICHousing::new(None, None));
+        let housing = ICHousing::new(None);
         let device_id = housing.borrow().get_id();
 
         // Add device to network

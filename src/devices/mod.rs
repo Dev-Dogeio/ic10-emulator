@@ -1,11 +1,11 @@
+use std::fmt::{Debug, Display, Formatter, Result};
+
 use crate::{
     CableNetwork,
     error::{SimulationError, SimulationResult},
-    parser::string_to_hash,
-    types::OptShared,
+    items::ItemIntegratedCircuit10,
+    types::{OptShared, Shared},
 };
-use std::cell::RefCell;
-use std::sync::atomic::{AtomicI32, Ordering};
 
 pub mod air_conditioner;
 pub mod atmospheric_device;
@@ -40,13 +40,8 @@ pub use daylight_sensor::DaylightSensor;
 pub use ic_housing::ICHousing;
 pub use logic_memory::LogicMemory;
 
-/// Global device ID counter shared by all device types
-static DEVICE_ID_COUNTER: AtomicI32 = AtomicI32::new(1);
-
-/// Allocate a new unique device ID
-pub fn allocate_device_id() -> i32 {
-    DEVICE_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
-}
+mod chip_slot;
+pub use chip_slot::ChipSlot;
 
 /// Logic types for device property access
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -335,8 +330,8 @@ pub enum FilterConnectionType {
     Output2,
 }
 
-impl std::fmt::Display for FilterConnectionType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for FilterConnectionType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let s = match self {
             FilterConnectionType::Input => "Input",
             FilterConnectionType::Input2 => "Input2",
@@ -347,144 +342,8 @@ impl std::fmt::Display for FilterConnectionType {
     }
 }
 
-// TODO: Implement slot logic for devices
-// /// Logic slot types for slot-based properties
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// pub enum LogicSlotType {
-//     Occupied,
-//     OccupantHash,
-//     Quantity,
-// }
-
-// impl LogicSlotType {
-//     /// Convert from a numeric value to LogicSlotType
-//     pub fn from_value(value: f64) -> Option<Self> {
-//         match value as i32 {
-//             0 => Some(LogicSlotType::Occupied),
-//             1 => Some(LogicSlotType::OccupantHash),
-//             2 => Some(LogicSlotType::Quantity),
-//             _ => None,
-//         }
-//     }
-// }
-
-/// Shared data for all devices
-#[derive(Debug)]
-pub struct DeviceBase {
-    pub name: String,
-    pub network: OptShared<CableNetwork>,
-    pub logic_types: RefCell<LogicTypes>,
-}
-
-impl DeviceBase {
-    pub fn new(name: String, prefab_hash: i32) -> Self {
-        let id = allocate_device_id();
-        let logic_types = LogicTypes::new(id, prefab_hash, &name);
-        Self {
-            name,
-            network: None,
-            logic_types: RefCell::new(logic_types),
-        }
-    }
-
-    pub fn get_network(&self) -> OptShared<CableNetwork> {
-        self.network.clone()
-    }
-
-    /// Set the network reference for the device
-    pub fn set_network(&mut self, network: OptShared<CableNetwork>) {
-        self.network = network;
-    }
-
-    /// Set the device's name and update the network's name index
-    pub fn set_name(&mut self, name: String) {
-        let old_name_hash = self.logic_types.borrow().name_hash;
-        self.name = name;
-        let new_name_hash = string_to_hash(&self.name);
-        self.logic_types
-            .borrow_mut()
-            .set(LogicType::NameHash, new_name_hash as f64)
-            .unwrap();
-
-        // Update the network's name index if the device is connected
-        if let Some(network) = &self.network {
-            let reference_id = self.logic_types.borrow().reference_id;
-            network
-                .borrow_mut()
-                .update_device_name(reference_id, old_name_hash, new_name_hash);
-        }
-    }
-}
-
-/// LogicTypes struct to hold settable logic values
-/// Some logic types like atmospheric readings are read-only and not stored here, instead they're computed on demand
-#[derive(Debug)]
-pub struct LogicTypes {
-    setting: Option<f64>,
-    horizontal: Option<f64>,
-    vertical: Option<f64>,
-    on: Option<f64>,
-    mode: Option<f64>,
-    prefab_hash: i32,
-    reference_id: i32,
-    name_hash: i32,
-}
-
-impl LogicTypes {
-    /// Create a new LogicTypes instance
-    pub fn new(id: i32, prefab_hash: i32, name: &str) -> Self {
-        Self {
-            setting: None,
-            horizontal: None,
-            vertical: None,
-            on: Some(1.0),
-            mode: Some(1.0),
-            prefab_hash,
-            reference_id: id,
-            name_hash: string_to_hash(name),
-        }
-    }
-
-    /// Set the value of a logic type
-    pub fn set(&mut self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
-        match logic_type {
-            LogicType::Setting => {
-                self.setting = Some(value);
-                Ok(())
-            }
-            LogicType::Horizontal => {
-                self.horizontal = Some(value);
-                Ok(())
-            }
-            LogicType::Vertical => {
-                self.vertical = Some(value);
-                Ok(())
-            }
-            LogicType::On => {
-                self.on = Some(if value < 1.0 { 0.0 } else { 1.0 });
-                Ok(())
-            }
-            LogicType::Mode => {
-                self.mode = Some(if value < 1.0 { 0.0 } else { 1.0 });
-                Ok(())
-            }
-            LogicType::NameHash => {
-                self.name_hash = value as i32;
-                Ok(())
-            }
-            _ => Err(SimulationError::RuntimeError {
-                message: format!(
-                    "LogicType {:?} is read-only or unsupported for setting",
-                    logic_type
-                ),
-                line: 0,
-            }),
-        }
-    }
-}
-
 /// Trait for devices that can be controlled by IC10
-pub trait Device: std::fmt::Debug {
+pub trait Device: Debug {
     /// Get the device's unique identifier
     fn get_id(&self) -> i32;
 
@@ -545,6 +404,116 @@ pub trait Device: std::fmt::Debug {
     /// Update the device state based on the global tick count
     /// Default implementation does nothing - devices can override if they need tick-based updates
     fn update(&self, _tick: u64) -> SimulationResult<()> {
+        Ok(())
+    }
+
+    /// Run chip code if applicable for the device.
+    /// Default implementation does nothing - devices can override if they can execute code.
+    fn run(&self) -> SimulationResult<()> {
+        Ok(())
+    }
+}
+
+/// Marker trait to ensure implementors of `ICHostDevice` explicitly opt into providing device
+/// memory access methods (`Device::get_memory`, `Device::set_memory`, and `Device::clear`).
+///
+/// Implementors of `ICHostDevice` MUST provide an explicit empty impl of this marker trait in
+/// their module when they override `Device`'s memory methods (even if those methods simply
+/// delegate to the `ICHostDevice` default implementations). Making this a supertrait enforces
+/// a compile-time error for any new `ICHostDevice` implementations that forget to opt-in.
+pub trait ICHostDeviceMemoryOverride {}
+
+/// Trait for devices that host an IC10 chip and provide common helpers for chip access and execution.
+///
+/// Implementors of this trait should also override `Device`'s `get_memory`, `set_memory`, and `clear`
+/// methods (or delegate to the `ICHostDevice` default implementations) so calls through a
+/// `dyn Device` object are routed to the hosted chip's memory. Unit tests in `logic_tests`
+/// verify this behavior.
+pub trait ICHostDevice: ICHostDeviceMemoryOverride {
+    fn ichost_get_id(&self) -> i32;
+
+    /// Return the shared `ChipSlot` for this device.
+    fn chip_slot(&self) -> Shared<ChipSlot>;
+
+    /// Return the maximum instructions per tick setting for this host.
+    fn max_instructions_per_tick(&self) -> usize;
+
+    /// Read from device internal memory at index. Default implementation proxies to the hosted chip.
+    fn get_memory(&self, address: usize) -> SimulationResult<f64> {
+        if let Some(chip) = self.chip_slot().borrow().get_chip() {
+            return chip.borrow().read_stack(address);
+        }
+
+        Err(SimulationError::RuntimeError {
+            message: "No chip installed".to_string(),
+            line: 0,
+        })
+    }
+
+    /// Write to device internal memory at index. Default implementation proxies to the hosted chip.
+    fn set_memory(&self, address: usize, value: f64) -> SimulationResult<()> {
+        if let Some(chip) = self.chip_slot().borrow().get_chip() {
+            return chip.borrow().write_stack(address, value);
+        }
+
+        Err(SimulationError::RuntimeError {
+            message: "No chip installed".to_string(),
+            line: 0,
+        })
+    }
+
+    /// Clear device stack memory (clr/clrd). Default proxies to the hosted chip.
+    fn clear(&self) -> SimulationResult<()> {
+        if let Some(chip) = self.chip_slot().borrow().get_chip() {
+            chip.borrow().clear_stack();
+            return Ok(());
+        }
+
+        Err(SimulationError::RuntimeError {
+            message: "No chip installed".to_string(),
+            line: 0,
+        })
+    }
+
+    /// Insert an IC chip into the host and attach it. Default implementation inserts into the slot and assigns the chip slot to the chip.
+    fn set_chip(&mut self, chip: Shared<ItemIntegratedCircuit10>) {
+        self.chip_slot()
+            .borrow_mut()
+            .set_chip(Box::new(chip.clone()))
+            .unwrap();
+
+        // Attach the slot back to the chip so it can resolve device pins/aliases
+        chip.borrow_mut()
+            .set_chip_slot(self.chip_slot(), self.ichost_get_id());
+    }
+
+    /// Get the hosted chip (if any).
+    fn get_chip(&self) -> OptShared<ItemIntegratedCircuit10> {
+        self.chip_slot().borrow().get_chip()
+    }
+
+    /// Set a device pin on the housing's chip slot (d0-dN)
+    fn set_device_pin(&mut self, pin: usize, device_ref_id: Option<i32>) {
+        self.chip_slot()
+            .borrow_mut()
+            .set_device_pin(pin, device_ref_id);
+    }
+
+    /// Get a device pin reference ID from the chip slot (d0-dN)
+    fn get_device_pin(&self, pin: usize) -> Option<i32> {
+        self.chip_slot().borrow().get_device_pin(pin)
+    }
+
+    /// Get the number of instructions executed during the last update.
+    fn get_last_executed_instructions(&self) -> usize {
+        self.chip_slot().borrow().get_last_executed_instructions()
+    }
+
+    /// Execute hosted chip code using the host's instruction limit.
+    fn run(&self) -> SimulationResult<()> {
+        self.chip_slot()
+            .borrow()
+            .run(self.max_instructions_per_tick())?;
         Ok(())
     }
 }

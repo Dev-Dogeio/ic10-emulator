@@ -1,52 +1,70 @@
-//! Refactored logic tests - cleaner, more maintainable
-//!
-//! Design principles:
-//! 1. Use string parsing to test full pipeline (parsing + execution)
-//! 2. Use helper macros to reduce boilerplate
-//! 3. Test operand resolution ONCE, not per-instruction
-//! 4. Focus on behavior and edge cases, not operand combinations
-//! 5. Use table-driven tests where appropriate
-
 #[cfg(test)]
 mod tests {
-    use crate::chip::ProgrammableChip;
+    use std::f64;
+
+    use crate::CableNetwork;
+    use crate::ItemIntegratedCircuit10;
     use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
+    use crate::devices::ICHostDevice;
     use crate::devices::{DaylightSensor, Device, ICHousing};
     use crate::instruction::ParsedInstruction;
     use crate::logic::execute_instruction;
-    use crate::types::shared;
+    use crate::types::{Shared, shared};
 
     // ==================== Test Helpers ====================
 
     /// Create a chip with optional initial register values
-    fn chip() -> ProgrammableChip {
-        let housing = shared(ICHousing::new(None, None));
-        ProgrammableChip::new(housing)
+    fn chip() -> ItemIntegratedCircuit10 {
+        // For simple chip-only tests we don't need to attach to a housing
+        ItemIntegratedCircuit10::new()
+    }
+
+    // Test-only helper: construct a chip + housing + network and wire them together.
+    impl ItemIntegratedCircuit10 {
+        pub fn new_with_network() -> (
+            Shared<ItemIntegratedCircuit10>,
+            Shared<ICHousing>,
+            Shared<CableNetwork>,
+        ) {
+            let network = shared(CableNetwork::new());
+            let housing = ICHousing::new(None);
+            let chip = shared(ItemIntegratedCircuit10::new());
+
+            // Connect chip to housing (this will also attach the chip slot to the chip)
+            housing.borrow_mut().set_chip(chip.clone());
+
+            // Connect housing to network (which also adds it as a device)
+            network
+                .borrow_mut()
+                .add_device(housing.clone(), network.clone());
+
+            (chip, housing, network)
+        }
     }
 
     /// Execute a single instruction from string, return new PC
-    fn exec(chip: &mut ProgrammableChip, line: &str) -> Result<usize, String> {
+    fn exec(chip: &mut ItemIntegratedCircuit10, line: &str) -> Result<usize, String> {
         let parsed = ParsedInstruction::parse(line, 0).map_err(|e| format!("{e:?}"))?;
         execute_instruction(chip, &parsed).map_err(|e| format!("{e:?}"))
     }
 
     /// Execute instruction, expect success
-    fn exec_ok(chip: &mut ProgrammableChip, line: &str) -> usize {
+    fn exec_ok(chip: &mut ItemIntegratedCircuit10, line: &str) -> usize {
         exec(chip, line).unwrap_or_else(|_| panic!("Failed to execute: {line}"))
     }
 
     /// Get register value
-    fn reg(chip: &ProgrammableChip, idx: usize) -> f64 {
+    fn reg(chip: &ItemIntegratedCircuit10, idx: usize) -> f64 {
         chip.get_register(idx).unwrap()
     }
 
     /// Set register value
-    fn set_reg(chip: &mut ProgrammableChip, idx: usize, val: f64) {
+    fn set_reg(chip: &mut ItemIntegratedCircuit10, idx: usize, val: f64) {
         chip.set_register(idx, val).unwrap();
     }
 
     /// Assert register equals value (with floating point tolerance)
-    fn assert_reg(chip: &ProgrammableChip, idx: usize, expected: f64) {
+    fn assert_reg(chip: &ItemIntegratedCircuit10, idx: usize, expected: f64) {
         let actual = reg(chip, idx);
         if expected.is_nan() {
             assert!(actual.is_nan(), "r{idx} expected NaN, got {actual}");
@@ -243,7 +261,7 @@ mod tests {
     #[test]
     fn test_trig_basic() {
         let mut chip = chip();
-        let pi = std::f64::consts::PI;
+        let pi = f64::consts::PI;
 
         // sin
         exec_ok(&mut chip, "sin r0 0");
@@ -269,7 +287,7 @@ mod tests {
     #[test]
     fn test_inverse_trig() {
         let mut chip = chip();
-        let pi = std::f64::consts::PI;
+        let pi = f64::consts::PI;
 
         // asin
         exec_ok(&mut chip, "asin r0 0");
@@ -480,7 +498,7 @@ mod tests {
 
     #[test]
     fn test_relative_jump_program() {
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, _, _) = ItemIntegratedCircuit10::new_with_network();
 
         // jr should jump relative to current PC
         let program = r#"
@@ -721,7 +739,7 @@ yield
 
     #[test]
     fn test_simple_program() {
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, _, _) = ItemIntegratedCircuit10::new_with_network();
 
         let program = r#"
 move r0 10
@@ -737,7 +755,7 @@ yield
 
     #[test]
     fn test_loop_with_branch() {
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, _, _) = ItemIntegratedCircuit10::new_with_network();
 
         let program = r#"
 move r0 0
@@ -754,7 +772,7 @@ yield
 
     #[test]
     fn test_subroutine_call() {
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, _, _) = ItemIntegratedCircuit10::new_with_network();
 
         let program = r#"
 move r0 10
@@ -1035,16 +1053,16 @@ j ra
 
     #[test]
     fn test_device_state_detection() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add a device and assign it to d0
-        let sensor = shared(DaylightSensor::new(None));
+        let sensor = DaylightSensor::new(None);
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
             .add_device(sensor.clone(), network.clone());
         chip.borrow_mut()
-            .get_housing_mut()
+            .get_chip_slot_mut()
             .set_device_pin(0, Some(sensor_id));
 
         // sdse - device set exists (db always exists)
@@ -1064,16 +1082,16 @@ yield
 
     #[test]
     fn test_device_state_branches() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add a device and assign it to d0
-        let sensor = shared(DaylightSensor::new(None));
+        let sensor = DaylightSensor::new(None);
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
             .add_device(sensor.clone(), network.clone());
         chip.borrow_mut()
-            .get_housing_mut()
+            .get_chip_slot_mut()
             .set_device_pin(0, Some(sensor_id));
 
         // bdse - branch if device set exists (db always exists)
@@ -1094,16 +1112,16 @@ yield
 
     #[test]
     fn test_device_state_branches_relative() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add a device to make d0 exist
-        let sensor = shared(DaylightSensor::new(None));
+        let sensor = DaylightSensor::new(None);
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
             .add_device(sensor.clone(), network.clone());
         chip.borrow_mut()
-            .get_housing_mut()
+            .get_chip_slot_mut()
             .set_device_pin(0, Some(sensor_id));
 
         // brdse - relative branch if device exists
@@ -1124,16 +1142,16 @@ yield
 
     #[test]
     fn test_device_state_branches_and_link() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add a device to d0
-        let sensor = shared(DaylightSensor::new(None));
+        let sensor = DaylightSensor::new(None);
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
             .add_device(sensor.clone(), network.clone());
         chip.borrow_mut()
-            .get_housing_mut()
+            .get_chip_slot_mut()
             .set_device_pin(0, Some(sensor_id));
 
         // bdseal - branch and link if device exists
@@ -1180,7 +1198,7 @@ yield
 
     #[test]
     fn test_device_io_self() {
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, _, _) = ItemIntegratedCircuit10::new_with_network();
 
         // Test reading/writing to self (db) - Setting = 12
         let program = r#"
@@ -1196,18 +1214,18 @@ yield
 
     #[test]
     fn test_device_io_with_network() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add another IC housing to the network (supports Setting = 12)
-        let housing2 = shared(ICHousing::new(None, None));
-        let housing2_id = housing2.borrow().id();
+        let housing2 = ICHousing::new(None);
+        let housing2_id = housing2.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing2.clone(), network.clone());
 
         // Assign device to pin d0
         chip.borrow_mut()
-            .get_housing_mut()
+            .get_chip_slot_mut()
             .set_device_pin(0, Some(housing2_id));
 
         // Write Setting (12) to d0, then read it back
@@ -1229,7 +1247,7 @@ yield
         // 2. Immediate value (e.g., 12)
         // 3. Register containing the value (e.g., r5 where r5=12)
 
-        let (chip, _, _) = ProgrammableChip::new_with_network();
+        let (chip, _, _) = ItemIntegratedCircuit10::new_with_network();
 
         // Test all three variants
         let program = r#"
@@ -1260,19 +1278,21 @@ yield
 
     #[test]
     fn test_get_put() {
-        let (chip, housing, network) = ProgrammableChip::new_with_network();
+        let (chip, housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add another IC housing device to the network
-        let housing2 = shared(ICHousing::new(None, None));
-        let device_id = housing2.borrow().id();
+        let housing2 = ICHousing::new(None);
+        let chip2 = shared(ItemIntegratedCircuit10::new());
+        housing2.borrow_mut().set_chip(chip2.clone());
+        let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing2.clone(), network.clone());
 
         // Write some values to housing2's memory
-        housing2.borrow().write_stack(0, 42.0).unwrap();
-        housing2.borrow().write_stack(5, 100.0).unwrap();
-        housing2.borrow().write_stack(511, 999.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 0, 42.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 5, 100.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 511, 999.0).unwrap();
 
         // Set housing2 as device on pin 0
         housing.borrow_mut().set_device_pin(0, Some(device_id));
@@ -1310,25 +1330,40 @@ yield
 
         // Verify the memory was actually written
         drop(chip_ref);
-        assert_eq!(housing2.borrow().read_stack(1).unwrap(), 77.0);
-        assert_eq!(housing2.borrow().read_stack(2).unwrap(), 55.5);
+        assert_eq!(
+            ICHostDevice::get_memory(&*housing2.borrow(), 1).unwrap(),
+            77.0
+        );
+        assert_eq!(
+            ICHostDevice::get_memory(&*housing2.borrow(), 2).unwrap(),
+            55.5
+        );
+
+        // Also verify calling through the `Device` trait object routes to the host device behavior
+        let net_ref = network.borrow();
+        let dev = net_ref.get_device(device_id).unwrap();
+        assert_eq!(dev.get_memory(1).unwrap(), 77.0);
+        assert_eq!(dev.get_memory(2).unwrap(), 55.5);
     }
 
     #[test]
     fn test_clr() {
-        let (chip, housing, network) = ProgrammableChip::new_with_network();
+        let (chip, housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add another IC housing device to the network
-        let housing2 = shared(ICHousing::new(None, None));
-        let device_id = housing2.borrow().id();
+        let housing2 = ICHousing::new(None);
+        let chip2 = shared(ItemIntegratedCircuit10::new());
+        housing2.borrow_mut().set_chip(chip2.clone());
+
+        let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing2.clone(), network.clone());
 
         // Write some values to housing2's memory
-        housing2.borrow().write_stack(0, 42.0).unwrap();
-        housing2.borrow().write_stack(100, 123.0).unwrap();
-        housing2.borrow().write_stack(511, 999.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 0, 42.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 100, 123.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 511, 999.0).unwrap();
 
         // Set housing2 as device on pin 0
         housing.borrow_mut().set_device_pin(0, Some(device_id));
@@ -1367,11 +1402,11 @@ yield
 
     #[test]
     fn test_ld_sd() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add another IC housing device to the network (supports Setting)
-        let housing2 = shared(ICHousing::new(None, None));
-        let device_id = housing2.borrow().id();
+        let housing2 = ICHousing::new(None);
+        let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing2.clone(), network.clone());
@@ -1397,10 +1432,10 @@ yield
         // Tests that ld/sd instructions accept LogicType as:
         // 1. String name, 2. Immediate value, 3. Register
 
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
-        let housing2 = shared(ICHousing::new(None, None));
-        let device_id = housing2.borrow().id();
+        let housing2 = ICHousing::new(None);
+        let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing2.clone(), network.clone());
@@ -1438,7 +1473,7 @@ yield
 
     #[test]
     fn test_batch_lb_sb() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Check how many devices are on the network initially (should be 1: the chip's housing)
         let initial_count = network.borrow().device_count();
@@ -1446,7 +1481,7 @@ yield
 
         // Add 3 more ICHousing devices (they support Setting)
         for _ in 0..3 {
-            let housing = shared(ICHousing::new(None, None));
+            let housing = ICHousing::new(None);
             network.borrow_mut().add_device(housing, network.clone());
         }
 
@@ -1455,8 +1490,8 @@ yield
         assert_eq!(total_count, 4, "Expected 4 devices after adding 3");
 
         // Get the prefab hash for ICHousing
-        let housing = ICHousing::new(None, None);
-        let hash = housing.get_prefab_hash();
+        let housing = ICHousing::new(None);
+        let hash = housing.borrow().get_prefab_hash();
 
         // Count devices that match the hash
         let prefab_count = network.borrow().count_devices_by_prefab(hash);
@@ -1484,11 +1519,11 @@ yield
         // Tests that lb/sb instructions accept LogicType as:
         // 1. String name, 2. Immediate value, 3. Register
 
-        let (chip, _housing, _network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, _network) = ItemIntegratedCircuit10::new_with_network();
 
         // Get the prefab hash for ICHousing
-        let housing = ICHousing::new(None, None);
-        let hash = housing.get_prefab_hash();
+        let housing = ICHousing::new(None);
+        let hash = housing.borrow().get_prefab_hash();
 
         // Test with string name "Setting"
         let program = format!(
@@ -1583,26 +1618,31 @@ yield
 
     #[test]
     fn test_getd_putd() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add two IC housing devices to the network
-        let housing1 = shared(ICHousing::new(None, None));
-        let device_id1 = housing1.borrow().id();
+        let housing1 = ICHousing::new(None);
+        let chip1 = shared(ItemIntegratedCircuit10::new());
+        housing1.borrow_mut().set_chip(chip1.clone());
+        let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing1.clone(), network.clone());
 
-        let housing2 = shared(ICHousing::new(None, None));
-        let device_id2 = housing2.borrow().id();
+        let housing2 = ICHousing::new(None);
+        let chip2 = shared(ItemIntegratedCircuit10::new());
+        housing2.borrow_mut().set_chip(chip2.clone());
+
+        let device_id2 = housing2.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing2.clone(), network.clone());
 
         // Write some values to housing1 and housing2's memory
-        housing1.borrow().write_stack(0, 111.0).unwrap();
-        housing1.borrow().write_stack(50, 222.0).unwrap();
-        housing2.borrow().write_stack(0, 333.0).unwrap();
-        housing2.borrow().write_stack(100, 444.0).unwrap();
+        ICHostDevice::set_memory(&*housing1.borrow(), 0, 111.0).unwrap();
+        ICHostDevice::set_memory(&*housing1.borrow(), 50, 222.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 0, 333.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 100, 444.0).unwrap();
 
         let program = format!(
             r#"
@@ -1645,38 +1685,66 @@ yield
 
         // Verify the memory was actually written
         drop(chip_ref);
-        assert_eq!(housing1.borrow().read_stack(10).unwrap(), 555.0);
-        assert_eq!(housing1.borrow().read_stack(25).unwrap(), 777.0);
-        assert_eq!(housing2.borrow().read_stack(200).unwrap(), 666.0);
+        assert_eq!(
+            ICHostDevice::get_memory(&*housing1.borrow(), 10).unwrap(),
+            555.0
+        );
+        assert_eq!(
+            ICHostDevice::get_memory(&*housing1.borrow(), 25).unwrap(),
+            777.0
+        );
+        assert_eq!(
+            ICHostDevice::get_memory(&*housing2.borrow(), 200).unwrap(),
+            666.0
+        );
+
+        // Also verify calling through the `Device` trait object routes to the host device behavior
+        let net_ref = network.borrow();
+        let dev1 = net_ref.get_device(device_id1).unwrap();
+        let dev2 = net_ref.get_device(device_id2).unwrap();
+        assert_eq!(dev1.get_memory(10).unwrap(), 555.0);
+        assert_eq!(dev1.get_memory(25).unwrap(), 777.0);
+
+        // Also verify `set_memory` via the `Device` trait works (mutates host stack)
+        dev2.set_memory(33, 888.0).unwrap();
+        assert_eq!(
+            ICHostDevice::get_memory(&*housing2.borrow(), 33).unwrap(),
+            888.0
+        );
+        assert_eq!(dev2.get_memory(200).unwrap(), 666.0);
     }
 
     // ==================== Clrd Test ====================
 
     #[test]
     fn test_clrd() {
-        let (chip, _housing, network) = ProgrammableChip::new_with_network();
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add two IC housing devices to the network
-        let housing1 = shared(ICHousing::new(None, None));
-        let device_id1 = housing1.borrow().id();
+        let housing1 = ICHousing::new(None);
+        let chip1 = shared(ItemIntegratedCircuit10::new());
+        housing1.borrow_mut().set_chip(chip1.clone());
+        let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing1.clone(), network.clone());
 
-        let housing2 = shared(ICHousing::new(None, None));
-        let device_id2 = housing2.borrow().id();
+        let housing2 = ICHousing::new(None);
+        let chip2 = shared(ItemIntegratedCircuit10::new());
+        housing2.borrow_mut().set_chip(chip2.clone());
+        let device_id2 = housing2.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing2.clone(), network.clone());
 
         // Write some values to both housings' memory
-        housing1.borrow().write_stack(0, 111.0).unwrap();
-        housing1.borrow().write_stack(100, 222.0).unwrap();
-        housing1.borrow().write_stack(511, 333.0).unwrap();
+        ICHostDevice::set_memory(&*housing1.borrow(), 0, 111.0).unwrap();
+        ICHostDevice::set_memory(&*housing1.borrow(), 100, 222.0).unwrap();
+        ICHostDevice::set_memory(&*housing1.borrow(), 511, 333.0).unwrap();
 
-        housing2.borrow().write_stack(0, 444.0).unwrap();
-        housing2.borrow().write_stack(100, 555.0).unwrap();
-        housing2.borrow().write_stack(511, 666.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 0, 444.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 100, 555.0).unwrap();
+        ICHostDevice::set_memory(&*housing2.borrow(), 511, 666.0).unwrap();
 
         let program = format!(
             r#"

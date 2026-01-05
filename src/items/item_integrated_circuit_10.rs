@@ -1,18 +1,21 @@
-use crate::constants::{
-    DEVICE_PIN_COUNT, REGISTER_COUNT, RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX, STACK_SIZE,
-};
-use crate::devices::ICHousing;
+use crate::constants::{REGISTER_COUNT, RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX, STACK_SIZE};
+use crate::devices::ChipSlot;
 use crate::error::{SimulationError, SimulationResult};
 use crate::instruction::{Instruction, ParsedInstruction};
-use crate::parser::preprocess;
-use crate::types::{OptShared, Shared, shared};
-use crate::{CableNetwork, LogicType, get_builtin_constants};
-use crate::{Device, logic};
+use crate::parser::{preprocess, string_to_hash};
+use crate::types::{OptShared, Shared};
+use crate::{CableNetwork, Item, ItemType, allocate_global_id, get_builtin_constants};
+use crate::{LogicType, logic};
+use std::any::Any;
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 
 /// The main IC10 programmable chip
 #[derive(Debug)]
-pub struct ProgrammableChip {
+pub struct ItemIntegratedCircuit10 {
+    /// Unique global ID
+    id: i32,
+
     /// Program counter - current line being executed
     pc: usize,
 
@@ -28,8 +31,14 @@ pub struct ProgrammableChip {
     /// Compile-time constants
     defines: HashMap<String, f64>,
 
-    /// IC housing
-    housing: Shared<ICHousing>,
+    /// Chip slot reference (optional)
+    chip_slot: OptShared<ChipSlot>,
+
+    /// Registers (r0-r17)
+    registers: RefCell<[f64; REGISTER_COUNT]>,
+
+    /// Stack memory
+    stack: RefCell<[f64; STACK_SIZE]>,
 
     /// Execution state
     halted: bool,
@@ -49,48 +58,31 @@ pub enum AliasTarget {
     Alias(String), // References another alias by name
 }
 
-impl ProgrammableChip {
-    /// Create a new programmable chip with a housing
-    pub fn new(housing: Shared<ICHousing>) -> Self {
+impl ItemIntegratedCircuit10 {
+    /// Create a new IC10 chip
+    pub fn new() -> Self {
         let mut aliases = HashMap::new();
-        let housing_id = housing.borrow().id();
 
         aliases.insert("sp".to_string(), AliasTarget::Register(STACK_POINTER_INDEX));
         aliases.insert(
             "ra".to_string(),
             AliasTarget::Register(RETURN_ADDRESS_INDEX),
         );
-        aliases.insert("db".to_string(), AliasTarget::Device(housing_id));
 
         Self {
+            id: allocate_global_id(),
             pc: 0,
             program: Vec::new(),
             aliases,
             labels: HashMap::new(),
             defines: get_builtin_constants(),
-            housing,
+            chip_slot: None,
+            registers: RefCell::new([0.0; REGISTER_COUNT]),
+            stack: RefCell::new([0.0; STACK_SIZE]),
             halted: false,
             error_line: None,
             sleep_ticks: 0,
         }
-    }
-
-    /// Create a chip with a new network and housing
-    /// Sets up a chip, network, and housing, and connects them
-    pub fn new_with_network() -> (Shared<Self>, Shared<ICHousing>, Shared<CableNetwork>) {
-        let network = shared(CableNetwork::new());
-        let housing = shared(ICHousing::new(None, None));
-        let chip = shared(ProgrammableChip::new(housing.clone()));
-
-        // Connect chip to housing
-        housing.borrow_mut().set_chip(chip.clone());
-
-        // Connect housing to network (which also adds it as a device)
-        network
-            .borrow_mut()
-            .add_device(housing.clone(), network.clone());
-
-        (chip, housing, network)
     }
 
     /// Load a program from source code
@@ -133,14 +125,11 @@ impl ProgrammableChip {
             {
                 // pin_idx in parsed instruction is the pin index (stored as i32)
                 let pin = pin_idx as usize;
-                if pin >= DEVICE_PIN_COUNT {
+                // TODO: don't use constant
+                if pin >= 6 {
                     return Err(SimulationError::IC10ParseError {
                         line: line_num,
-                        message: format!(
-                            "Device pin out of range: d{} (max d{})",
-                            pin,
-                            DEVICE_PIN_COUNT - 1
-                        ),
+                        message: format!("Device pin out of range: d{} (max d{})", pin, 6 - 1),
                     });
                 }
             }
@@ -294,8 +283,8 @@ impl ProgrammableChip {
         match operand {
             Operand::DevicePin(pin_idx) => {
                 // Direct device pin access (d0-d5) - get the reference ID stored at this pin
-                let housing = self.housing.borrow();
-                if let Some(ref_id) = housing.get_device_pin(*pin_idx) {
+                let chip_slot = self.get_chip_slot();
+                if let Some(ref_id) = chip_slot.get_device_pin(*pin_idx) {
                     Ok(ref_id)
                 } else {
                     Err(SimulationError::RuntimeError {
@@ -326,10 +315,16 @@ impl ProgrammableChip {
                         line: self.pc,
                         message: format!("Alias '{name}' referencing another alias at runtime"),
                     }),
-                    None => Err(SimulationError::RuntimeError {
-                        line: self.pc,
-                        message: format!("Undefined device alias: {name}"),
-                    }),
+                    None => {
+                        if let Some(val) = self.defines.get(name) {
+                            Ok(*val as i32)
+                        } else {
+                            Err(SimulationError::RuntimeError {
+                                line: self.pc,
+                                message: format!("Undefined alias or define: {name}"),
+                            })
+                        }
+                    }
                 }
             }
         }
@@ -348,45 +343,57 @@ impl ProgrammableChip {
 
     /// Check if a device with the given reference ID exists on the network
     pub(crate) fn device_exists_by_id(&self, ref_id: i32) -> bool {
-        let housing = self.housing.borrow();
-        if let Some(network) = housing.get_network() {
-            network.borrow().device_exists(ref_id)
+        if let Some(slot_rc) = &self.chip_slot {
+            let slot = slot_rc.borrow();
+            if let Some(network) = slot.get_network() {
+                network.borrow().device_exists(ref_id)
+            } else if let Some(id) = slot.id() {
+                ref_id == id
+            } else {
+                false
+            }
         } else {
-            // If not connected to network, only the housing itself exists
-            ref_id == housing.id()
+            false
         }
     }
 
     /// Get a register value
     pub fn get_register(&self, index: usize) -> SimulationResult<f64> {
-        self.housing
-            .borrow()
-            .get_register(index)
-            .map_err(|_| SimulationError::RegisterOutOfBounds(index))
+        if index >= REGISTER_COUNT {
+            return Err(SimulationError::RegisterOutOfBounds(index));
+        }
+        Ok(self.registers.borrow()[index])
     }
 
     /// Set a register value
     pub fn set_register(&self, index: usize, value: f64) -> SimulationResult<()> {
-        self.housing
-            .borrow()
-            .set_register(index, value)
-            .map_err(|_| SimulationError::RegisterOutOfBounds(index))
+        if index >= REGISTER_COUNT {
+            return Err(SimulationError::RegisterOutOfBounds(index));
+        }
+        self.registers.borrow_mut()[index] = value;
+        Ok(())
     }
 
     /// Read from stack memory
     pub fn read_stack(&self, address: usize) -> SimulationResult<f64> {
-        self.housing
-            .borrow()
-            .read_stack(address)
-            .map_err(|_| SimulationError::StackOutOfBounds(address))
+        if address >= STACK_SIZE {
+            return Err(SimulationError::StackOutOfBounds(address));
+        }
+        Ok(self.stack.borrow()[address])
     }
 
     /// Write to stack memory
     pub fn write_stack(&self, address: usize, value: f64) -> SimulationResult<()> {
-        self.housing
-            .borrow()
-            .write_stack(address, value)
-            .map_err(|_| SimulationError::StackOutOfBounds(address))
+        if address >= STACK_SIZE {
+            return Err(SimulationError::StackOutOfBounds(address));
+        }
+        self.stack.borrow_mut()[address] = value;
+        Ok(())
+    }
+
+    /// Clear stack memory
+    pub fn clear_stack(&self) {
+        self.stack.borrow_mut().fill(0.0);
     }
 
     /// Insert a define (compile-time constant)
@@ -436,37 +443,40 @@ impl ProgrammableChip {
         self.sleep_ticks = ticks;
     }
 
-    /// Get a reference to the housing
-    pub fn get_housing(&self) -> std::cell::Ref<'_, ICHousing> {
-        self.housing.borrow()
+    /// Get a reference to the chip slot
+    pub fn get_chip_slot(&self) -> Ref<'_, ChipSlot> {
+        self.chip_slot.as_ref().unwrap().borrow()
     }
 
-    /// Get a mutable reference to the housing
-    pub fn get_housing_mut(&self) -> std::cell::RefMut<'_, ICHousing> {
-        self.housing.borrow_mut()
+    /// Get a mutable reference to the chip slot
+    pub fn get_chip_slot_mut(&self) -> RefMut<'_, ChipSlot> {
+        self.chip_slot.as_ref().unwrap().borrow_mut()
     }
 
-    /// Get the Rc to the housing (for when you need to clone the reference)
-    pub fn get_housing_rc(&self) -> Shared<ICHousing> {
-        self.housing.clone()
+    /// Get the Rc to the chip slot (for when you need to clone the reference)
+    pub fn get_housing_rc(&self) -> Shared<ChipSlot> {
+        self.chip_slot.as_ref().unwrap().clone()
+    }
+
+    /// Attach the chip to a `ChipSlot` and register self device aliases
+    pub fn set_chip_slot(&mut self, slot: Shared<ChipSlot>, device_id: i32) {
+        // Store slot reference
+        self.chip_slot = Some(slot.clone());
+
+        // Add a convenient alias `db` referencing the device itself
+        self.add_device_alias("db".to_string(), device_id);
     }
 
     /// Get a reference to the cable network (if connected)
     pub fn get_network(&self) -> OptShared<CableNetwork> {
-        self.housing.borrow().get_network()
-    }
-
-    /// Get the housing's reference ID
-    pub fn get_housing_id(&self) -> i32 {
-        self.housing.borrow().id()
+        self.get_chip_slot().get_network()
     }
 
     /// Print debug information: registers and non-zero stack values
     pub fn print_debug_info(&self) {
-        let housing = self.housing.borrow();
         println!(
             "On: {}",
-            if self.housing.borrow().read(LogicType::On).unwrap() == 1.0 {
+            if self.get_chip_slot().read(LogicType::On).unwrap() == 1.0 {
                 "Yes"
             } else {
                 "No"
@@ -475,9 +485,8 @@ impl ProgrammableChip {
         println!("Halted: {}", if !self.halted { "Yes" } else { "No" });
         println!("Non-zero Registers:");
         for i in 0..REGISTER_COUNT {
-            if let Ok(value) = housing.get_register(i)
-                && value != 0.0
-            {
+            let value = self.registers.borrow()[i];
+            if value != 0.0 {
                 if value.fract() == 0.0 {
                     println!("r{i}: {value:.0}");
                 } else {
@@ -488,9 +497,8 @@ impl ProgrammableChip {
 
         println!("\nNon-zero Stack Values:");
         for i in 0..STACK_SIZE {
-            if let Ok(value) = housing.read_stack(i)
-                && value != 0.0
-            {
+            let value = self.stack.borrow()[i];
+            if value != 0.0 {
                 if value.fract() == 0.0 {
                     println!("stack[{i}]: {value:.0}");
                 } else {
@@ -501,6 +509,12 @@ impl ProgrammableChip {
     }
 }
 
+impl Default for ItemIntegratedCircuit10 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Operand types for instructions
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operand {
@@ -508,4 +522,43 @@ pub enum Operand {
     Immediate(f64),
     Alias(String),
     DevicePin(usize),
+}
+
+// Implement the Item trait for Shared<ItemIntegratedCircuit10> so the chip itself can be stored in slots
+impl Item for Shared<ItemIntegratedCircuit10> {
+    fn item_type(&self) -> ItemType {
+        ItemType::ItemIntegratedCircuit10
+    }
+
+    fn get_id(&self) -> i32 {
+        self.borrow().id
+    }
+
+    fn get_prefab_hash(&self) -> i32 {
+        string_to_hash("ItemIntegratedCircuit10")
+    }
+
+    fn quantity(&self) -> u32 {
+        1
+    }
+
+    fn set_quantity(&mut self, _quantity: u32) -> bool {
+        false
+    }
+
+    fn max_quantity(&self) -> u32 {
+        1
+    }
+
+    fn merge(&mut self, _other: &mut dyn Item) -> bool {
+        false
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
