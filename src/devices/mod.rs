@@ -40,6 +40,162 @@ pub use daylight_sensor::DaylightSensor;
 pub use ic_housing::ICHousing;
 pub use logic_memory::LogicMemory;
 
+/// Slot logic types
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LogicSlotType {
+    None = 0,
+    Occupied = 1,
+    OccupantHash = 2,
+    Quantity = 3,
+    Damage = 4,
+    Efficiency = 5,
+    Health = 6,
+    Growth = 7,
+    Pressure = 8,
+    Temperature = 9,
+    Charge = 10,
+    ChargeRatio = 11,
+    Class = 12,
+    PressureWaste = 13,
+    PressureAir = 14,
+    MaxQuantity = 15,
+    Mature = 16,
+    PrefabHash = 17,
+    Seeding = 18,
+    LineNumber = 19,
+    Volume = 20,
+    Open = 21,
+    On = 22,
+    Lock = 23,
+    SortingClass = 24,
+    FilterType = 25,
+    ReferenceId = 26,
+    HarvestedHash = 27,
+    Mode = 28,
+    MaturityRatio = 29,
+    SeedingRatio = 30,
+    FreeSlots = 31,
+    TotalSlots = 32,
+}
+
+impl LogicSlotType {
+    pub fn from_value(value: f64) -> Option<Self> {
+        match value as i32 {
+            0 => Some(LogicSlotType::None),
+            1 => Some(LogicSlotType::Occupied),
+            2 => Some(LogicSlotType::OccupantHash),
+            3 => Some(LogicSlotType::Quantity),
+            4 => Some(LogicSlotType::Damage),
+            5 => Some(LogicSlotType::Efficiency),
+            6 => Some(LogicSlotType::Health),
+            7 => Some(LogicSlotType::Growth),
+            8 => Some(LogicSlotType::Pressure),
+            9 => Some(LogicSlotType::Temperature),
+            10 => Some(LogicSlotType::Charge),
+            11 => Some(LogicSlotType::ChargeRatio),
+            12 => Some(LogicSlotType::Class),
+            13 => Some(LogicSlotType::PressureWaste),
+            14 => Some(LogicSlotType::PressureAir),
+            15 => Some(LogicSlotType::MaxQuantity),
+            16 => Some(LogicSlotType::Mature),
+            17 => Some(LogicSlotType::PrefabHash),
+            18 => Some(LogicSlotType::Seeding),
+            19 => Some(LogicSlotType::LineNumber),
+            20 => Some(LogicSlotType::Volume),
+            21 => Some(LogicSlotType::Open),
+            22 => Some(LogicSlotType::On),
+            23 => Some(LogicSlotType::Lock),
+            24 => Some(LogicSlotType::SortingClass),
+            25 => Some(LogicSlotType::FilterType),
+            26 => Some(LogicSlotType::ReferenceId),
+            27 => Some(LogicSlotType::HarvestedHash),
+            28 => Some(LogicSlotType::Mode),
+            29 => Some(LogicSlotType::MaturityRatio),
+            30 => Some(LogicSlotType::SeedingRatio),
+            31 => Some(LogicSlotType::FreeSlots),
+            32 => Some(LogicSlotType::TotalSlots),
+            _ => None,
+        }
+    }
+
+    pub fn to_value(self) -> f64 {
+        match self {
+            LogicSlotType::None => 0.0,
+            LogicSlotType::Occupied => 1.0,
+            LogicSlotType::OccupantHash => 2.0,
+            LogicSlotType::Quantity => 3.0,
+            LogicSlotType::Damage => 4.0,
+            LogicSlotType::Efficiency => 5.0,
+            LogicSlotType::Health => 6.0,
+            LogicSlotType::Growth => 7.0,
+            LogicSlotType::Pressure => 8.0,
+            LogicSlotType::Temperature => 9.0,
+            LogicSlotType::Charge => 10.0,
+            LogicSlotType::ChargeRatio => 11.0,
+            LogicSlotType::Class => 12.0,
+            LogicSlotType::PressureWaste => 13.0,
+            LogicSlotType::PressureAir => 14.0,
+            LogicSlotType::MaxQuantity => 15.0,
+            LogicSlotType::Mature => 16.0,
+            LogicSlotType::PrefabHash => 17.0,
+            LogicSlotType::Seeding => 18.0,
+            LogicSlotType::LineNumber => 19.0,
+            LogicSlotType::Volume => 20.0,
+            LogicSlotType::Open => 21.0,
+            LogicSlotType::On => 22.0,
+            LogicSlotType::Lock => 23.0,
+            LogicSlotType::SortingClass => 24.0,
+            LogicSlotType::FilterType => 25.0,
+            LogicSlotType::ReferenceId => 26.0,
+            LogicSlotType::HarvestedHash => 27.0,
+            LogicSlotType::Mode => 28.0,
+            LogicSlotType::MaturityRatio => 29.0,
+            LogicSlotType::SeedingRatio => 30.0,
+            LogicSlotType::FreeSlots => 31.0,
+            LogicSlotType::TotalSlots => 32.0,
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "None" => Some(LogicSlotType::None),
+            "Occupied" => Some(LogicSlotType::Occupied),
+            "OccupantHash" => Some(LogicSlotType::OccupantHash),
+            "Quantity" => Some(LogicSlotType::Quantity),
+            "Damage" => Some(LogicSlotType::Damage),
+            "Efficiency" => Some(LogicSlotType::Efficiency),
+            "Health" => Some(LogicSlotType::Health),
+            "Growth" => Some(LogicSlotType::Growth),
+            "Pressure" => Some(LogicSlotType::Pressure),
+            "Temperature" => Some(LogicSlotType::Temperature),
+            "Charge" => Some(LogicSlotType::Charge),
+            "ChargeRatio" => Some(LogicSlotType::ChargeRatio),
+            "Class" => Some(LogicSlotType::Class),
+            "PressureWaste" => Some(LogicSlotType::PressureWaste),
+            "PressureAir" => Some(LogicSlotType::PressureAir),
+            "MaxQuantity" => Some(LogicSlotType::MaxQuantity),
+            "Mature" => Some(LogicSlotType::Mature),
+            "PrefabHash" => Some(LogicSlotType::PrefabHash),
+            "Seeding" => Some(LogicSlotType::Seeding),
+            "LineNumber" => Some(LogicSlotType::LineNumber),
+            "Volume" => Some(LogicSlotType::Volume),
+            "Open" => Some(LogicSlotType::Open),
+            "On" => Some(LogicSlotType::On),
+            "Lock" => Some(LogicSlotType::Lock),
+            "SortingClass" => Some(LogicSlotType::SortingClass),
+            "FilterType" => Some(LogicSlotType::FilterType),
+            "ReferenceId" => Some(LogicSlotType::ReferenceId),
+            "HarvestedHash" => Some(LogicSlotType::HarvestedHash),
+            "Mode" => Some(LogicSlotType::Mode),
+            "MaturityRatio" => Some(LogicSlotType::MaturityRatio),
+            "SeedingRatio" => Some(LogicSlotType::SeedingRatio),
+            "FreeSlots" => Some(LogicSlotType::FreeSlots),
+            "TotalSlots" => Some(LogicSlotType::TotalSlots),
+            _ => None,
+        }
+    }
+}
+
 mod chip_slot;
 pub use chip_slot::ChipSlot;
 
@@ -405,6 +561,27 @@ pub trait Device: Debug {
 
     /// Set the network reference for the device
     fn set_network(&mut self, network: OptShared<CableNetwork>);
+
+    /// Read a value from a specific slot
+    fn read_slot(&self, _index: usize, _slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
+        Err(SimulationError::RuntimeError {
+            message: "Device does not support slot operations".to_string(),
+            line: 0,
+        })
+    }
+
+    /// Write a value to a specific slot
+    fn write_slot(
+        &self,
+        _index: usize,
+        _slot_logic_type: LogicSlotType,
+        _value: f64,
+    ) -> SimulationResult<()> {
+        Err(SimulationError::RuntimeError {
+            message: "Device does not support slot operations".to_string(),
+            line: 0,
+        })
+    }
 
     /// Set the device's name
     fn set_name(&mut self, name: &str);

@@ -4,10 +4,10 @@ use crate::error::{SimulationError, SimulationResult};
 use crate::instruction::{Instruction, ParsedInstruction};
 use crate::items::item_integrated_circuit_10::AliasTarget;
 use crate::networks::BatchMode;
-use crate::{ItemIntegratedCircuit10, LogicType};
+use crate::{ItemIntegratedCircuit10, LogicSlotType, LogicType};
 
 pub fn execute_instruction(
-    chip: &mut ItemIntegratedCircuit10,
+    chip: &ItemIntegratedCircuit10,
     instruction: &ParsedInstruction,
 ) -> SimulationResult<usize> {
     match &instruction.instruction {
@@ -22,7 +22,7 @@ pub fn execute_instruction(
                 AliasTarget::Device(pin_idx) => {
                     let pin = *pin_idx as usize;
                     let chip_slot = chip.get_chip_slot();
-                    if let Some(ref_id) = chip_slot.get_device_pin(pin) {
+                    if let Some(ref_id) = chip_slot.borrow().get_device_pin(pin) {
                         AliasTarget::Device(ref_id)
                     } else {
                         return Err(SimulationError::RuntimeError {
@@ -1345,27 +1345,18 @@ pub fn execute_instruction(
                     line: instruction.line_number,
                 })?;
 
-            // Check if we're reading from the chip slot itself (db)
-            let value = if let Some(id) = chip.get_chip_slot().id()
-                && ref_id == id
-            {
-                // Read directly from chip slot to avoid double borrow
-                chip.get_chip_slot().read(logic_type)?
-            } else {
-                let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                    message: "Housing not connected to network".to_string(),
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
+                message: "Housing not connected to network".to_string(),
+                line: instruction.line_number,
+            })?;
+            let network_ref = network.borrow();
+            let device = network_ref
+                .get_device(ref_id)
+                .ok_or(SimulationError::RuntimeError {
+                    message: format!("Device with reference ID {ref_id} not found"),
                     line: instruction.line_number,
                 })?;
-                let network_ref = network.borrow();
-                let device =
-                    network_ref
-                        .get_device(ref_id)
-                        .ok_or(SimulationError::RuntimeError {
-                            message: format!("Device with reference ID {ref_id} not found"),
-                            line: instruction.line_number,
-                        })?;
-                device.read(logic_type)?
-            };
+            let value = device.read(logic_type)?;
 
             chip.set_register(chip.resolve_register(dest)?, value)?;
             Ok(chip.get_pc() + 1)
@@ -1384,7 +1375,6 @@ pub fn execute_instruction(
                     line: instruction.line_number,
                 })?;
 
-            // Check if we're writing to the housing itself (db)
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
                 message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
@@ -1400,28 +1390,66 @@ pub fn execute_instruction(
             Ok(chip.get_pc() + 1)
         }
         Instruction::Ls {
-            dest: _,
-            device: _,
-            slot_index: _,
-            slot_logic_type: _,
+            dest,
+            device,
+            slot_index,
+            slot_logic_type,
         } => {
-            // Slot operations not yet fully implemented
-            Err(SimulationError::RuntimeError {
-                message: "Slot operations not yet implemented".to_string(),
+            let ref_id = chip.resolve_device_ref_id(device)?;
+            let slot_index = chip.resolve_value(slot_index)? as usize;
+            let slot_logic_val = chip.resolve_value(slot_logic_type)?;
+            let slot_logic =
+                LogicSlotType::from_value(slot_logic_val).ok_or(SimulationError::RuntimeError {
+                    message: format!("Invalid slot logic type: {slot_logic_val}"),
+                    line: instruction.line_number,
+                })?;
+
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
+                message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
-            })
+            })?;
+            let network_ref = network.borrow();
+            let device = network_ref
+                .get_device(ref_id)
+                .ok_or(SimulationError::RuntimeError {
+                    message: format!("Device with reference ID {ref_id} not found"),
+                    line: instruction.line_number,
+                })?;
+
+            let val = device.read_slot(slot_index, slot_logic)?;
+            chip.set_register(chip.resolve_register(dest)?, val)?;
+            Ok(chip.get_pc() + 1)
         }
         Instruction::Ss {
-            device: _,
-            slot_index: _,
-            slot_logic_type: _,
-            value: _,
+            device,
+            slot_index,
+            slot_logic_type,
+            value,
         } => {
-            // Slot operations not yet fully implemented
-            Err(SimulationError::RuntimeError {
-                message: "Slot operations not yet implemented".to_string(),
+            let ref_id = chip.resolve_device_ref_id(device)?;
+            let slot_index = chip.resolve_value(slot_index)? as usize;
+            let slot_logic_val = chip.resolve_value(slot_logic_type)?;
+            let slot_logic =
+                LogicSlotType::from_value(slot_logic_val).ok_or(SimulationError::RuntimeError {
+                    message: format!("Invalid slot logic type: {slot_logic_val}"),
+                    line: instruction.line_number,
+                })?;
+            let value = chip.resolve_value(value)?;
+
+            let network = chip.get_network().ok_or(SimulationError::RuntimeError {
+                message: "Housing not connected to network".to_string(),
                 line: instruction.line_number,
-            })
+            })?;
+            let network_ref = network.borrow();
+            let device = network_ref
+                .get_device(ref_id)
+                .ok_or(SimulationError::RuntimeError {
+                    message: format!("Device with reference ID {ref_id} not found"),
+                    line: instruction.line_number,
+                })?;
+
+            device.write_slot(slot_index, slot_logic, value)?;
+            Ok(chip.get_pc() + 1)
         }
         Instruction::Lr {
             dest: _,

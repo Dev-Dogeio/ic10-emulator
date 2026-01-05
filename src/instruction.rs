@@ -1,8 +1,8 @@
-use crate::BatchMode;
 use crate::constants::REGISTER_COUNT;
 use crate::devices::LogicType;
 use crate::error::{SimulationError, SimulationResult};
 use crate::items::item_integrated_circuit_10::{AliasTarget, Operand};
+use crate::{BatchMode, LogicSlotType};
 
 /// All IC10 instructions
 #[derive(Debug, Clone, PartialEq)]
@@ -743,6 +743,15 @@ fn parse_logic_type_operand(token: &str) -> Operand {
     // Check if this token matches a LogicType name
     if let Some(logic_type) = LogicType::from_name(token) {
         return Operand::Immediate(logic_type.to_value());
+    }
+    parse_operand(token)
+}
+
+/// Parse an operand that could be a SlotLogicType name
+fn parse_slot_logic_operand(token: &str) -> Operand {
+    // Check if this token matches a LogicSlotType name
+    if let Some(slot_type) = LogicSlotType::from_name(token) {
+        return Operand::Immediate(slot_type.to_value());
     }
     parse_operand(token)
 }
@@ -1881,7 +1890,7 @@ impl ParsedInstruction {
                 let dest = parse_dest_operand(tokens[1]);
                 let device = parse_operand(tokens[2]);
                 let slot_index = parse_operand(tokens[3]);
-                let slot_logic_type = parse_operand(tokens[4]);
+                let slot_logic_type = parse_slot_logic_operand(tokens[4]);
                 Ok(ParsedInstruction {
                     instruction: Instruction::Ls {
                         dest,
@@ -1903,7 +1912,7 @@ impl ParsedInstruction {
                 }
                 let device = parse_operand(tokens[1]);
                 let slot_index = parse_operand(tokens[2]);
-                let slot_logic_type = parse_operand(tokens[3]);
+                let slot_logic_type = parse_slot_logic_operand(tokens[3]);
                 let value = parse_operand(tokens[4]);
                 Ok(ParsedInstruction {
                     instruction: Instruction::Ss {

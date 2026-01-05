@@ -10,7 +10,7 @@
 use std::cell::RefCell;
 
 use crate::{
-    CableNetwork, Filter, ItemType, Slot, allocate_global_id,
+    CableNetwork, Filter, ItemType, LogicSlotType, Slot, allocate_global_id,
     atmospherics::{GasType, MAX_PRESSURE_GAS_PIPE, PIPE_VOLUME, calculate_moles},
     conversions::lerp,
     devices::{
@@ -104,11 +104,6 @@ impl Filtration {
     /// Get a mutable reference to a slot by index
     pub fn get_slot_mut(&mut self, index: usize) -> Option<&mut Slot> {
         self.slots.get_mut(index)
-    }
-
-    /// Number of filter slots
-    pub fn slot_count(&self) -> usize {
-        self.slots.len()
     }
 
     /// Get the currently active filters from inserted physical filter items (quantity > 0)
@@ -284,6 +279,86 @@ impl Device for Filtration {
                 line: 0,
             }),
         }
+    }
+
+    fn read_slot(&self, index: usize, slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
+        if index >= self.slots.len() {
+            return Err(SimulationError::RuntimeError {
+                message: format!("Slot index out of range: {index}"),
+                line: 0,
+            });
+        }
+
+        let slot = &self.slots[index];
+
+        match slot_logic_type {
+            LogicSlotType::Occupied => Ok(if slot.is_empty() { 0.0 } else { 1.0 }),
+            LogicSlotType::OccupantHash => {
+                if let Some(item) = slot.get_item() {
+                    Ok(item.get_prefab_hash() as f64)
+                } else {
+                    Ok(0.0)
+                }
+            }
+            LogicSlotType::Quantity => {
+                if let Some(item) = slot.get_item() {
+                    Ok(item.quantity() as f64)
+                } else {
+                    Ok(0.0)
+                }
+            }
+            LogicSlotType::MaxQuantity => {
+                if let Some(item) = slot.get_item() {
+                    Ok(item.max_quantity() as f64)
+                } else {
+                    Ok(0.0)
+                }
+            }
+            LogicSlotType::FilterType => {
+                if let Some(item) = slot.get_item() {
+                    if item.item_type() == ItemType::Filter {
+                        if let Some(filter_item) = item.as_any().downcast_ref::<Filter>() {
+                            Ok(filter_item.gas_type() as u32 as f64)
+                        } else {
+                            Ok(0.0)
+                        }
+                    } else {
+                        Ok(0.0)
+                    }
+                } else {
+                    Ok(0.0)
+                }
+            }
+            LogicSlotType::ReferenceId => {
+                if let Some(item) = slot.get_item() {
+                    Ok(item.get_id() as f64)
+                } else {
+                    Ok(0.0)
+                }
+            }
+            LogicSlotType::FreeSlots => Ok(0.0),
+            LogicSlotType::TotalSlots => Ok(0.0),
+            _ => Err(SimulationError::RuntimeError {
+                message: format!(
+                    "Filtration does not support reading slot logic type {slot_logic_type:?}"
+                ),
+                line: 0,
+            }),
+        }
+    }
+
+    fn write_slot(
+        &self,
+        _index: usize,
+        slot_logic_type: LogicSlotType,
+        _value: f64,
+    ) -> SimulationResult<()> {
+        Err(SimulationError::RuntimeError {
+            message: format!(
+                "Filtration does not support writing slot logic type {slot_logic_type:?}"
+            ),
+            line: 0,
+        })
     }
 
     fn update(&self, _tick: u64) -> SimulationResult<()> {

@@ -77,7 +77,7 @@ impl ChipSlot {
 
     pub fn run(&self, max_instructions_per_tick: usize) -> SimulationResult<()> {
         if let Some(chip) = self.get_chip() {
-            let instructions = chip.borrow_mut().run(max_instructions_per_tick)?;
+            let instructions = chip.borrow().run(max_instructions_per_tick)?;
             *self.last_executed_instructions.borrow_mut() = instructions;
         }
 

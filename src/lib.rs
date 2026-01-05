@@ -16,7 +16,7 @@ pub mod types;
 pub mod tests;
 
 pub use constants::get_builtin_constants;
-pub use devices::{DaylightSensor, Device, ICHousing, LogicType};
+pub use devices::{DaylightSensor, Device, ICHousing, LogicSlotType, LogicType};
 pub use error::{SimulationError, SimulationResult};
 
 pub use id::allocate_global_id;

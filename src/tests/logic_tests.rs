@@ -3,12 +3,16 @@ mod tests {
     use std::f64;
 
     use crate::CableNetwork;
+    use crate::Filter;
     use crate::ItemIntegratedCircuit10;
     use crate::LogicType;
+    use crate::atmospherics::GasType;
     use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
+    use crate::devices::Filtration;
     use crate::devices::ICHostDevice;
     use crate::devices::{DaylightSensor, Device, ICHousing};
     use crate::instruction::ParsedInstruction;
+    use crate::items::FilterSize;
     use crate::logic::execute_instruction;
     use crate::types::{Shared, shared};
 
@@ -1551,6 +1555,86 @@ yield
 
         let res = housing.borrow().write(LogicType::LineNumber, 5.0);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_filtration_slot_ls() {
+        let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
+
+        let filtration = Filtration::new(None);
+        let fil_id = filtration.borrow().get_id();
+        network
+            .borrow_mut()
+            .add_device(filtration.clone(), network.clone());
+
+        // Insert a physical filter in slot 0
+        {
+            let mut f_borrow = filtration.borrow_mut();
+            let slot = f_borrow.get_slot_mut(0).unwrap();
+            let _ = slot.try_insert(Box::new(Filter::new(
+                10.0,
+                GasType::Oxygen,
+                FilterSize::Small,
+            )));
+        }
+
+        let program = format!(
+            r#"
+define fil {fil_id}
+ls r0 fil 0 Occupied
+ls r1 fil 0 OccupantHash
+ls r2 fil 0 Quantity
+ls r3 fil 0 MaxQuantity
+ls r4 fil 0 FilterType
+ls r5 fil 0 ReferenceId
+ls r6 fil 0 FreeSlots
+ls r7 fil 0 TotalSlots
+
+ls r8 fil 1 Occupied
+ls r9 fil 1 OccupantHash
+ls r10 fil 1 Quantity
+ls r11 fil 1 MaxQuantity
+ls r12 fil 1 FilterType
+ls r13 fil 1 ReferenceId
+ls r14 fil 1 FreeSlots
+ls r15 fil 1 TotalSlots
+yield
+"#
+        );
+
+        chip.borrow_mut().load_program(&program).unwrap();
+        chip.borrow_mut().run(128).unwrap();
+
+        // Compare to expected values from the inserted item
+        let f_borrow = filtration.borrow();
+        let item = f_borrow.get_slot(0).unwrap().get_item().unwrap();
+        let expected_hash = item.get_prefab_hash() as f64;
+        let expected_qty = item.quantity() as f64;
+        let expected_max = item.max_quantity() as f64;
+        let expected_type = if let Some(filter_item) = item.as_any().downcast_ref::<Filter>() {
+            filter_item.gas_type() as u32 as f64
+        } else {
+            0.0
+        };
+        let expected_id = item.get_id() as f64;
+
+        assert_eq!(chip.borrow().get_register(0).unwrap(), 1.0);
+        assert_eq!(chip.borrow().get_register(1).unwrap(), expected_hash);
+        assert_eq!(chip.borrow().get_register(2).unwrap(), expected_qty);
+        assert_eq!(chip.borrow().get_register(3).unwrap(), expected_max);
+        assert_eq!(chip.borrow().get_register(4).unwrap(), expected_type);
+        assert_eq!(chip.borrow().get_register(5).unwrap(), expected_id);
+        assert_eq!(chip.borrow().get_register(6).unwrap(), 0.0);
+        assert_eq!(chip.borrow().get_register(7).unwrap(), 0.0);
+
+        assert_eq!(chip.borrow().get_register(8).unwrap(), 0.0);
+        assert_eq!(chip.borrow().get_register(9).unwrap(), 0.0);
+        assert_eq!(chip.borrow().get_register(10).unwrap(), 0.0);
+        assert_eq!(chip.borrow().get_register(11).unwrap(), 0.0);
+        assert_eq!(chip.borrow().get_register(12).unwrap(), 0.0);
+        assert_eq!(chip.borrow().get_register(13).unwrap(), 0.0);
+        assert_eq!(chip.borrow().get_register(14).unwrap(), 0.0);
+        assert_eq!(chip.borrow().get_register(15).unwrap(), 0.0);
     }
 
     #[test]

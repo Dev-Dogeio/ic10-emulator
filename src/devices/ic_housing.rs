@@ -161,7 +161,7 @@ impl Device for ICHousing {
 
                 let pc = value as usize;
                 if let Some(chip) = self.get_chip() {
-                    chip.borrow_mut().set_pc(pc);
+                    chip.borrow().set_pc(pc);
                     Ok(())
                 } else {
                     Err(SimulationError::RuntimeError {

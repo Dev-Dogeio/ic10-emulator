@@ -7,7 +7,7 @@ use crate::types::{OptShared, Shared};
 use crate::{CableNetwork, Item, ItemType, allocate_global_id, get_builtin_constants};
 use crate::{LogicType, logic};
 use std::any::Any;
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 
 /// The main IC10 programmable chip
@@ -17,19 +17,19 @@ pub struct ItemIntegratedCircuit10 {
     id: i32,
 
     /// Program counter - current line being executed
-    pc: usize,
+    pc: RefCell<usize>,
 
     /// Compiled program lines
-    program: Vec<ParsedInstruction>,
+    program: RefCell<Vec<ParsedInstruction>>,
 
     /// Aliases mapping names to register/device indices
-    aliases: HashMap<String, AliasTarget>,
+    aliases: RefCell<HashMap<String, AliasTarget>>,
 
     /// Jump labels mapping names to line numbers
-    labels: HashMap<String, usize>,
+    labels: RefCell<HashMap<String, usize>>,
 
     /// Compile-time constants
-    defines: HashMap<String, f64>,
+    defines: RefCell<HashMap<String, f64>>,
 
     /// Chip slot reference (optional)
     chip_slot: OptShared<ChipSlot>,
@@ -41,13 +41,13 @@ pub struct ItemIntegratedCircuit10 {
     stack: RefCell<[f64; STACK_SIZE]>,
 
     /// Execution state
-    halted: bool,
+    halted: RefCell<bool>,
 
     /// Remaining sleep ticks (if sleeping)
-    sleep_ticks: u64,
+    sleep_ticks: RefCell<u64>,
 
     /// Error state
-    error_line: Option<usize>,
+    error_line: RefCell<Option<usize>>,
 }
 
 /// Alias target - can reference a register or device
@@ -71,27 +71,27 @@ impl ItemIntegratedCircuit10 {
 
         Self {
             id: allocate_global_id(),
-            pc: 0,
-            program: Vec::new(),
-            aliases,
-            labels: HashMap::new(),
-            defines: get_builtin_constants(),
+            pc: RefCell::new(0),
+            program: RefCell::new(Vec::new()),
+            aliases: RefCell::new(aliases),
+            labels: RefCell::new(HashMap::new()),
+            defines: RefCell::new(get_builtin_constants()),
             chip_slot: None,
             registers: RefCell::new([0.0; REGISTER_COUNT]),
             stack: RefCell::new([0.0; STACK_SIZE]),
-            halted: false,
-            error_line: None,
-            sleep_ticks: 0,
+            halted: RefCell::new(false),
+            error_line: RefCell::new(None),
+            sleep_ticks: RefCell::new(0),
         }
     }
 
     /// Load a program from source code
     pub fn load_program(&mut self, source: &str) -> SimulationResult<()> {
-        self.program.clear();
-        self.labels.clear();
-        self.pc = 0;
-        self.halted = false;
-        self.error_line = None;
+        self.program.borrow_mut().clear();
+        self.labels.borrow_mut().clear();
+        *self.pc.borrow_mut() = 0;
+        *self.halted.borrow_mut() = false;
+        *self.error_line.borrow_mut() = None;
 
         // Preprocess the source
         let preprocessed = preprocess(source)?;
@@ -103,13 +103,13 @@ impl ItemIntegratedCircuit10 {
             // Check if this is a label (ends with ':')
             if trimmed.ends_with(':') && !trimmed.starts_with('#') {
                 let label_name = trimmed[..trimmed.len() - 1].trim().to_string();
-                if self.labels.contains_key(&label_name) {
+                if self.labels.borrow().contains_key(&label_name) {
                     return Err(SimulationError::IC10ParseError {
                         line: line_num,
                         message: format!("Duplicate label: {label_name}"),
                     });
                 }
-                self.labels.insert(label_name, line_num);
+                self.labels.borrow_mut().insert(label_name, line_num);
             }
         }
 
@@ -134,33 +134,33 @@ impl ItemIntegratedCircuit10 {
                 }
             }
 
-            self.program.push(parsed);
+            self.program.borrow_mut().push(parsed);
         }
 
         Ok(())
     }
 
     /// Execute one instruction
-    pub fn step(&mut self) -> SimulationResult<bool> {
-        if self.halted {
+    pub fn step(&self) -> SimulationResult<bool> {
+        if *self.halted.borrow() {
             return Ok(false);
         }
 
-        if self.pc >= self.program.len() {
-            self.halted = true;
+        if *self.pc.borrow() >= self.program.borrow().len() {
+            *self.halted.borrow_mut() = true;
             return Ok(false);
         }
 
-        let instruction = &self.program[self.pc].clone();
+        let instruction = &self.program.borrow()[*self.pc.borrow()].clone();
 
         match self.execute_instruction(instruction) {
             Ok(next_pc) => {
-                self.pc = next_pc;
+                *self.pc.borrow_mut() = next_pc;
                 Ok(true)
             }
             Err(e) => {
-                self.error_line = Some(self.pc);
-                self.halted = true;
+                *self.error_line.borrow_mut() = Some(*self.pc.borrow());
+                *self.halted.borrow_mut() = true;
                 Err(e)
             }
         }
@@ -168,21 +168,21 @@ impl ItemIntegratedCircuit10 {
 
     /// Execute multiple steps, stopping at yield, sleep, or max_steps
     /// Housing's last_executed_instructions is not updated here
-    pub fn run(&mut self, max_steps: usize) -> SimulationResult<usize> {
+    pub fn run(&self, max_steps: usize) -> SimulationResult<usize> {
         let mut steps = 0;
 
         while steps < max_steps {
-            if self.pc >= self.program.len() {
-                self.halted = true;
+            if *self.pc.borrow() >= self.program.borrow().len() {
+                *self.halted.borrow_mut() = true;
                 break;
             }
 
-            if self.sleep_ticks > 0 {
-                self.sleep_ticks -= 1;
+            if *self.sleep_ticks.borrow() > 0 {
+                *self.sleep_ticks.borrow_mut() -= 1;
                 return Ok(steps);
             }
 
-            let current_instruction = self.program[self.pc].clone();
+            let current_instruction = self.program.borrow()[*self.pc.borrow()].clone();
 
             self.step()?;
             steps += 1;
@@ -199,7 +199,7 @@ impl ItemIntegratedCircuit10 {
     }
 
     /// Execute a single instruction and return the next PC
-    fn execute_instruction(&mut self, instruction: &ParsedInstruction) -> SimulationResult<usize> {
+    fn execute_instruction(&self, instruction: &ParsedInstruction) -> SimulationResult<usize> {
         logic::execute_instruction(self, instruction)
     }
 
@@ -209,35 +209,35 @@ impl ItemIntegratedCircuit10 {
             Operand::Register(idx) => self.get_register(*idx),
             Operand::Immediate(val) => Ok(*val),
             Operand::DevicePin(_) => Err(SimulationError::RuntimeError {
-                line: self.pc,
+                line: *self.pc.borrow(),
                 message: "Cannot use device pin as a value".to_string(),
             }),
             Operand::Alias(name) => {
                 // First check defines (compile-time constants)
-                if let Some(val) = self.defines.get(name) {
+                if let Some(val) = self.defines.borrow().get(name) {
                     return Ok(*val);
                 }
                 // Then check aliases
-                match self.aliases.get(name) {
+                match self.aliases.borrow().get(name) {
                     Some(AliasTarget::Register(idx)) => self.get_register(*idx),
                     Some(AliasTarget::Device(_)) => Err(SimulationError::RuntimeError {
-                        line: self.pc,
+                        line: *self.pc.borrow(),
                         message: format!("Cannot use device alias '{name}' as a value"),
                     }),
                     Some(AliasTarget::Alias(other_name)) => Err(SimulationError::RuntimeError {
-                        line: self.pc,
+                        line: *self.pc.borrow(),
                         message: format!(
                             "Alias '{name}' referencing another alias '{other_name}' at runtime"
                         ),
                     }),
                     None => {
                         // Check for labels
-                        if let Some(&line) = self.labels.get(name) {
+                        if let Some(&line) = self.labels.borrow().get(name) {
                             return Ok(line as f64);
                         }
 
                         Err(SimulationError::RuntimeError {
-                            line: self.pc,
+                            line: *self.pc.borrow(),
                             message: format!("Undefined alias, define, or label: {name}"),
                         })
                     }
@@ -251,25 +251,25 @@ impl ItemIntegratedCircuit10 {
         match operand {
             Operand::Register(idx) => Ok(*idx),
             Operand::Immediate(_) => Err(SimulationError::RuntimeError {
-                line: self.pc,
+                line: *self.pc.borrow(),
                 message: "Cannot use immediate value as a register destination".to_string(),
             }),
             Operand::DevicePin(_) => Err(SimulationError::RuntimeError {
-                line: self.pc,
+                line: *self.pc.borrow(),
                 message: "Cannot use device pin as a register destination".to_string(),
             }),
             Operand::Alias(name) => {
                 // Check aliases first
-                match self.aliases.get(name) {
+                match self.aliases.borrow().get(name) {
                     Some(AliasTarget::Register(idx)) => Ok(*idx),
                     Some(AliasTarget::Device(_)) => Err(SimulationError::RuntimeError {
-                        line: self.pc,
+                        line: *self.pc.borrow(),
                         message: format!(
                             "Cannot use device alias '{name}' as a register destination"
                         ),
                     }),
                     _ => Err(SimulationError::RuntimeError {
-                        line: self.pc,
+                        line: *self.pc.borrow(),
                         message: format!("Undefined alias: {name}"),
                     }),
                 }
@@ -284,11 +284,11 @@ impl ItemIntegratedCircuit10 {
             Operand::DevicePin(pin_idx) => {
                 // Direct device pin access (d0-d5) - get the reference ID stored at this pin
                 let chip_slot = self.get_chip_slot();
-                if let Some(ref_id) = chip_slot.get_device_pin(*pin_idx) {
+                if let Some(ref_id) = chip_slot.borrow().get_device_pin(*pin_idx) {
                     Ok(ref_id)
                 } else {
                     Err(SimulationError::RuntimeError {
-                        line: self.pc,
+                        line: *self.pc.borrow(),
                         message: format!("No device assigned to pin d{pin_idx}"),
                     })
                 }
@@ -304,7 +304,7 @@ impl ItemIntegratedCircuit10 {
             }
             Operand::Alias(name) => {
                 // Device aliases store reference IDs directly
-                match self.aliases.get(name) {
+                match self.aliases.borrow().get(name) {
                     Some(AliasTarget::Device(ref_id)) => Ok(*ref_id),
                     Some(AliasTarget::Register(idx)) => {
                         // Indirect device access - register contains device reference ID
@@ -312,15 +312,15 @@ impl ItemIntegratedCircuit10 {
                         Ok(ref_id)
                     }
                     Some(AliasTarget::Alias(_)) => Err(SimulationError::RuntimeError {
-                        line: self.pc,
+                        line: *self.pc.borrow(),
                         message: format!("Alias '{name}' referencing another alias at runtime"),
                     }),
                     None => {
-                        if let Some(val) = self.defines.get(name) {
+                        if let Some(val) = self.defines.borrow().get(name) {
                             Ok(*val as i32)
                         } else {
                             Err(SimulationError::RuntimeError {
-                                line: self.pc,
+                                line: *self.pc.borrow(),
                                 message: format!("Undefined alias or define: {name}"),
                             })
                         }
@@ -332,10 +332,10 @@ impl ItemIntegratedCircuit10 {
 
     /// Resolve an alias to its target
     pub(crate) fn resolve_alias(&self, name: &str) -> SimulationResult<AliasTarget> {
-        match self.aliases.get(name) {
+        match self.aliases.borrow().get(name) {
             Some(target) => Ok(target.clone()),
             None => Err(SimulationError::RuntimeError {
-                line: self.pc,
+                line: *self.pc.borrow(),
                 message: format!("Undefined alias: {name}"),
             }),
         }
@@ -345,8 +345,8 @@ impl ItemIntegratedCircuit10 {
     pub(crate) fn device_exists_by_id(&self, ref_id: i32) -> bool {
         if let Some(slot_rc) = &self.chip_slot {
             let slot = slot_rc.borrow();
-            if let Some(network) = slot.get_network() {
-                network.borrow().device_exists(ref_id)
+            if let Some(network_rc) = slot.get_network() {
+                network_rc.borrow().device_exists(ref_id)
             } else if let Some(id) = slot.id() {
                 ref_id == id
             } else {
@@ -397,55 +397,56 @@ impl ItemIntegratedCircuit10 {
     }
 
     /// Insert a define (compile-time constant)
-    pub fn insert_define(&mut self, name: &str, value: f64) {
-        self.defines.insert(name.to_string(), value);
+    pub fn insert_define(&self, name: &str, value: f64) {
+        self.defines.borrow_mut().insert(name.to_string(), value);
     }
 
     /// Insert an alias for a register or device pin
-    pub fn insert_alias(&mut self, name: &str, target: AliasTarget) {
-        self.aliases.insert(name.to_string(), target);
+    pub fn insert_alias(&self, name: &str, target: AliasTarget) {
+        self.aliases.borrow_mut().insert(name.to_string(), target);
     }
 
     /// Add a device alias (convenience method)
     /// Note: device_ref_id is the device's reference ID (from get_id()), not the pin index
-    pub fn add_device_alias(&mut self, name: String, device_ref_id: i32) {
+    pub fn add_device_alias(&self, name: String, device_ref_id: i32) {
         self.aliases
+            .borrow_mut()
             .insert(name, AliasTarget::Device(device_ref_id));
     }
 
     /// Get the current program counter
     pub fn get_pc(&self) -> usize {
-        self.pc
+        *self.pc.borrow()
     }
 
     /// Set the current program counter
-    pub fn set_pc(&mut self, pc: usize) {
-        self.pc = pc;
+    pub fn set_pc(&self, pc: usize) {
+        *self.pc.borrow_mut() = pc;
     }
 
     /// Check if the chip is halted
     pub fn is_halted(&self) -> bool {
-        self.halted
+        *self.halted.borrow()
     }
 
     /// Halt the chip
-    pub fn halt(&mut self) {
-        self.halted = true;
+    pub fn halt(&self) {
+        *self.halted.borrow_mut() = true;
     }
 
     /// Get sleep ticks
     pub fn get_sleep_ticks(&self) -> u64 {
-        self.sleep_ticks
+        *self.sleep_ticks.borrow()
     }
 
     /// Set sleep ticks
-    pub fn set_sleep_ticks(&mut self, ticks: u64) {
-        self.sleep_ticks = ticks;
+    pub fn set_sleep_ticks(&self, ticks: u64) {
+        *self.sleep_ticks.borrow_mut() = ticks;
     }
 
-    /// Get a reference to the chip slot
-    pub fn get_chip_slot(&self) -> Ref<'_, ChipSlot> {
-        self.chip_slot.as_ref().unwrap().borrow()
+    /// Get the `Shared<ChipSlot>` for this chip (clone of the internal Rc)
+    pub fn get_chip_slot(&self) -> Shared<ChipSlot> {
+        self.chip_slot.as_ref().unwrap().clone()
     }
 
     /// Get a mutable reference to the chip slot
@@ -454,8 +455,13 @@ impl ItemIntegratedCircuit10 {
     }
 
     /// Get the Rc to the chip slot (for when you need to clone the reference)
-    pub fn get_housing_rc(&self) -> Shared<ChipSlot> {
+    pub fn get_chip_slot_rc(&self) -> Shared<ChipSlot> {
         self.chip_slot.as_ref().unwrap().clone()
+    }
+
+    /// Get the host device's reference ID if this chip is installed
+    pub fn get_host_id(&self) -> Option<i32> {
+        self.chip_slot.as_ref().and_then(|rc| rc.borrow().id())
     }
 
     /// Attach the chip to a `ChipSlot` and register self device aliases
@@ -469,20 +475,23 @@ impl ItemIntegratedCircuit10 {
 
     /// Get a reference to the cable network (if connected)
     pub fn get_network(&self) -> OptShared<CableNetwork> {
-        self.get_chip_slot().get_network()
+        self.get_chip_slot().borrow().get_network()
     }
 
     /// Print debug information: registers and non-zero stack values
     pub fn print_debug_info(&self) {
         println!(
             "On: {}",
-            if self.get_chip_slot().read(LogicType::On).unwrap() == 1.0 {
+            if self.get_chip_slot().borrow().read(LogicType::On).unwrap() == 1.0 {
                 "Yes"
             } else {
                 "No"
             }
         );
-        println!("Halted: {}", if !self.halted { "Yes" } else { "No" });
+        println!(
+            "Halted: {}",
+            if !*self.halted.borrow() { "Yes" } else { "No" }
+        );
         println!("Non-zero Registers:");
         for i in 0..REGISTER_COUNT {
             let value = self.registers.borrow()[i];
