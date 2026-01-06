@@ -13,10 +13,17 @@ pub mod daylight_sensor;
 pub mod filtration;
 pub mod ic_housing;
 pub mod logic_memory;
+pub mod volume_pump;
+pub mod chip_slot;
 
+pub use chip_slot::ChipSlot;
 pub use air_conditioner::AirConditioner;
 pub use atmospheric_device::AtmosphericDevice;
+pub use daylight_sensor::DaylightSensor;
 pub use filtration::Filtration;
+pub use ic_housing::ICHousing;
+pub use logic_memory::LogicMemory;
+pub use volume_pump::VolumePump;
 
 /// Simulation settings for devices
 #[derive(Debug, Clone)]
@@ -35,10 +42,6 @@ impl Default for SimulationSettings {
         }
     }
 }
-
-pub use daylight_sensor::DaylightSensor;
-pub use ic_housing::ICHousing;
-pub use logic_memory::LogicMemory;
 
 /// Slot logic types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -196,15 +199,13 @@ impl LogicSlotType {
     }
 }
 
-mod chip_slot;
-pub use chip_slot::ChipSlot;
-
 /// Logic types for device property access
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LogicType {
     Setting,
     Horizontal,
     Vertical,
+    Ratio,
     On,
     Mode,
     PrefabHash,
@@ -276,6 +277,7 @@ impl LogicType {
             12 => Some(LogicType::Setting),
             20 => Some(LogicType::Horizontal),
             21 => Some(LogicType::Vertical),
+            24 => Some(LogicType::Ratio),
             28 => Some(LogicType::On),
             84 => Some(LogicType::PrefabHash),
 
@@ -348,6 +350,7 @@ impl LogicType {
             LogicType::Setting => 12.0,
             LogicType::Horizontal => 20.0,
             LogicType::Vertical => 21.0,
+            LogicType::Ratio => 24.0,
             LogicType::On => 28.0,
             LogicType::PrefabHash => 84.0,
 
@@ -418,6 +421,7 @@ impl LogicType {
             "Setting" => Some(LogicType::Setting),
             "Horizontal" => Some(LogicType::Horizontal),
             "Vertical" => Some(LogicType::Vertical),
+            "Ratio" => Some(LogicType::Ratio),
             "On" => Some(LogicType::On),
             "PrefabHash" => Some(LogicType::PrefabHash),
 

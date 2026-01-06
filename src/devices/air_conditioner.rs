@@ -2,7 +2,7 @@
 
 use crate::{
     CableNetwork, allocate_global_id,
-    atmospherics::{GasMixture, GasType, ONE_ATMOSPHERE, calculate_moles},
+    atmospherics::{CELSIUS_TO_KELVIN, GasMixture, GasType, ONE_ATMOSPHERE, calculate_moles},
     devices::{
         AtmosphericDevice, ChipSlot, Device, FilterConnectionType, ICHostDevice,
         ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
@@ -333,7 +333,7 @@ impl Device for AirConditioner {
                 Ok(())
             }
             LogicType::Setting => {
-                *self.setting.borrow_mut() = value;
+                *self.setting.borrow_mut() = value.clamp(0.0, 999.0 + CELSIUS_TO_KELVIN);
                 Ok(())
             }
             _ => Err(SimulationError::RuntimeError {

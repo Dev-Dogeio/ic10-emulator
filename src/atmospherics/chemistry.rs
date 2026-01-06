@@ -11,7 +11,12 @@ pub const ONE_ATMOSPHERE: f64 = 101.325;
 pub const CELSIUS_TO_KELVIN: f64 = 273.15;
 
 /// Minimum quantity of moles considered non-zero
+/// This threshold is for tiny *per-gas* quantities.
 pub const MINIMUM_QUANTITY_MOLES: f64 = 1e-5;
+
+/// Minimum quantity of moles considered non-zero
+/// This threshold is for tiny *per-mixture* quantities.
+pub const MINIMUM_VALID_TOTAL_MOLES: f64 = 1e-3;
 
 /// Volume of a pipe section (Litres)
 pub const PIPE_VOLUME: f64 = 10.0;

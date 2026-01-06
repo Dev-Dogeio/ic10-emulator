@@ -74,6 +74,7 @@ impl GasMixture {
         // Equalize temperature across the mixture
         let equilibrium_temp = self.temperature();
         self.set_temperature(equilibrium_temp);
+        self.cleanup();
     }
 
     /// Add a Mole to the mixture
@@ -83,11 +84,14 @@ impl GasMixture {
         // Equalize temperature across the mixture
         let equilibrium_temp = self.temperature();
         self.set_temperature(equilibrium_temp);
+        self.cleanup();
     }
 
     /// Remove gas from the mixture, returning the removed Mole
     pub fn remove_gas(&mut self, gas_type: GasType, moles: f64) -> Mole {
-        self.gases[Self::gas_index(gas_type)].remove(moles)
+        let removed = self.gases[Self::gas_index(gas_type)].remove(moles);
+        self.cleanup();
+        removed
     }
 
     /// Remove all moles of a specific gas type and return them
@@ -97,7 +101,9 @@ impl GasMixture {
         if qty <= 0.0 {
             return Mole::zero(gas_type);
         }
-        self.gases[idx].remove(qty)
+        let removed = self.gases[idx].remove(qty);
+        self.cleanup();
+        removed
     }
 
     /// Get total moles of all gases
@@ -199,6 +205,9 @@ impl GasMixture {
             target.gases[i].add(&removed);
         }
 
+        self.cleanup();
+        target.cleanup();
+
         transferred
     }
 
@@ -247,6 +256,9 @@ impl GasMixture {
             let ratio = to_transfer / other.total_moles();
             other.transfer_ratio_to(self, ratio);
         }
+
+        self.cleanup();
+        other.cleanup();
     }
 
     /// Remove a specific amount of moles, proportionally from all gases
@@ -265,6 +277,7 @@ impl GasMixture {
             removed.gases[i].add(&gas);
         }
 
+        self.cleanup();
         removed
     }
 
@@ -273,6 +286,8 @@ impl GasMixture {
         for i in 0..GasType::count() {
             self.gases[i].add(&other.gases[i]);
         }
+
+        self.cleanup();
     }
 
     /// Clear all gases
@@ -282,9 +297,16 @@ impl GasMixture {
         }
     }
 
+    /// Clean up tiny residues to avoid asymptotic non-zero leftovers
+    pub fn cleanup(&mut self) {
+        if self.total_moles() < chemistry::MINIMUM_VALID_TOTAL_MOLES {
+            self.clear();
+        }
+    }
+
     /// Check if the mixture is empty
     pub fn is_empty(&self) -> bool {
-        self.total_moles() < chemistry::MINIMUM_QUANTITY_MOLES
+        self.total_moles() < chemistry::MINIMUM_VALID_TOTAL_MOLES
     }
 
     /// Get an iterator over all gas types and their moles

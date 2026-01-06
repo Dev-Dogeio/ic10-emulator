@@ -96,6 +96,7 @@ impl Mole {
         let temp = self.temperature();
         self.quantity = new_quantity.max(0.0);
         self.energy = self.quantity * self.gas_type.specific_heat() * temp;
+        self.cleanup();
     }
 
     /// Set the temperature, adjusting energy accordingly
@@ -129,6 +130,7 @@ impl Mole {
         );
         self.quantity += other.quantity;
         self.energy += other.energy;
+        self.cleanup();
     }
 
     /// Remove a specified quantity, returning the removed Mole
@@ -150,6 +152,7 @@ impl Mole {
         self.quantity -= amount;
         self.energy -= removed_energy;
 
+        self.cleanup();
         Mole::with_energy(self.gas_type, amount, removed_energy)
     }
 
@@ -179,6 +182,13 @@ impl Mole {
     pub fn clear(&mut self) {
         self.quantity = 0.0;
         self.energy = 0.0;
+    }
+
+    /// Cleanup small residues: zero out quantity and energy if below threshold
+    pub fn cleanup(&mut self) {
+        if self.quantity < chemistry::MINIMUM_QUANTITY_MOLES {
+            self.clear();
+        }
     }
 }
 
