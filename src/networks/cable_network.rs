@@ -185,16 +185,16 @@ impl CableNetwork {
     }
 
     /// Update all devices in the network
-    /// Devices are updated in descending order of their reference IDs
+    /// Devices are updated in ascending order of their reference IDs
     /// After updating all devices, IC runners are executed in the same order
     pub fn update(&self, tick: u64) {
-        // Iterate over all devices in descending order and run update
-        for device in self.devices.values().rev() {
+        // Iterate over all devices in ascending order and run update
+        for device in self.devices.values() {
             device.borrow().update(tick).unwrap();
         }
 
         // Iterate over all devices again and execute IC runners
-        for device in self.devices.values().rev() {
+        for device in self.devices.values() {
             device.borrow().run().unwrap();
         }
     }

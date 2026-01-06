@@ -53,8 +53,5 @@
     ],
     "length": 5,
     "preWrapMode": 8,
-    "postWrapMode": 8,
-    "min": -2000,
-    "max": 5000,
-    "time_label": "Temperature Delta (K)"
+    "postWrapMode": 8
 }

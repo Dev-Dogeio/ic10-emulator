@@ -93,8 +93,5 @@
     ],
     "length": 9,
     "preWrapMode": 8,
-    "postWrapMode": 4,
-    "min": 0,
-    "max": 6000,
-    "time_label": "Temperature (K)"
+    "postWrapMode": 4
 }

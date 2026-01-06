@@ -1,4 +1,4 @@
-use std::{error::Error, thread::sleep, time::Duration};
+use std::error::Error;
 
 use ic10_emulator::{
     CableNetwork, Device, ItemIntegratedCircuit10, LogicType,
@@ -15,12 +15,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input = shared(AtmosphericNetwork::new(10.0)); // AC input
     let vent = shared(AtmosphericNetwork::new(1130.0)); // AC hot gas output
 
-    let pump = VolumePump::new(None);
-    pump.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Input, Some(tank.clone()))?;
-    pump.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Output, Some(input.clone()))?;
-
     let ac = AirConditioner::new(None);
     ac.borrow_mut()
         .set_atmospheric_network(FilterConnectionType::Input, Some(input.clone()))?;
@@ -28,6 +22,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .set_atmospheric_network(FilterConnectionType::Output, Some(vent.clone()))?;
     ac.borrow_mut()
         .set_atmospheric_network(FilterConnectionType::Output2, Some(tank.clone()))?;
+
+    let pump = VolumePump::new(None);
+    pump.borrow_mut()
+        .set_atmospheric_network(FilterConnectionType::Input, Some(tank.clone()))?;
+    pump.borrow_mut()
+        .set_atmospheric_network(FilterConnectionType::Output, Some(input.clone()))?;
 
     let chip = shared(ItemIntegratedCircuit10::new());
     ac.borrow_mut().set_chip(chip.clone());
@@ -91,15 +91,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut ticks = 0;
 
     while ticks < 2 || ac.borrow().read(LogicType::Mode)? == 1.0 {
+        // Time the simulation
+        let _start = std::time::Instant::now();
         network.borrow().update(ticks);
+        let duration = _start.elapsed();
 
-        println!("\nAfter tick #{}:", ticks);
+        println!(
+            "\nAfter tick #{} ({:.2} ms):",
+            ticks,
+            duration.as_micros() as f64 / 1000.0
+        );
         println!(" Tank: {}", tank.borrow().mixture());
         println!(" Input: {}", input.borrow().mixture());
         println!(" Vent: {}", vent.borrow().mixture());
 
         ticks += 1;
-        sleep(Duration::from_millis(10));
     }
 
     chip.borrow().print_debug_info();
