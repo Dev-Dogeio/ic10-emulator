@@ -2,41 +2,41 @@ use crate::{
     Filter,
     atmospherics::GasType,
     devices::{
-        AirConditioner, AtmosphericDevice, Device, FilterConnectionType, Filtration, LogicType,
+        AirConditioner, AtmosphericDevice, Device, DeviceAtmosphericNetworkType, Filtration,
+        LogicType,
     },
     items::FilterSize,
     networks::AtmosphericNetwork,
-    types::shared,
 };
 
 #[test]
 fn filtration_respects_mode() {
     let filtration = Filtration::new(None);
 
-    let mut input = AtmosphericNetwork::new(10.0);
+    let input = AtmosphericNetwork::new(10.0);
     let filtered = AtmosphericNetwork::new(10.0);
     let waste = AtmosphericNetwork::new(10.0);
 
     // add some oxygen to input so filtration has something to do
-    input.add_gas(GasType::Oxygen, 10.0, 300.0);
+    input.borrow_mut().add_gas(GasType::Oxygen, 10.0, 300.0);
 
     // attach networks
     {
         let mut f = filtration.borrow_mut();
-        f.set_atmospheric_network(FilterConnectionType::Input, Some(shared(input)))
+        f.set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input.clone()))
             .unwrap();
-        f.set_atmospheric_network(FilterConnectionType::Output, Some(shared(filtered)))
+        f.set_atmospheric_network(DeviceAtmosphericNetworkType::Output, Some(filtered.clone()))
             .unwrap();
-        f.set_atmospheric_network(FilterConnectionType::Output2, Some(shared(waste)))
+        f.set_atmospheric_network(DeviceAtmosphericNetworkType::Output2, Some(waste.clone()))
             .unwrap();
     }
 
     // For testing we will directly construct and call through a new Filtration instance
     let f = Filtration::new(None);
-    let input_rc = shared(AtmosphericNetwork::new(10.0));
+    let input_rc = AtmosphericNetwork::new(10.0);
     input_rc.borrow_mut().add_gas(GasType::Oxygen, 10.0, 300.0);
-    let filtered_rc = shared(AtmosphericNetwork::new(10.0));
-    let waste_rc = shared(AtmosphericNetwork::new(10.0));
+    let filtered_rc = AtmosphericNetwork::new(10.0);
+    let waste_rc = AtmosphericNetwork::new(10.0);
 
     // insert physical filter (slot 0) for Oxygen
     {
@@ -49,13 +49,19 @@ fn filtration_respects_mode() {
         )));
     }
     f.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Input, Some(input_rc.clone()))
+        .set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input_rc.clone()))
         .unwrap();
     f.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Output, Some(filtered_rc.clone()))
+        .set_atmospheric_network(
+            DeviceAtmosphericNetworkType::Output,
+            Some(filtered_rc.clone()),
+        )
         .unwrap();
     f.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Output2, Some(waste_rc.clone()))
+        .set_atmospheric_network(
+            DeviceAtmosphericNetworkType::Output2,
+            Some(waste_rc.clone()),
+        )
         .unwrap();
     f.borrow_mut().write(LogicType::Mode, 1.0).unwrap();
 
@@ -67,11 +73,11 @@ fn filtration_respects_mode() {
     );
 
     // Reset networks
-    let mut input2 = AtmosphericNetwork::new(10.0);
-    input2.add_gas(GasType::Oxygen, 10.0, 300.0);
-    let input2_rc = shared(input2);
-    let filtered2_rc = shared(AtmosphericNetwork::new(10.0));
-    let waste2_rc = shared(AtmosphericNetwork::new(10.0));
+    let input2 = AtmosphericNetwork::new(10.0);
+    input2.borrow_mut().add_gas(GasType::Oxygen, 10.0, 300.0);
+    let input2_rc = input2.clone();
+    let filtered2_rc = AtmosphericNetwork::new(10.0);
+    let waste2_rc = AtmosphericNetwork::new(10.0);
 
     let f2 = Filtration::new(None);
     // insert physical filter (slot 0) for Oxygen
@@ -85,13 +91,19 @@ fn filtration_respects_mode() {
         )));
     }
     f2.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Input, Some(input2_rc.clone()))
+        .set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input2_rc.clone()))
         .unwrap();
     f2.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Output, Some(filtered2_rc.clone()))
+        .set_atmospheric_network(
+            DeviceAtmosphericNetworkType::Output,
+            Some(filtered2_rc.clone()),
+        )
         .unwrap();
     f2.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Output2, Some(waste2_rc.clone()))
+        .set_atmospheric_network(
+            DeviceAtmosphericNetworkType::Output2,
+            Some(waste2_rc.clone()),
+        )
         .unwrap();
 
     // Set Mode to 0.0 and ensure update doesn't move gas
@@ -107,9 +119,9 @@ fn filtration_respects_mode() {
 fn airconditioner_respects_mode() {
     let ac = AirConditioner::new(None);
 
-    let input_rc = shared(AtmosphericNetwork::new(100.0));
-    let output_rc = shared(AtmosphericNetwork::new(100.0));
-    let waste_rc = shared(AtmosphericNetwork::new(100.0));
+    let input_rc = AtmosphericNetwork::new(100.0);
+    let output_rc = AtmosphericNetwork::new(100.0);
+    let waste_rc = AtmosphericNetwork::new(100.0);
 
     // configure networks and set a goal temperature
     input_rc.borrow_mut().add_gas(GasType::Oxygen, 10.0, 260.0);
@@ -117,13 +129,19 @@ fn airconditioner_respects_mode() {
     waste_rc.borrow_mut().add_gas(GasType::Oxygen, 10.0, 200.0);
 
     ac.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Input, Some(input_rc.clone()))
+        .set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input_rc.clone()))
         .unwrap();
     ac.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Output, Some(output_rc.clone()))
+        .set_atmospheric_network(
+            DeviceAtmosphericNetworkType::Output,
+            Some(output_rc.clone()),
+        )
         .unwrap();
     ac.borrow_mut()
-        .set_atmospheric_network(FilterConnectionType::Output2, Some(waste_rc.clone()))
+        .set_atmospheric_network(
+            DeviceAtmosphericNetworkType::Output2,
+            Some(waste_rc.clone()),
+        )
         .unwrap();
 
     // set goal temperature so AC will want to run

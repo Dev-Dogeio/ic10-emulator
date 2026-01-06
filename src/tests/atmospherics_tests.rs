@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::atmospherics::{
-        GasMixture, GasType, Mole, calculate_moles, calculate_pressure, celsius_to_kelvin,
-        kelvin_to_celsius,
+        GasMixture, GasType, MatterState, Mole, calculate_moles, calculate_pressure,
+        celsius_to_kelvin, kelvin_to_celsius,
     };
 
     #[test]
@@ -55,7 +55,7 @@ mod tests {
 
         let mut target = GasMixture::new(1000.0);
 
-        let transferred = source.transfer_ratio_to(&mut target, 0.5);
+        let transferred = source.transfer_ratio_to(&mut target, 0.5, MatterState::All);
 
         assert!((transferred - 5.0).abs() < 0.0001);
         assert!((source.get_moles(GasType::Oxygen) - 5.0).abs() < 0.0001);

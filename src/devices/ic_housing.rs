@@ -99,6 +99,10 @@ impl Device for ICHousing {
         }
     }
 
+    fn clear_internal_references(&mut self) {
+        self.chip_host.borrow_mut().set_host_device(None);
+    }
+
     fn can_read(&self, logic_type: LogicType) -> bool {
         matches!(
             logic_type,

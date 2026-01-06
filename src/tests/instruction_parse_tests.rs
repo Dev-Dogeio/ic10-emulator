@@ -1810,59 +1810,59 @@ mod tests {
             }
         );
 
-        // Ins - format: ins dest start length value
+        // Ins - format: ins dest value start length
         assert_eq!(
             parse("ins r1 r2 r3 r4"),
             Instruction::Ins {
                 dest: Operand::Register(1),
-                start: register(2),
-                length: register(3),
-                value: register(4)
+                value: register(2),
+                start: register(3),
+                length: register(4),
             }
         );
         assert_eq!(
             parse("ins r1 1 2 3"),
             Instruction::Ins {
                 dest: Operand::Register(1),
-                start: immediate(1.0),
-                length: immediate(2.0),
-                value: immediate(3.0)
+                value: immediate(1.0),
+                start: immediate(2.0),
+                length: immediate(3.0),
             }
         );
         assert_eq!(
             parse("ins r1 a1 a2 a3"),
             Instruction::Ins {
                 dest: Operand::Register(1),
-                start: alias("a1"),
-                length: alias("a2"),
-                value: alias("a3")
+                value: alias("a1"),
+                start: alias("a2"),
+                length: alias("a3"),
             }
         );
         assert_eq!(
             parse("ins r1 r2 3 a4"),
             Instruction::Ins {
                 dest: Operand::Register(1),
-                start: register(2),
-                length: immediate(3.0),
-                value: alias("a4")
+                value: register(2),
+                start: immediate(3.0),
+                length: alias("a4"),
             }
         );
         assert_eq!(
             parse("ins r1 5 a6 r7"),
             Instruction::Ins {
                 dest: Operand::Register(1),
-                start: immediate(5.0),
-                length: alias("a6"),
-                value: register(7)
+                value: immediate(5.0),
+                start: alias("a6"),
+                length: register(7)
             }
         );
         assert_eq!(
             parse("ins r1 a8 r9 10"),
             Instruction::Ins {
                 dest: Operand::Register(1),
-                start: alias("a8"),
-                length: register(9),
-                value: immediate(10.0)
+                value: alias("a8"),
+                start: register(9),
+                length: immediate(10.0)
             }
         );
     }

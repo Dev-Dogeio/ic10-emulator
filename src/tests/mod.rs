@@ -8,3 +8,4 @@ pub mod logic_tests;
 pub mod mode_tests;
 pub mod network_tests;
 pub mod parser_tests;
+pub mod simulation_manager;

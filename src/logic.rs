@@ -301,14 +301,14 @@ pub fn execute_instruction(
         }
         Instruction::Ins {
             dest,
+            value,
             start,
             length,
-            value,
         } => {
             let dest_idx = chip.resolve_register(dest)?;
+            let insert_value = double_to_long(chip.resolve_value(value)?, false);
             let bit_position = chip.resolve_value(start)? as i32;
             let num_bits = chip.resolve_value(length)? as i32;
-            let insert_value = double_to_long(chip.resolve_value(value)?, false);
 
             if num_bits <= 0 {
                 return Err(SimulationError::RuntimeError {

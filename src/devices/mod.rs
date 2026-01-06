@@ -489,22 +489,23 @@ impl LogicType {
     }
 }
 
-/// Filter connection types shared across devices
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FilterConnectionType {
+pub enum DeviceAtmosphericNetworkType {
     Input,
     Input2,
     Output,
     Output2,
+    Internal,
 }
 
-impl Display for FilterConnectionType {
+impl Display for DeviceAtmosphericNetworkType {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let s = match self {
-            FilterConnectionType::Input => "Input",
-            FilterConnectionType::Input2 => "Input2",
-            FilterConnectionType::Output => "Output",
-            FilterConnectionType::Output2 => "Output2",
+            DeviceAtmosphericNetworkType::Input => "Input",
+            DeviceAtmosphericNetworkType::Input2 => "Input2",
+            DeviceAtmosphericNetworkType::Output => "Output",
+            DeviceAtmosphericNetworkType::Output2 => "Output2",
+            DeviceAtmosphericNetworkType::Internal => "Internal",
         };
         write!(f, "{}", s)
     }
@@ -565,6 +566,10 @@ pub trait Device: Debug {
 
     /// Set the network reference for the device
     fn set_network(&mut self, network: OptShared<CableNetwork>);
+
+    /// Clear internal references (like chip slot host pointers) to break reference cycles.
+    /// Default implementation does nothing; devices that hold cross-references should override.
+    fn clear_internal_references(&mut self) {}
 
     /// Read a value from a specific slot
     fn read_slot(&self, _index: usize, _slot_logic_type: LogicSlotType) -> SimulationResult<f64> {

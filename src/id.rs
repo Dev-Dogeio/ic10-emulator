@@ -7,3 +7,9 @@ static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(1);
 pub fn allocate_global_id() -> i32 {
     GLOBAL_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
 }
+
+/// Reset the global ID counter back to its initial value.
+/// Primarily intended for tests and global simulation reset.
+pub fn reset_global_id_counter() {
+    GLOBAL_ID_COUNTER.store(1, Ordering::SeqCst);
+}

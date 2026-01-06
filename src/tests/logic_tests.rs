@@ -7,6 +7,7 @@ mod tests {
     use crate::ItemIntegratedCircuit10;
     use crate::LogicType;
     use crate::atmospherics::GasType;
+    use crate::constants::STACK_SIZE;
     use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
     use crate::devices::Filtration;
     use crate::devices::ICHostDevice;
@@ -31,7 +32,7 @@ mod tests {
             Shared<ICHousing>,
             Shared<CableNetwork>,
         ) {
-            let network = shared(CableNetwork::new());
+            let network = CableNetwork::new();
             let housing = ICHousing::new(None);
             let chip = shared(ItemIntegratedCircuit10::new());
 
@@ -364,7 +365,7 @@ mod tests {
 
         // ins: insert bits
         set_reg(&mut chip, 0, 0.0);
-        exec_ok(&mut chip, "ins r0 4 4 15"); // Insert 15 (1111) at bit 4 for 4 bits
+        exec_ok(&mut chip, "ins r0 15 4 4"); // Insert 15 (1111) at bit 4 for 4 bits
         assert_reg(&chip, 0, 240.0); // 0b11110000 = 240
     }
 
@@ -1531,7 +1532,7 @@ yield
 
         assert_eq!(
             housing.borrow().read(LogicType::StackSize).unwrap(),
-            crate::constants::STACK_SIZE as f64
+            STACK_SIZE as f64
         );
     }
 

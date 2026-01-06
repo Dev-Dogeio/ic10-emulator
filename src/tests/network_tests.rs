@@ -84,95 +84,98 @@ mod tests {
 
     #[test]
     fn test_add_and_get_device() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
         let device = shared(TestNetworkDevice::new(1, 100, 200));
 
-        network.add_device(device.clone(), shared(network.clone()));
+        network
+            .borrow_mut()
+            .add_device(device.clone(), network.clone());
 
-        assert!(network.device_exists(1));
-        assert_eq!(network.device_count(), 1);
+        assert!(network.borrow().device_exists(1));
+        assert_eq!(network.borrow().device_count(), 1);
 
-        let retrieved = network.get_device(1).unwrap();
-        assert_eq!(retrieved.get_id(), 1);
-        assert_eq!(retrieved.get_prefab_hash(), 100);
+        {
+            let net = network.borrow();
+            let retrieved = net.get_device(1).unwrap();
+            assert_eq!(retrieved.get_id(), 1);
+            assert_eq!(retrieved.get_prefab_hash(), 100);
+        }
     }
 
     #[test]
     fn test_remove_device() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
         let device = shared(TestNetworkDevice::new(1, 100, 200));
 
-        network.add_device(device, shared(network.clone()));
-        assert!(network.device_exists(1));
+        network.borrow_mut().add_device(device, network.clone());
+        assert!(network.borrow().device_exists(1));
 
-        network.remove_device(1);
-        assert!(!network.device_exists(1));
-        assert_eq!(network.device_count(), 0);
+        network.borrow_mut().remove_device(1);
+        assert!(!network.borrow().device_exists(1));
+        assert_eq!(network.borrow().device_count(), 0);
     }
 
     #[test]
     fn test_get_devices_by_prefab() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
 
         // Add 3 devices with same prefab hash
         for i in 1..=3 {
             let device = shared(TestNetworkDevice::new(i, 100, 200));
-            network.add_device(device, shared(network.clone()));
+            network.borrow_mut().add_device(device, network.clone());
         }
 
         // Add 2 devices with different prefab hash
         for i in 4..=5 {
             let device = shared(TestNetworkDevice::new(i, 999, 200));
-            network.add_device(device, shared(network.clone()));
+            network.borrow_mut().add_device(device, network.clone());
         }
 
-        let prefab_100_devices = network.get_devices_by_prefab(100);
+        let prefab_100_devices = network.borrow().get_devices_by_prefab(100);
         assert_eq!(prefab_100_devices.len(), 3);
 
-        let prefab_999_devices = network.get_devices_by_prefab(999);
+        let prefab_999_devices = network.borrow().get_devices_by_prefab(999);
         assert_eq!(prefab_999_devices.len(), 2);
 
-        let prefab_empty = network.get_devices_by_prefab(888);
+        let prefab_empty = network.borrow().get_devices_by_prefab(888);
         assert!(prefab_empty.is_empty());
     }
 
     #[test]
     fn test_get_devices_by_name() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
 
         // Add devices with different name hashes
-        network.add_device(
-            shared(TestNetworkDevice::new(1, 100, 200)),
-            shared(network.clone()),
-        );
-        network.add_device(
-            shared(TestNetworkDevice::new(2, 100, 200)),
-            shared(network.clone()),
-        );
-        network.add_device(
-            shared(TestNetworkDevice::new(3, 100, 300)),
-            shared(network.clone()),
-        );
+        network
+            .borrow_mut()
+            .add_device(shared(TestNetworkDevice::new(1, 100, 200)), network.clone());
+        network
+            .borrow_mut()
+            .add_device(shared(TestNetworkDevice::new(2, 100, 200)), network.clone());
+        network
+            .borrow_mut()
+            .add_device(shared(TestNetworkDevice::new(3, 100, 300)), network.clone());
 
-        let name_200_devices = network.get_devices_by_name(200);
+        let name_200_devices = network.borrow().get_devices_by_name(200);
         assert_eq!(name_200_devices.len(), 2);
 
-        let name_300_devices = network.get_devices_by_name(300);
+        let name_300_devices = network.borrow().get_devices_by_name(300);
         assert_eq!(name_300_devices.len(), 1);
     }
 
     #[test]
     fn test_batch_read_average() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
 
         // Add devices with different settings
         for (i, val) in [10.0, 20.0, 30.0].iter().enumerate() {
             let device = shared(TestNetworkDevice::new(i as i32 + 1, 100, 200));
             device.borrow_mut().setting.set(*val);
-            network.add_device(device, shared(network.clone()));
+            network.borrow_mut().add_device(device, network.clone());
         }
 
         let avg = network
+            .borrow()
             .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Average)
             .unwrap();
         assert_eq!(avg, 20.0); // (10 + 20 + 30) / 3
@@ -180,15 +183,16 @@ mod tests {
 
     #[test]
     fn test_batch_read_sum() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
 
         for (i, val) in [10.0, 20.0, 30.0].iter().enumerate() {
             let device = shared(TestNetworkDevice::new(i as i32 + 1, 100, 200));
             device.borrow_mut().setting.set(*val);
-            network.add_device(device, shared(network.clone()));
+            network.borrow_mut().add_device(device, network.clone());
         }
 
         let sum = network
+            .borrow()
             .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Sum)
             .unwrap();
         assert_eq!(sum, 60.0);
@@ -196,20 +200,22 @@ mod tests {
 
     #[test]
     fn test_batch_read_min_max() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
 
         for (i, val) in [10.0, 5.0, 30.0].iter().enumerate() {
             let device = shared(TestNetworkDevice::new(i as i32 + 1, 100, 200));
             device.borrow_mut().setting.set(*val);
-            network.add_device(device, shared(network.clone()));
+            network.borrow_mut().add_device(device, network.clone());
         }
 
         let min = network
+            .borrow()
             .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Minimum)
             .unwrap();
         assert_eq!(min, 5.0);
 
         let max = network
+            .borrow()
             .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Maximum)
             .unwrap();
         assert_eq!(max, 30.0);
@@ -217,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_batch_write() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
 
         // Add 3 devices with same prefab hash
         let devices: Vec<_> = (1..=3)
@@ -225,11 +231,14 @@ mod tests {
             .collect();
 
         for device in &devices {
-            network.add_device(device.clone(), shared(network.clone()));
+            network
+                .borrow_mut()
+                .add_device(device.clone(), network.clone());
         }
 
         // Batch write to all devices
         let count = network
+            .borrow()
             .batch_write_by_prefab(100, LogicType::Setting, 42.0)
             .unwrap();
         assert_eq!(count, 3);
@@ -242,23 +251,23 @@ mod tests {
 
     #[test]
     fn test_batch_read_by_name() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
 
         // Add devices with different name hashes
         let device1 = shared(TestNetworkDevice::new(1, 100, 200));
         device1.borrow_mut().setting.set(10.0);
-        network.add_device(device1, shared(network.clone()));
+        network.borrow_mut().add_device(device1, network.clone());
 
         let device2 = shared(TestNetworkDevice::new(2, 100, 200));
         device2.borrow_mut().setting.set(20.0);
-        network.add_device(device2, shared(network.clone()));
+        network.borrow_mut().add_device(device2, network.clone());
 
         let device3 = shared(TestNetworkDevice::new(3, 100, 300));
         device3.borrow_mut().setting.set(100.0);
-        network.add_device(device3, shared(network.clone()));
-
+        network.borrow_mut().add_device(device3, network.clone());
         // Read only devices with prefab 100 AND name 200
         let avg = network
+            .borrow()
             .batch_read_by_name(100, 200, LogicType::Setting, BatchMode::Average)
             .unwrap();
         assert_eq!(avg, 15.0); // (10 + 20) / 2, excludes device3
@@ -266,19 +275,26 @@ mod tests {
 
     #[test]
     fn test_batch_write_by_name() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
 
         let device1 = shared(TestNetworkDevice::new(1, 100, 200));
-        network.add_device(device1.clone(), shared(network.clone()));
+        network
+            .borrow_mut()
+            .add_device(device1.clone(), network.clone());
 
         let device2 = shared(TestNetworkDevice::new(2, 100, 200));
-        network.add_device(device2.clone(), shared(network.clone()));
+        network
+            .borrow_mut()
+            .add_device(device2.clone(), network.clone());
 
         let device3 = shared(TestNetworkDevice::new(3, 100, 300));
-        network.add_device(device3.clone(), shared(network.clone()));
+        network
+            .borrow_mut()
+            .add_device(device3.clone(), network.clone());
 
         // Write only to devices with prefab 100 AND name 200
         let count = network
+            .borrow()
             .batch_write_by_name(100, 200, LogicType::Setting, 99.0)
             .unwrap();
         assert_eq!(count, 2);
@@ -303,6 +319,7 @@ mod tests {
         let network = CableNetwork::new();
 
         let result = network
+            .borrow()
             .batch_read_by_prefab(100, LogicType::Setting, BatchMode::Average)
             .unwrap();
         assert_eq!(result, 0.0);
@@ -310,18 +327,20 @@ mod tests {
 
     #[test]
     fn test_housing_on_network() {
-        let mut network = CableNetwork::new();
+        let network = CableNetwork::new();
         let housing = ICHousing::new(None);
 
-        network.add_device(housing.clone(), shared(network.clone()));
+        network
+            .borrow_mut()
+            .add_device(housing.clone(), network.clone());
 
-        assert_eq!(network.device_count(), 1);
-        assert!(network.device_exists(housing.borrow().get_id()));
+        assert_eq!(network.borrow().device_count(), 1);
+        assert!(network.borrow().device_exists(housing.borrow().get_id()));
     }
 
     #[test]
     fn test_device_rename_updates_network() {
-        let network = shared(CableNetwork::new());
+        let network = CableNetwork::new();
         let housing = ICHousing::new(None);
         let device_id = housing.borrow().get_id();
 
