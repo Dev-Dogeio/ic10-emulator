@@ -387,8 +387,6 @@ impl GasMixture {
         self.set_temperature(temp);
     }
 
-    // ===== Phase Changes =====
-
     /// Process phase changes for all gases and liquids
     /// Returns the number of phase changes that occurred
     pub fn process_phase_changes(&mut self) -> u32 {
@@ -424,8 +422,6 @@ impl GasMixture {
         self.cleanup();
         changes
     }
-
-    // ===== Transfer Methods =====
 
     /// Transfer a ratio of all gases to another mixture
     /// Returns the total moles transferred

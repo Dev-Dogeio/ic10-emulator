@@ -23,7 +23,7 @@ pub enum MatterState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u32)]
 pub enum GasType {
-    // ===== Gases =====
+    // Gases
     /// Oxygen (O2)
     Oxygen = 1,
     /// Nitrogen (N2)
@@ -41,7 +41,7 @@ pub enum GasType {
     /// Hydrogen (H2)
     Hydrogen = 16384,
 
-    // ===== Liquids =====
+    // Liquids
     /// Water (liquid H2O)
     Water = 32,
     /// Polluted Water
