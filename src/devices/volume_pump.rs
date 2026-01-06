@@ -2,8 +2,10 @@
 
 use crate::{
     CableNetwork, allocate_global_id,
-    atmospherics::IDEAL_GAS_CONSTANT,
-    devices::{AtmosphericDevice, Device, FilterConnectionType, LogicType, SimulationSettings},
+    atmospherics::MatterState,
+    devices::{
+        AtmosphericDevice, Device, DeviceAtmosphericNetworkType, LogicType, SimulationSettings,
+    },
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
     parser::string_to_hash,
@@ -164,13 +166,28 @@ impl Device for VolumePump {
                 line: 0,
             })?;
 
-        // n = PV/RT
-        let mols = input_rc.borrow().pressure() * *self.setting.borrow()
-            / (IDEAL_GAS_CONSTANT * input_rc.borrow().temperature());
+        let setting = *self.setting.borrow();
 
-        output_rc
-            .borrow_mut()
-            .add_mixture(&input_rc.borrow_mut().remove_moles(mols));
+        let (input_total_volume, total_moles) = {
+            let input = input_rc.borrow();
+            (input.total_volume(), input.total_moles())
+        };
+
+        // Clamp setting to available volume
+        let volume_to_move = setting.min(input_total_volume);
+
+        // Proportional transfer of all matter (gases + liquids)
+        if volume_to_move > 0.0 {
+            let ratio = (volume_to_move / input_total_volume).clamp(0.0, 1.0);
+            if ratio > 0.0 {
+                let moles_to_move = total_moles * ratio;
+                output_rc.borrow_mut().add_mixture(
+                    &input_rc
+                        .borrow_mut()
+                        .remove_moles(moles_to_move, MatterState::All),
+                );
+            }
+        }
 
         Ok(())
     }
@@ -179,10 +196,10 @@ impl Device for VolumePump {
 impl AtmosphericDevice for VolumePump {
     fn set_atmospheric_network(
         &mut self,
-        connection: FilterConnectionType,
+        connection: DeviceAtmosphericNetworkType,
         network: OptShared<AtmosphericNetwork>,
     ) -> SimulationResult<()> {
-        use FilterConnectionType::*;
+        use DeviceAtmosphericNetworkType::*;
         match connection {
             Input => {
                 self.input_network = network;
@@ -199,6 +216,18 @@ impl AtmosphericDevice for VolumePump {
                 ),
                 line: 0,
             }),
+        }
+    }
+
+    fn get_atmospheric_network(
+        &self,
+        connection: DeviceAtmosphericNetworkType,
+    ) -> OptShared<AtmosphericNetwork> {
+        use DeviceAtmosphericNetworkType::*;
+        match connection {
+            Input => self.input_network.clone(),
+            Output => self.output_network.clone(),
+            _ => None,
         }
     }
 }

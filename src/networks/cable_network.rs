@@ -1,7 +1,7 @@
-use crate::SimulationError;
 use crate::devices::{Device, LogicType};
 use crate::error::SimulationResult;
-use crate::types::{OptShared, Shared};
+use crate::types::{OptShared, Shared, shared};
+use crate::{SimulationError, SimulationManager};
 use std::cell::{Ref, RefMut};
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -28,13 +28,17 @@ pub struct CableNetwork {
 }
 
 impl CableNetwork {
-    /// Create a new empty cable network
-    pub fn new() -> Self {
-        Self {
+    /// Create a new cable network and register it with the global SimulationManager.
+    pub fn new() -> Shared<CableNetwork> {
+        let s = shared(CableNetwork {
             devices: BTreeMap::new(),
             prefab_index: BTreeMap::new(),
             name_index: BTreeMap::new(),
-        }
+        });
+
+        SimulationManager::register_cable_network_global(s.clone());
+
+        s
     }
 
     /// Add a device to the network and set up the bidirectional connection
@@ -327,12 +331,6 @@ impl CableNetwork {
         }
 
         Ok(write_count)
-    }
-}
-
-impl Default for CableNetwork {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

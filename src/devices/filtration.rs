@@ -11,10 +11,10 @@ use std::cell::RefCell;
 
 use crate::{
     CableNetwork, Filter, ItemType, LogicSlotType, Slot, allocate_global_id,
-    atmospherics::{GasType, MAX_PRESSURE_GAS_PIPE, PIPE_VOLUME, calculate_moles},
+    atmospherics::{GasType, MAX_PRESSURE_GAS_PIPE, MatterState, PIPE_VOLUME, calculate_moles},
     conversions::lerp,
     devices::{
-        AtmosphericDevice, ChipSlot, Device, FilterConnectionType, ICHostDevice,
+        AtmosphericDevice, ChipSlot, Device, DeviceAtmosphericNetworkType, ICHostDevice,
         ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
     },
     error::{SimulationError, SimulationResult},
@@ -281,6 +281,10 @@ impl Device for Filtration {
         }
     }
 
+    fn clear_internal_references(&mut self) {
+        self.chip_host.borrow_mut().set_host_device(None);
+    }
+
     fn read_slot(&self, index: usize, slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
         if index >= self.slots.len() {
             return Err(SimulationError::RuntimeError {
@@ -421,7 +425,7 @@ impl Device for Filtration {
         }
 
         // Remove that many moles from the input network
-        let mut transfer_mixture = input_mut.remove_moles(transfer_moles_amount);
+        let mut transfer_mixture = input_mut.remove_moles(transfer_moles_amount, MatterState::All);
 
         let mut filtered_mut = filtered_rc.borrow_mut();
 
@@ -498,10 +502,10 @@ impl ICHostDeviceMemoryOverride for Filtration {}
 impl AtmosphericDevice for Filtration {
     fn set_atmospheric_network(
         &mut self,
-        connection: FilterConnectionType,
+        connection: DeviceAtmosphericNetworkType,
         network: OptShared<AtmosphericNetwork>,
     ) -> SimulationResult<()> {
-        use FilterConnectionType::*;
+        use DeviceAtmosphericNetworkType::*;
         match connection {
             Input => {
                 let _: () = self.input_network = network;
@@ -522,6 +526,19 @@ impl AtmosphericDevice for Filtration {
                 ),
                 line: 0,
             }),
+        }
+    }
+
+    fn get_atmospheric_network(
+        &self,
+        connection: DeviceAtmosphericNetworkType,
+    ) -> OptShared<AtmosphericNetwork> {
+        use DeviceAtmosphericNetworkType::*;
+        match connection {
+            Input => self.input_network.clone(),
+            Output => self.filtered_network.clone(),
+            Output2 => self.waste_network.clone(),
+            _ => None,
         }
     }
 }

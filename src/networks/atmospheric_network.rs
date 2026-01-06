@@ -7,7 +7,9 @@
 //! network automatically equalizes pressure and temperature across all
 //! connected devices.
 
-use crate::atmospherics::{GasMixture, GasType, Mole};
+use crate::SimulationManager;
+use crate::atmospherics::{GasMixture, GasType, MatterState, Mole};
+use crate::types::{Shared, shared};
 use std::collections::HashSet;
 
 /// Identifier for devices on the atmospheric network
@@ -27,17 +29,22 @@ pub struct AtmosphericNetwork {
 }
 
 impl AtmosphericNetwork {
-    /// Create a new atmospheric network with specified volume
+    /// Create a new atmospheric network with specified volume and register it with the global SimulationManager.
     /// Panics if volume is 0 or negative
-    pub fn new(volume: f64) -> Self {
+    pub fn new(volume: f64) -> Shared<AtmosphericNetwork> {
         assert!(
             volume > 0.0,
             "Atmospheric networks must have positive volume"
         );
-        Self {
+
+        let s = shared(AtmosphericNetwork {
             mixture: GasMixture::new(volume),
             devices: HashSet::new(),
-        }
+        });
+
+        SimulationManager::register_atmospheric_network_global(s.clone());
+
+        s
     }
 
     /// Get immutable reference to the network's gas mixture
@@ -112,8 +119,8 @@ impl AtmosphericNetwork {
     }
 
     /// Remove a specific amount of moles proportionally
-    pub fn remove_moles(&mut self, moles: f64) -> GasMixture {
-        self.mixture.remove_moles(moles)
+    pub fn remove_moles(&mut self, moles: f64, matter_state: MatterState) -> GasMixture {
+        self.mixture.remove_moles(moles, matter_state)
     }
 
     /// Remove all moles of a specific gas type and return the removed Mole
@@ -139,6 +146,12 @@ impl AtmosphericNetwork {
     /// Get the current temperature of the network (K)
     pub fn temperature(&self) -> f64 {
         self.mixture.temperature()
+    }
+
+    /// Process post-update atmospheric tasks such as phase changes.
+    /// Returns the number of phase changes that occurred in this network.
+    pub fn process_phase_changes(&mut self) -> u32 {
+        self.mixture.process_phase_changes()
     }
 
     /// Get the total moles in the network
@@ -196,7 +209,7 @@ impl AtmosphericNetwork {
 
     /// Transfer a specific amount of gas to another network
     pub fn transfer_to(&mut self, other: &mut AtmosphericNetwork, moles: f64) {
-        let transferred = self.mixture.remove_moles(moles);
+        let transferred = self.mixture.remove_moles(moles, MatterState::All);
         other.mixture.merge(&transferred);
     }
 

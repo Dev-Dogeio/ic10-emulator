@@ -172,12 +172,12 @@ pub enum Instruction {
         start: Operand,
         length: Operand,
     },
-    /// ins r, start, length, value - Insert value into bit field at start position for length bits
+    /// ins r, value, start, length - Insert value into bit field at start position for length bits
     Ins {
         dest: Operand,
+        value: Operand,
         start: Operand,
         length: Operand,
-        value: Operand,
     },
 
     // ==================== Comparison Operations (Set Instructions) ====================
@@ -1120,9 +1120,9 @@ impl ParsedInstruction {
                     },
                     "ins" => Instruction::Ins {
                         dest,
-                        start: arg1,
-                        length: arg2,
-                        value: arg3,
+                        value: arg1,
+                        start: arg2,
+                        length: arg3,
                     },
                     _ => unreachable!(),
                 };

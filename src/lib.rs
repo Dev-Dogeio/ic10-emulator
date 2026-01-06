@@ -10,6 +10,7 @@ pub mod items;
 pub mod logic;
 pub mod networks;
 pub mod parser;
+pub mod simulation_manager;
 pub mod types;
 
 #[cfg(test)]
@@ -22,4 +23,5 @@ pub use error::{SimulationError, SimulationResult};
 pub use id::allocate_global_id;
 pub use instruction::Instruction;
 pub use items::{Filter, Item, ItemIntegratedCircuit10, ItemType, Slot};
-pub use networks::{BatchMode, CableNetwork};
+pub use networks::{AtmosphericNetwork, BatchMode, CableNetwork};
+pub use simulation_manager::SimulationManager;

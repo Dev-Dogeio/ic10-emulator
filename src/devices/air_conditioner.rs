@@ -2,9 +2,9 @@
 
 use crate::{
     CableNetwork, allocate_global_id,
-    atmospherics::{CELSIUS_TO_KELVIN, GasMixture, GasType, ONE_ATMOSPHERE, calculate_moles},
+    atmospherics::{CELSIUS_TO_KELVIN, GasType, MatterState, ONE_ATMOSPHERE, calculate_moles},
     devices::{
-        AtmosphericDevice, ChipSlot, Device, FilterConnectionType, ICHostDevice,
+        AtmosphericDevice, ChipSlot, Device, DeviceAtmosphericNetworkType, ICHostDevice,
         ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
     },
     error::{SimulationError, SimulationResult},
@@ -52,7 +52,7 @@ pub struct AirConditioner {
     /// The waste network
     waste_network: OptShared<AtmosphericNetwork>,
     /// Internal buffer used to hold transferred gas
-    internal: RefCell<GasMixture>,
+    internal: Shared<AtmosphericNetwork>,
 
     /// Last computed temperature differential efficiency
     temperature_differential_efficiency: RefCell<f64>,
@@ -113,7 +113,7 @@ impl AirConditioner {
             input_network: None,
             output_network: None,
             waste_network: None,
-            internal: RefCell::new(GasMixture::new(INTERNAL_VOLUME_LITRES)),
+            internal: AtmosphericNetwork::new(INTERNAL_VOLUME_LITRES),
             processed_moles: RefCell::new(0.0),
             temperature_differential_efficiency: RefCell::new(0.0),
             operational_temperature_limitor: RefCell::new(0.0),
@@ -411,11 +411,12 @@ impl Device for AirConditioner {
         }
 
         // remove that many moles from the input network
-        let transferred_mixture = input_rc.borrow_mut().remove_moles(transfer_moles);
+        let transferred_mixture = input_rc.borrow_mut().remove_moles(transfer_moles, MatterState::All);
 
         // add to internal buffer
         {
-            self.internal.borrow_mut().merge(&transferred_mixture);
+            // Add transferred gas to internal
+            self.internal.borrow_mut().add_mixture(&transferred_mixture);
 
             // temperature gap evaluation (between internal and waste depending on direction)
             let temperature_gap = if target_temperature > self.internal.borrow().temperature() {
@@ -450,7 +451,9 @@ impl Device for AirConditioner {
             }
 
             // move internal gas to primary output and reset internal buffer
-            output_rc.borrow_mut().add_mixture(&self.internal.borrow());
+            output_rc
+                .borrow_mut()
+                .add_mixture(self.internal.borrow().mixture());
             self.internal.borrow_mut().clear();
 
             // store metrics
@@ -486,6 +489,10 @@ impl Device for AirConditioner {
     fn clear(&self) -> SimulationResult<()> {
         ICHostDevice::clear(self)
     }
+
+    fn clear_internal_references(&mut self) {
+        self.chip_host.borrow_mut().set_host_device(None);
+    }
 }
 
 impl ICHostDevice for AirConditioner {
@@ -507,10 +514,10 @@ impl ICHostDeviceMemoryOverride for AirConditioner {}
 impl AtmosphericDevice for AirConditioner {
     fn set_atmospheric_network(
         &mut self,
-        connection: FilterConnectionType,
+        connection: DeviceAtmosphericNetworkType,
         network: OptShared<AtmosphericNetwork>,
     ) -> SimulationResult<()> {
-        use FilterConnectionType::*;
+        use DeviceAtmosphericNetworkType::*;
         match connection {
             Input => {
                 self.input_network = network;
@@ -531,6 +538,20 @@ impl AtmosphericDevice for AirConditioner {
                 ),
                 line: 0,
             }),
+        }
+    }
+
+    fn get_atmospheric_network(
+        &self,
+        connection: DeviceAtmosphericNetworkType,
+    ) -> OptShared<AtmosphericNetwork> {
+        use DeviceAtmosphericNetworkType::*;
+        match connection {
+            Input => self.input_network.clone(),
+            Output => self.output_network.clone(),
+            Output2 => self.waste_network.clone(),
+            Internal => Some(self.internal.clone()),
+            _ => None,
         }
     }
 }
