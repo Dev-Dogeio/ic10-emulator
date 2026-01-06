@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     chip.borrow().print_debug_info();
 
-    return Ok(());
+    Ok(())
 
     // // AC device test
     // let input = shared(AtmosphericNetwork::new(120.0));

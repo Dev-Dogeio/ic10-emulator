@@ -496,10 +496,18 @@ impl ItemIntegratedCircuit10 {
         for i in 0..REGISTER_COUNT {
             let value = self.registers.borrow()[i];
             if value != 0.0 {
-                if value.fract() == 0.0 {
-                    println!("r{i}: {value:.0}");
+                let reg = if i == STACK_POINTER_INDEX {
+                    "sp".to_string()
+                } else if i == RETURN_ADDRESS_INDEX {
+                    "ra".to_string()
                 } else {
-                    println!("r{i}: {value:.6}");
+                    format!("r{}", i)
+                };
+
+                if value.fract() == 0.0 {
+                    println!("{reg}: {value:.0}");
+                } else {
+                    println!("{reg}: {value:.6}");
                 }
             }
         }

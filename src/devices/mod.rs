@@ -9,16 +9,16 @@ use crate::{
 
 pub mod air_conditioner;
 pub mod atmospheric_device;
+pub mod chip_slot;
 pub mod daylight_sensor;
 pub mod filtration;
 pub mod ic_housing;
 pub mod logic_memory;
 pub mod volume_pump;
-pub mod chip_slot;
 
-pub use chip_slot::ChipSlot;
 pub use air_conditioner::AirConditioner;
 pub use atmospheric_device::AtmosphericDevice;
+pub use chip_slot::ChipSlot;
 pub use daylight_sensor::DaylightSensor;
 pub use filtration::Filtration;
 pub use ic_housing::ICHousing;
