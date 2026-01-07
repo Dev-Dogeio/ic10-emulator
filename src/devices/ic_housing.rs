@@ -93,8 +93,8 @@ impl Device for ICHousing {
         self.network = network;
     }
 
-    fn set_name(&mut self, name: &str) {
-        let old_name_hash = string_to_hash(self.name.as_str());
+    fn rename(&mut self, name: &str) {
+        let old_name_hash = self.get_name_hash();
         self.name = name.to_string();
 
         if let Some(network) = &self.network {
@@ -104,10 +104,6 @@ impl Device for ICHousing {
                 string_to_hash(name),
             );
         }
-    }
-
-    fn clear_internal_references(&mut self) {
-        self.chip_host.borrow_mut().clear_internal_references();
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {

@@ -5,7 +5,7 @@ use crate::{
     devices::LogicType,
     error::{SimulationError, SimulationResult},
     items::{ItemIntegratedCircuit10, ItemType, Slot},
-    types::{OptShared, Shared, shared},
+    types::{OptShared, OptWeakShared, Shared, shared},
 };
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -15,7 +15,7 @@ use std::{
 /// Chip slot for IC; manages chip, pins, and execution state
 pub struct ChipSlot {
     /// The host device
-    host_device: OptShared<dyn Device>,
+    host_device: OptWeakShared<dyn Device>,
 
     /// The chip slot
     slot: Slot,
@@ -40,7 +40,7 @@ impl ChipSlot {
 
     /// Set the host device reference
     pub fn set_host_device(&mut self, device: OptShared<dyn Device>) {
-        self.host_device = device;
+        self.host_device = device.map(|d| std::rc::Rc::downgrade(&d));
     }
 
     /// Get the hosted chip (if any)
@@ -71,15 +71,6 @@ impl ChipSlot {
     /// Remove and return the installed chip
     pub fn remove_chip(&mut self) -> OptShared<dyn Item> {
         self.slot.remove()
-    }
-
-    /// Clear internal references when host device detached
-    pub fn clear_internal_references(&mut self) {
-        if let Some(mut chip) = self.get_chip_mut() {
-            chip.clear_internal_references();
-        }
-
-        self.set_host_device(None);
     }
 
     /// Set device pin `pin` to `device_ref_id`
@@ -115,7 +106,9 @@ impl ChipSlot {
 
     /// Get host device's network
     pub fn get_network(&self) -> OptShared<CableNetwork> {
-        if let Some(host) = &self.host_device {
+        if let Some(host_weak) = &self.host_device
+            && let Some(host) = host_weak.upgrade()
+        {
             host.borrow().get_network()
         } else {
             None
@@ -124,12 +117,18 @@ impl ChipSlot {
 
     /// Host device reference ID, if any
     pub fn id(&self) -> Option<i32> {
-        self.host_device.as_ref().map(|host| host.borrow().get_id())
+        if let Some(host_weak) = &self.host_device {
+            host_weak.upgrade().map(|host| host.borrow().get_id())
+        } else {
+            None
+        }
     }
 
     /// Read a logic value from the host device
     pub fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
-        if let Some(host) = &self.host_device {
+        if let Some(host_weak) = &self.host_device
+            && let Some(host) = host_weak.upgrade()
+        {
             host.borrow().read(logic_type)
         } else {
             Err(SimulationError::RuntimeError {
@@ -141,7 +140,9 @@ impl ChipSlot {
 
     /// Write a logic value to the host device
     pub fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
-        if let Some(host) = &self.host_device {
+        if let Some(host_weak) = &self.host_device
+            && let Some(host) = host_weak.upgrade()
+        {
             host.borrow().write(logic_type, value)
         } else {
             Err(SimulationError::RuntimeError {

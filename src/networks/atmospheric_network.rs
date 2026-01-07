@@ -53,6 +53,11 @@ impl AtmosphericNetwork {
         &self.mixture
     }
 
+    /// Get mutable reference to the network's gas mixture
+    pub fn mixture_mut(&mut self) -> &mut GasMixture {
+        &mut self.mixture
+    }
+
     /// Get the total volume of the network
     pub fn total_volume(&self) -> f64 {
         self.mixture.volume()

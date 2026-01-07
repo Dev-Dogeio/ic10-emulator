@@ -4,9 +4,6 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::str::FromStr;
 
-use crate::items::create_item;
-use crate::types::OptShared;
-
 /// Different item kinds in the simulator
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ItemType {
@@ -66,12 +63,4 @@ pub trait Item: Debug {
 
     /// Returns self as mutable Any for downcasting to concrete types
     fn as_any_mut(&mut self) -> &mut dyn Any;
-
-    /// Create an item by prefab hash. Default implementation delegates to the module-level factory.
-    fn create(prefab_hash: i32) -> OptShared<dyn Item>
-    where
-        Self: Sized,
-    {
-        create_item(prefab_hash)
-    }
 }

@@ -84,7 +84,7 @@ mod tests {
             *self.network.borrow_mut() = network;
         }
 
-        fn set_name(&mut self, name: &str) {
+        fn rename(&mut self, name: &str) {
             *self.name.borrow_mut() = name.to_string();
         }
 

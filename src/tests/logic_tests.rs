@@ -1069,8 +1069,9 @@ j ra
         network
             .borrow_mut()
             .add_device(sensor.clone(), network.clone());
-        chip.borrow_mut()
-            .get_chip_slot_mut()
+        chip.borrow()
+            .get_chip_slot()
+            .borrow_mut()
             .set_device_pin(0, Some(sensor_id));
 
         // sdse - device set exists (db always exists)
@@ -1098,8 +1099,9 @@ yield
         network
             .borrow_mut()
             .add_device(sensor.clone(), network.clone());
-        chip.borrow_mut()
-            .get_chip_slot_mut()
+        chip.borrow()
+            .get_chip_slot()
+            .borrow_mut()
             .set_device_pin(0, Some(sensor_id));
 
         // bdse - branch if device set exists (db always exists)
@@ -1128,8 +1130,9 @@ yield
         network
             .borrow_mut()
             .add_device(sensor.clone(), network.clone());
-        chip.borrow_mut()
-            .get_chip_slot_mut()
+        chip.borrow()
+            .get_chip_slot()
+            .borrow_mut()
             .set_device_pin(0, Some(sensor_id));
 
         // brdse - relative branch if device exists
@@ -1158,8 +1161,9 @@ yield
         network
             .borrow_mut()
             .add_device(sensor.clone(), network.clone());
-        chip.borrow_mut()
-            .get_chip_slot_mut()
+        chip.borrow()
+            .get_chip_slot()
+            .borrow_mut()
             .set_device_pin(0, Some(sensor_id));
 
         // bdseal - branch and link if device exists
@@ -1232,8 +1236,9 @@ yield
             .add_device(housing2.clone(), network.clone());
 
         // Assign device to pin d0
-        chip.borrow_mut()
-            .get_chip_slot_mut()
+        chip.borrow()
+            .get_chip_slot()
+            .borrow_mut()
             .set_device_pin(0, Some(housing2_id));
 
         // Write Setting (12) to d0, then read it back

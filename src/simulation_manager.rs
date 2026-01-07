@@ -100,15 +100,7 @@ impl SimulationManager {
         for net in &self.cable_networks {
             let ids = net.borrow().all_device_ids();
             for id in ids {
-                {
-                    let net_mut = net.borrow_mut();
-                    let mut dev_mut = net_mut
-                        .get_device_mut(id)
-                        .expect("Expected device to be present during reset");
-                    dev_mut.clear_internal_references();
-                }
-
-                let _ = net.borrow_mut().remove_device(id);
+                net.borrow_mut().remove_device(id).unwrap();
             }
         }
 

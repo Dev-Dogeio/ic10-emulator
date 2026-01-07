@@ -49,7 +49,7 @@ mod tests {
         }
         fn set_network(&mut self, _network: OptShared<CableNetwork>) {}
 
-        fn set_name(&mut self, _name: &str) {}
+        fn rename(&mut self, _name: &str) {}
 
         fn can_read(&self, logic_type: LogicType) -> bool {
             matches!(logic_type, LogicType::Setting)
@@ -359,7 +359,7 @@ mod tests {
         assert_eq!(devices_by_old_name[0], device_id);
 
         // Rename the device
-        housing.borrow_mut().set_name("NewName");
+        housing.borrow_mut().rename("NewName");
 
         // Get new name hash
         let new_name_hash = string_to_hash("NewName");

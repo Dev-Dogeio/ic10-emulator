@@ -3,28 +3,16 @@
 use wasm_bindgen::prelude::*;
 
 use crate::atmospherics::{GasMixture, GasType, MatterState};
-use crate::devices::Device;
 use crate::devices::DeviceAtmosphericNetworkType;
 use crate::devices::LogicSlotType;
 use crate::devices::LogicType;
-use crate::devices::{
-    AirConditioner, DaylightSensor, Filtration, ICHousing, LogicMemory, VolumePump,
-};
+use crate::devices::{Device, SimulationSettings, create_device};
 use crate::items::item::Item;
-use crate::items::{Filter, ItemIntegratedCircuit10};
+use crate::items::{ItemIntegratedCircuit10, create_item};
 use crate::networks::BatchMode;
 use crate::types::{OptShared, Shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager};
-
-use std::cell::RefCell;
-use std::collections::HashMap;
-
-thread_local! {
-    static WASM_DEVICE_REGISTRY: RefCell<HashMap<i32, Shared<dyn Device>>> = RefCell::new(HashMap::new());
-    static WASM_ITEM_REGISTRY: RefCell<HashMap<i32, Shared<dyn Item>>> = RefCell::new(HashMap::new());
-    /// Separate registry for IC chips to preserve their concrete type
-    static WASM_IC_REGISTRY: RefCell<HashMap<i32, Shared<ItemIntegratedCircuit10>>> = RefCell::new(HashMap::new());
-}
+use std::rc::Rc;
 
 #[wasm_bindgen]
 /// WASM wrapper around `CableNetwork`
@@ -57,6 +45,23 @@ impl WasmCableNetwork {
     /// Get a list of all device reference IDs in this cable network.
     pub fn device_ids(&self) -> Vec<i32> {
         self.inner.borrow().all_device_ids()
+    }
+
+    /// Get a device wrapper by reference ID
+    pub fn get_device(&self, ref_id: i32) -> Result<WasmDevice, JsValue> {
+        let opt = self.inner.borrow().get_device_shared(ref_id);
+        opt.map(|d| WasmDevice { inner: d })
+            .ok_or_else(|| JsValue::from_str("Device not found"))
+    }
+
+    /// Return all devices in this cable network as `WasmDevice` wrappers
+    pub fn devices(&self) -> Vec<WasmDevice> {
+        self.inner
+            .borrow()
+            .all_devices()
+            .into_iter()
+            .map(|d| WasmDevice { inner: d })
+            .collect()
     }
 
     /// Read a logic value from a device by reference ID. `logic_type_value` uses the numeric mapping from `devices::LogicType`.
@@ -92,7 +97,7 @@ impl WasmCableNetwork {
         let mut dev = net
             .get_device_mut(ref_id)
             .ok_or_else(|| JsValue::from_str("Device not found"))?;
-        dev.set_name(name);
+        dev.rename(name);
         Ok(())
     }
 
@@ -126,6 +131,81 @@ impl WasmCableNetwork {
     #[wasm_bindgen(js_name = toString)]
     pub fn to_string_js(&self) -> String {
         format!("{}", self.inner.borrow())
+    }
+
+    /// Update a device's name index in the network
+    pub fn update_device_name(&self, ref_id: i32, old_name_hash: i32, new_name_hash: i32) {
+        self.inner
+            .borrow_mut()
+            .update_device_name(ref_id, old_name_hash, new_name_hash);
+    }
+
+    /// Check whether a device exists on this network
+    pub fn device_exists(&self, ref_id: i32) -> bool {
+        self.inner.borrow().device_exists(ref_id)
+    }
+
+    /// Get all device ids matching a prefab hash
+    pub fn get_devices_by_prefab(&self, prefab_hash: i32) -> Vec<i32> {
+        self.inner.borrow().get_devices_by_prefab(prefab_hash)
+    }
+
+    /// Get all device ids matching a name hash
+    pub fn get_devices_by_name(&self, name_hash: i32) -> Vec<i32> {
+        self.inner.borrow().get_devices_by_name(name_hash)
+    }
+
+    /// Count devices by prefab
+    pub fn count_devices_by_prefab(&self, prefab_hash: i32) -> usize {
+        self.inner.borrow().count_devices_by_prefab(prefab_hash)
+    }
+
+    /// Count devices by name
+    pub fn count_devices_by_name(&self, name_hash: i32) -> usize {
+        self.inner.borrow().count_devices_by_name(name_hash)
+    }
+
+    /// Total devices on this network
+    pub fn device_count(&self) -> usize {
+        self.inner.borrow().device_count()
+    }
+
+    /// Clear the network
+    pub fn clear(&self) {
+        self.inner.borrow_mut().clear();
+    }
+
+    /// Update all devices on the network for the given tick
+    pub fn update(&self, tick: u64) {
+        self.inner.borrow().update(tick);
+    }
+
+    /// Batch read logic values from devices matching prefab and name
+    pub fn batch_read_by_name(
+        &self,
+        prefab_hash: i32,
+        name_hash: i32,
+        logic_type: LogicType,
+        batch_mode: BatchMode,
+    ) -> Result<f64, JsValue> {
+        self.inner
+            .borrow()
+            .batch_read_by_name(prefab_hash, name_hash, logic_type, batch_mode)
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+    }
+
+    /// Batch write logic values to devices matching prefab and name
+    pub fn batch_write_by_name(
+        &self,
+        prefab_hash: i32,
+        name_hash: i32,
+        logic_type: LogicType,
+        value: f64,
+    ) -> Result<usize, JsValue> {
+        self.inner
+            .borrow()
+            .batch_write_by_name(prefab_hash, name_hash, logic_type, value)
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 }
 
@@ -270,6 +350,67 @@ impl WasmGasMixture {
     pub fn to_string_js(&self) -> String {
         format!("{}", self.inner)
     }
+
+    pub fn total_moles_by_state(&self, state_value: u32) -> f64 {
+        let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
+        self.inner.total_moles_by_state(state)
+    }
+
+    pub fn total_volume_liquids(&self) -> f64 {
+        self.inner.total_volume_liquids()
+    }
+
+    pub fn liquid_volume_ratio(&self) -> f64 {
+        self.inner.liquid_volume_ratio()
+    }
+
+    pub fn gas_volume(&self) -> f64 {
+        self.inner.gas_volume()
+    }
+
+    pub fn total_energy_gases(&self) -> f64 {
+        self.inner.total_energy_gases()
+    }
+
+    pub fn total_energy_liquids(&self) -> f64 {
+        self.inner.total_energy_liquids()
+    }
+
+    pub fn total_energy(&self) -> f64 {
+        self.inner.total_energy()
+    }
+
+    pub fn total_heat_capacity_gases(&self) -> f64 {
+        self.inner.total_heat_capacity_gases()
+    }
+
+    pub fn total_heat_capacity_liquids(&self) -> f64 {
+        self.inner.total_heat_capacity_liquids()
+    }
+
+    pub fn total_heat_capacity(&self) -> f64 {
+        self.inner.total_heat_capacity()
+    }
+
+    pub fn pressure_gases(&self) -> f64 {
+        self.inner.pressure_gases()
+    }
+
+    pub fn add_energy(&mut self, joules: f64) {
+        self.inner.add_energy(joules);
+    }
+
+    pub fn remove_energy(&mut self, joules: f64) -> f64 {
+        self.inner.remove_energy(joules)
+    }
+
+    pub fn set_temperature(&mut self, temperature: f64) {
+        self.inner.set_temperature(temperature);
+    }
+
+    pub fn equalize_internal_energy(&mut self) {
+        self.inner.equalize_internal_energy();
+    }
 }
 
 #[wasm_bindgen]
@@ -296,14 +437,60 @@ impl WasmDevice {
     }
 
     /// Set device name
-    pub fn set_name(&self, name: &str) {
-        self.inner.borrow_mut().set_name(name);
+    pub fn rename(&self, name: &str) {
+        self.inner.borrow_mut().rename(name);
     }
 
     /// Return a string representation of the device
     #[wasm_bindgen(js_name = toString)]
     pub fn to_string_js(&self) -> String {
         format!("{:?}", self.inner.borrow())
+    }
+
+    /// Check whether this device can be read for a given logic type
+    pub fn can_read(&self, logic_type: LogicType) -> bool {
+        self.inner.borrow().can_read(logic_type)
+    }
+
+    /// Check whether this device can be written for a given logic type
+    pub fn can_write(&self, logic_type: LogicType) -> bool {
+        self.inner.borrow().can_write(logic_type)
+    }
+
+    /// Get the name hash for this device
+    pub fn name_hash(&self) -> i32 {
+        self.inner.borrow().get_name_hash()
+    }
+
+    /// Get the cable network this device is connected to (if any)
+    pub fn get_network(&self) -> Option<WasmCableNetwork> {
+        self.inner
+            .borrow()
+            .get_network()
+            .map(|n| WasmCableNetwork { inner: n })
+    }
+
+    /// Memory access helpers (delegates to device's memory methods if available)
+    pub fn get_memory(&self, index: usize) -> Result<f64, JsValue> {
+        self.inner
+            .borrow()
+            .get_memory(index)
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+    }
+
+    pub fn set_memory(&self, index: usize, value: f64) -> Result<(), JsValue> {
+        self.inner
+            .borrow()
+            .set_memory(index, value)
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+    }
+
+    /// Clear device memory/stack if supported
+    pub fn clear_memory(&self) -> Result<(), JsValue> {
+        self.inner
+            .borrow()
+            .clear()
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 
     pub fn read(&self, logic_type: LogicType) -> Result<f64, JsValue> {
@@ -400,38 +587,41 @@ impl WasmDevice {
 
     /// Insert an item into a slot on this device. The item is consumed on success.
     /// Accepts a `WasmItem` which owns the shared `Item` instance.
-    pub fn insert_item_into_slot(&self, index: usize, mut item: WasmItem) -> Result<(), JsValue> {
+    ///
+    /// Returns Ok(None) on successful insertion, or Ok(Some(WasmItem)) if the item
+    /// could not be inserted (leftover returned to the caller). Errors indicate
+    /// invalid/consumed inputs.
+    pub fn insert_item_into_slot(
+        &self,
+        index: usize,
+        mut item: WasmItem,
+    ) -> Result<Option<WasmItem>, JsValue> {
         // Take the shared item out of the wrapper (ownership move)
         let shared_item = item
             .take()
             .ok_or_else(|| JsValue::from_str("Invalid or already-consumed item"))?;
 
-        // Limit the borrow of the device so we don't hold it while touching registries
+        // Limit the borrow of the device while inserting
         let result = {
             let mut dev = self.inner.borrow_mut();
             if let Some(slot_host) = dev.as_slot_host_device() {
                 slot_host.try_insert_item(index, shared_item)
             } else {
-                // Device doesn't support slots; return the shared item as Err so we can put it back in registry
+                // Device doesn't support slots; return the shared item as Err so we can hand it back to JS
                 Err(shared_item)
             }
         };
 
         match result {
-            Ok(()) => Ok(()),
-            Err(leftover) => {
-                // Put leftover back in the registry so JS can still access it by id
-                let id = leftover.borrow().get_id();
-                WASM_ITEM_REGISTRY.with(|r| r.borrow_mut().insert(id, leftover));
-                Err(JsValue::from_str(
-                    "Item insertion failed or device doesn't support slots",
-                ))
-            }
+            Ok(()) => Ok(None),
+            Err(leftover) => Ok(Some(WasmItem {
+                inner: Some(leftover),
+            })),
         }
     }
 
     /// Remove an item from a slot and return its wasm item id if removed
-    pub fn remove_item_from_slot(&self, index: usize) -> Result<Option<i32>, JsValue> {
+    pub fn remove_item_from_slot(&self, index: usize) -> Result<Option<WasmItem>, JsValue> {
         // Limit the borrow of the device
         let opt_item = {
             let mut dev = self.inner.borrow_mut();
@@ -443,9 +633,7 @@ impl WasmDevice {
         };
 
         if let Some(item) = opt_item {
-            let id = item.borrow().get_id();
-            WASM_ITEM_REGISTRY.with(|r| r.borrow_mut().insert(id, item));
-            Ok(Some(id))
+            Ok(Some(WasmItem { inner: Some(item) }))
         } else {
             Ok(None)
         }
@@ -478,6 +666,61 @@ impl WasmItem {
             .map(|b| b.borrow().get_id())
             .unwrap_or(0)
     }
+
+    /// Get the prefab hash for this item (0 if consumed)
+    pub fn prefab_hash(&self) -> i32 {
+        self.inner
+            .as_ref()
+            .map(|b| b.borrow().get_prefab_hash())
+            .unwrap_or(0)
+    }
+
+    /// Get the quantity of this item (0 if consumed)
+    pub fn quantity(&self) -> u32 {
+        self.inner
+            .as_ref()
+            .map(|b| b.borrow().quantity())
+            .unwrap_or(0)
+    }
+
+    /// Set the quantity (returns true if successful)
+    pub fn set_quantity(&mut self, quantity: u32) -> bool {
+        if let Some(s) = &self.inner {
+            s.borrow_mut().set_quantity(quantity)
+        } else {
+            false
+        }
+    }
+
+    /// Maximum stack quantity for this item
+    pub fn max_quantity(&self) -> u32 {
+        self.inner
+            .as_ref()
+            .map(|b| b.borrow().max_quantity())
+            .unwrap_or(0)
+    }
+
+    /// Merge another item into this one; consumes the other item and returns whether any merged
+    pub fn merge(&mut self, other: WasmItem) -> Result<bool, JsValue> {
+        let a = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Invalid item"))?;
+        let other_inner = other
+            .into_inner()
+            .ok_or_else(|| JsValue::from_str("Invalid item"))?;
+        let mut other_borrow = other_inner.borrow_mut();
+        let mut a_borrow = a.borrow_mut();
+        Ok(a_borrow.merge(&mut *other_borrow))
+    }
+
+    /// Get the item type as a string
+    pub fn item_type(&self) -> String {
+        self.inner
+            .as_ref()
+            .map(|b| b.borrow().item_type().as_str().to_string())
+            .unwrap_or_default()
+    }
 }
 
 impl WasmItem {
@@ -499,13 +742,12 @@ pub struct WasmICChip {
 
 #[wasm_bindgen]
 impl WasmICChip {
-    /// Create a new IC chip and register it
+    /// Create a new IC chip
     #[wasm_bindgen(constructor)]
     pub fn new() -> WasmICChip {
-        let chip = crate::types::shared(ItemIntegratedCircuit10::new());
-        let id = chip.borrow().get_id();
-        WASM_IC_REGISTRY.with(|r| r.borrow_mut().insert(id, chip.clone()));
-        WasmICChip { inner: chip }
+        WasmICChip {
+            inner: crate::types::shared(ItemIntegratedCircuit10::new()),
+        }
     }
 
     pub fn id(&self) -> i32 {
@@ -624,8 +866,180 @@ impl WasmAtmosphericNetwork {
     pub fn to_string_js(&self) -> String {
         format!("{}", self.inner.borrow())
     }
-}
 
+    pub fn total_volume(&self) -> f64 {
+        self.inner.borrow().total_volume()
+    }
+
+    pub fn device_count(&self) -> usize {
+        self.inner.borrow().device_count()
+    }
+
+    pub fn has_device(&self, device_id: usize) -> bool {
+        self.inner.borrow().has_device(device_id)
+    }
+
+    pub fn device_ids(&self) -> Vec<usize> {
+        self.inner.borrow().device_ids()
+    }
+
+    pub fn add_mixture(&self, other: &WasmGasMixture) {
+        self.inner.borrow_mut().add_mixture(&other.inner);
+    }
+
+    pub fn remove_moles(&self, moles: f64, state_value: u32) -> WasmGasMixture {
+        let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
+        let removed = self.inner.borrow_mut().remove_moles(moles, state);
+        WasmGasMixture { inner: removed }
+    }
+
+    pub fn remove_all_gas(&self, gas: GasType) -> f64 {
+        let removed = self.inner.borrow_mut().remove_all_gas(gas);
+        removed.quantity()
+    }
+
+    pub fn process_phase_changes(&self) -> u32 {
+        self.inner.borrow_mut().process_phase_changes()
+    }
+
+    pub fn gas_ratio(&self, gas: GasType) -> f64 {
+        self.inner.borrow().gas_ratio(gas)
+    }
+
+    pub fn partial_pressure(&self, gas: GasType) -> f64 {
+        self.inner.borrow().partial_pressure(gas)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.borrow().is_empty()
+    }
+
+    pub fn merge_network(&self, other: &mut WasmAtmosphericNetwork) -> Vec<usize> {
+        self.inner
+            .borrow_mut()
+            .merge_network(&mut other.inner.borrow_mut())
+    }
+
+    pub fn equalize_with(&self, other: &mut WasmAtmosphericNetwork) {
+        self.inner
+            .borrow_mut()
+            .equalize_with(&mut other.inner.borrow_mut());
+    }
+
+    pub fn transfer_to(&self, other: &mut WasmAtmosphericNetwork, moles: f64) {
+        self.inner
+            .borrow_mut()
+            .transfer_to(&mut other.inner.borrow_mut(), moles);
+    }
+
+    pub fn set_temperature(&self, temperature: f64) {
+        self.inner.borrow_mut().set_temperature(temperature);
+    }
+
+    pub fn add_energy(&self, joules: f64) {
+        self.inner.borrow_mut().add_energy(joules);
+    }
+
+    pub fn remove_energy(&self, joules: f64) -> f64 {
+        self.inner.borrow_mut().remove_energy(joules)
+    }
+
+    // ---- GasMixture parity methods (delegating to the internal mixture) ----
+    pub fn volume(&self) -> f64 {
+        self.inner.borrow().mixture().volume()
+    }
+
+    pub fn total_moles_gases(&self) -> f64 {
+        self.inner.borrow().mixture().total_moles_gases()
+    }
+
+    pub fn total_moles_liquids(&self) -> f64 {
+        self.inner.borrow().mixture().total_moles_liquids()
+    }
+
+    pub fn total_moles_by_state(&self, state_value: u32) -> f64 {
+        let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
+        self.inner.borrow().mixture().total_moles_by_state(state)
+    }
+
+    pub fn total_volume_liquids(&self) -> f64 {
+        self.inner.borrow().mixture().total_volume_liquids()
+    }
+
+    pub fn liquid_volume_ratio(&self) -> f64 {
+        self.inner.borrow().mixture().liquid_volume_ratio()
+    }
+
+    pub fn gas_volume(&self) -> f64 {
+        self.inner.borrow().mixture().gas_volume()
+    }
+
+    pub fn total_energy_gases(&self) -> f64 {
+        self.inner.borrow().mixture().total_energy_gases()
+    }
+
+    pub fn total_energy_liquids(&self) -> f64 {
+        self.inner.borrow().mixture().total_energy_liquids()
+    }
+
+    pub fn total_energy(&self) -> f64 {
+        self.inner.borrow().mixture().total_energy()
+    }
+
+    pub fn total_heat_capacity_gases(&self) -> f64 {
+        self.inner.borrow().mixture().total_heat_capacity_gases()
+    }
+
+    pub fn total_heat_capacity_liquids(&self) -> f64 {
+        self.inner.borrow().mixture().total_heat_capacity_liquids()
+    }
+
+    pub fn total_heat_capacity(&self) -> f64 {
+        self.inner.borrow().mixture().total_heat_capacity()
+    }
+
+    pub fn pressure_gases(&self) -> f64 {
+        self.inner.borrow().mixture().pressure_gases()
+    }
+
+    pub fn equalize_internal_energy(&self) {
+        self.inner
+            .borrow_mut()
+            .mixture_mut()
+            .equalize_internal_energy();
+    }
+
+    pub fn scale(&self, ratio: f64, state_value: u32) {
+        let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
+        self.inner.borrow_mut().mixture_mut().scale(ratio, state);
+    }
+
+    /// Transfer a ratio of moles from this network's mixture to another network's mixture
+    pub fn transfer_ratio_to_network(
+        &self,
+        target: &WasmAtmosphericNetwork,
+        ratio: f64,
+        state_value: u32,
+    ) -> f64 {
+        let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
+        if Rc::ptr_eq(&self.inner, &target.inner) {
+            return 0.0;
+        }
+
+        // Deterministic borrow ordering by pointer address
+        let (a_rc, b_rc) =
+            if (Rc::as_ptr(&self.inner) as usize) <= (Rc::as_ptr(&target.inner) as usize) {
+                (&self.inner, &target.inner)
+            } else {
+                (&target.inner, &self.inner)
+            };
+
+        let mut a = a_rc.borrow_mut();
+        let mut b = b_rc.borrow_mut();
+        a.mixture_mut()
+            .transfer_ratio_to(b.mixture_mut(), ratio, state)
+    }
+}
 #[wasm_bindgen]
 pub struct WasmSimulationManager;
 
@@ -633,9 +1047,6 @@ pub struct WasmSimulationManager;
 impl WasmSimulationManager {
     pub fn reset() {
         SimulationManager::reset_global();
-
-        // Clear wasm-side device registry as well
-        WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().clear());
     }
 
     pub fn update(ticks: u64) -> u32 {
@@ -659,53 +1070,12 @@ impl WasmSimulationManager {
     /// Create a device by prefab hash and register it in the global device map.
     /// Returns a `WasmDevice` wrapper for the created instance.
     pub fn create_device(prefab_hash: i32) -> Result<WasmDevice, JsValue> {
-        // Try known device constructors and match prefab hash
-        // Check static prefab hashes before creating instances
-        if VolumePump::prefab_hash() == prefab_hash {
-            let d = VolumePump::new(None);
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
+        match create_device(prefab_hash, None) {
+            Some(d) => Ok(WasmDevice { inner: d }),
+            None => Err(JsValue::from_str(
+                "Unsupported prefab hash for device creation",
+            )),
         }
-
-        if AirConditioner::prefab_hash() == prefab_hash {
-            let d = AirConditioner::new(None);
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        if Filtration::prefab_hash() == prefab_hash {
-            let d = Filtration::new(None);
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        if DaylightSensor::prefab_hash() == prefab_hash {
-            let d = DaylightSensor::new(None);
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        if ICHousing::prefab_hash() == prefab_hash {
-            let d = ICHousing::new(None);
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        if LogicMemory::prefab_hash() == prefab_hash {
-            let d = LogicMemory::new(None);
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        Err(JsValue::from_str(
-            "Unsupported prefab hash for device creation",
-        ))
     }
 
     /// Create a device with explicit simulation settings
@@ -714,210 +1084,28 @@ impl WasmSimulationManager {
         ticks_per_day: f64,
         max_instructions_per_tick: usize,
     ) -> Result<WasmDevice, JsValue> {
-        let settings = crate::devices::SimulationSettings {
+        let settings = SimulationSettings {
             ticks_per_day,
             max_instructions_per_tick,
         };
 
-        if VolumePump::prefab_hash() == prefab_hash {
-            let d = VolumePump::new(Some(settings.clone()));
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
+        match create_device(prefab_hash, Some(settings)) {
+            Some(d) => Ok(WasmDevice { inner: d }),
+            None => Err(JsValue::from_str(
+                "Unsupported prefab hash for device creation",
+            )),
         }
-
-        if AirConditioner::prefab_hash() == prefab_hash {
-            let d = AirConditioner::new(Some(settings.clone()));
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        if Filtration::prefab_hash() == prefab_hash {
-            let d = Filtration::new(Some(settings.clone()));
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        if DaylightSensor::prefab_hash() == prefab_hash {
-            let d = DaylightSensor::new(Some(settings.clone()));
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        if ICHousing::prefab_hash() == prefab_hash {
-            let d = ICHousing::new(Some(settings.clone()));
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        if LogicMemory::prefab_hash() == prefab_hash {
-            let d = LogicMemory::new(Some(settings.clone()));
-            let id = d.borrow().get_id();
-            WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().insert(id, d.clone()));
-            return Ok(WasmDevice { inner: d });
-        }
-
-        Err(JsValue::from_str(
-            "Unsupported prefab hash for device creation",
-        ))
     }
 
     /// Create an item by `prefab_hash` and return a `WasmItem` wrapper (not registered).
     /// Supports IC10 and filter prefabs by probing known variants.
     pub fn create_item(prefab_hash: i32) -> Result<WasmItem, JsValue> {
-        // Try IC10
-        if crate::items::ItemIntegratedCircuit10::prefab_hash() == prefab_hash {
-            let chip: Shared<dyn Item> = crate::types::shared(ItemIntegratedCircuit10::new());
-            return Ok(WasmItem { inner: Some(chip) });
-        }
-
-        // Try filters by enumerating gas types and sizes
-        use crate::items::FilterSize;
-        let gas_types = [
-            crate::atmospherics::GasType::Oxygen,
-            crate::atmospherics::GasType::Nitrogen,
-            crate::atmospherics::GasType::CarbonDioxide,
-            crate::atmospherics::GasType::Volatiles,
-            crate::atmospherics::GasType::Pollutant,
-            crate::atmospherics::GasType::NitrousOxide,
-            crate::atmospherics::GasType::Steam,
-            crate::atmospherics::GasType::Hydrogen,
-            crate::atmospherics::GasType::Water,
-        ];
-
-        let sizes = [
-            FilterSize::Small,
-            FilterSize::Medium,
-            FilterSize::Large,
-            FilterSize::Infinite,
-        ];
-
-        for &g in &gas_types {
-            for &s in &sizes {
-                if Filter::prefab_hash_for(g, s) == prefab_hash {
-                    // Use default quantity 100 for created item
-                    let mut f = Filter::new();
-                    f.set_gas_type(g);
-                    f.set_size(s);
-                    f.set_quantity(100);
-                    let filter: Shared<dyn Item> = crate::types::shared(f);
-                    return Ok(WasmItem {
-                        inner: Some(filter),
-                    });
-                }
-            }
+        if let Some(item) = create_item(prefab_hash) {
+            return Ok(WasmItem { inner: Some(item) });
         }
 
         Err(JsValue::from_str(
             "Unsupported prefab hash for item creation",
         ))
-    }
-
-    /// Delegates to project-level item factory and returns a wrapper (preferred over the internal variant).
-    pub fn create_item_from_prefab(prefab_hash: i32) -> Result<WasmItem, JsValue> {
-        match crate::items::create_item(prefab_hash) {
-            Some(shared_item) => Ok(WasmItem {
-                inner: Some(shared_item),
-            }),
-            None => Err(JsValue::from_str(
-                "Unsupported prefab hash for item creation",
-            )),
-        }
-    }
-
-    /// Create a base (uninitialized) filter item wrapper (not registered).
-    /// Caller can set gas type/size/quantity later.
-    pub fn create_base_filter() -> WasmItem {
-        let filter: Shared<dyn Item> = crate::types::shared(Filter::new());
-        WasmItem {
-            inner: Some(filter),
-        }
-    }
-
-    /// Create and register a full set of filter items (all gas types × sizes) with default quantity 100.
-    /// Returns a vector of registered item IDs.
-    pub fn create_all_filter_items() -> Vec<i32> {
-        use crate::items::FilterSize;
-        let gas_types = [
-            crate::atmospherics::GasType::Oxygen,
-            crate::atmospherics::GasType::Nitrogen,
-            crate::atmospherics::GasType::CarbonDioxide,
-            crate::atmospherics::GasType::Volatiles,
-            crate::atmospherics::GasType::Pollutant,
-            crate::atmospherics::GasType::NitrousOxide,
-            crate::atmospherics::GasType::Steam,
-            crate::atmospherics::GasType::Hydrogen,
-            crate::atmospherics::GasType::Water,
-        ];
-
-        let sizes = [
-            FilterSize::Small,
-            FilterSize::Medium,
-            FilterSize::Large,
-            FilterSize::Infinite,
-        ];
-
-        let mut ids = Vec::new();
-        WASM_ITEM_REGISTRY.with(|r| {
-            let mut map = r.borrow_mut();
-            for &g in &gas_types {
-                for &s in &sizes {
-                    let mut f = Filter::new();
-                    f.set_gas_type(g);
-                    f.set_size(s);
-                    f.set_quantity(100);
-                    let id = f.get_id();
-                    let filter: Shared<dyn Item> = crate::types::shared(f);
-                    map.insert(id, filter);
-                    ids.push(id);
-                }
-            }
-        });
-
-        ids
-    }
-
-    pub fn get_ic(id: i32) -> Option<WasmICChip> {
-        WASM_IC_REGISTRY.with(|r| {
-            r.borrow()
-                .get(&id)
-                .cloned()
-                .map(|inner| WasmICChip { inner })
-        })
-    }
-
-    pub fn list_ic_ids() -> Vec<i32> {
-        WASM_IC_REGISTRY.with(|r| r.borrow().keys().cloned().collect())
-    }
-
-    /// Retrieve a device by its reference id from the global registry
-    pub fn get_device(id: i32) -> Option<WasmDevice> {
-        WASM_DEVICE_REGISTRY
-            .with(|r| r.borrow().get(&id).cloned())
-            .map(|inner| WasmDevice { inner })
-    }
-
-    /// List all device ids currently in the global registry
-    pub fn list_device_ids() -> Vec<i32> {
-        WASM_DEVICE_REGISTRY.with(|r| r.borrow().keys().cloned().collect())
-    }
-
-    /// Remove a device from the global registry and from any network it is attached to
-    pub fn remove_device(id: i32) -> Result<bool, JsValue> {
-        let opt = WASM_DEVICE_REGISTRY.with(|r| r.borrow_mut().remove(&id));
-        if let Some(dev) = opt {
-            // If device is attached to a network, remove it
-            if let Some(net) = dev.borrow().get_network() {
-                let _ = net.borrow_mut().remove_device(id);
-            }
-            dev.borrow_mut().clear_internal_references();
-            Ok(true)
-        } else {
-            Ok(false)
-        }
     }
 }

@@ -5,11 +5,11 @@ use crate::devices::ChipSlot;
 use crate::error::{SimulationError, SimulationResult};
 use crate::instruction::{Instruction, ParsedInstruction};
 use crate::parser::{preprocess, string_to_hash};
-use crate::types::{OptShared, Shared};
+use crate::types::{OptShared, OptWeakShared, Shared};
 use crate::{CableNetwork, Item, ItemType, allocate_global_id, get_builtin_constants};
 use crate::{LogicType, logic};
 use std::any::Any;
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 /// The IC10 programmable chip
@@ -34,7 +34,7 @@ pub struct ItemIntegratedCircuit10 {
     defines: RefCell<HashMap<String, f64>>,
 
     /// Chip slot reference (optional)
-    chip_slot: OptShared<ChipSlot>,
+    chip_slot: OptWeakShared<ChipSlot>,
 
     /// Registers (r0-r17)
     registers: RefCell<[f64; REGISTER_COUNT]>,
@@ -343,12 +343,16 @@ impl ItemIntegratedCircuit10 {
 
     /// Check whether a device with `ref_id` exists on the local network
     pub(crate) fn device_exists_by_id(&self, ref_id: i32) -> bool {
-        if let Some(slot_rc) = &self.chip_slot {
-            let slot = slot_rc.borrow();
-            if let Some(network_rc) = slot.get_network() {
-                network_rc.borrow().device_exists(ref_id)
-            } else if let Some(id) = slot.id() {
-                ref_id == id
+        if let Some(slot_weak) = &self.chip_slot {
+            if let Some(slot_rc) = slot_weak.upgrade() {
+                let slot = slot_rc.borrow();
+                if let Some(network_rc) = slot.get_network() {
+                    network_rc.borrow().device_exists(ref_id)
+                } else if let Some(id) = slot.id() {
+                    ref_id == id
+                } else {
+                    false
+                }
             } else {
                 false
             }
@@ -446,36 +450,23 @@ impl ItemIntegratedCircuit10 {
 
     /// Get the `Shared<ChipSlot>` for this chip (clone of the internal Rc)
     pub fn get_chip_slot(&self) -> Shared<ChipSlot> {
-        self.chip_slot.as_ref().unwrap().clone()
-    }
-
-    /// Get a mutable reference to the chip slot
-    pub fn get_chip_slot_mut(&self) -> RefMut<'_, ChipSlot> {
-        self.chip_slot.as_ref().unwrap().borrow_mut()
-    }
-
-    /// Get the Rc to the chip slot (for when you need to clone the reference)
-    pub fn get_chip_slot_rc(&self) -> Shared<ChipSlot> {
-        self.chip_slot.as_ref().unwrap().clone()
+        self.chip_slot.as_ref().unwrap().upgrade().unwrap().clone()
     }
 
     /// Get the host device's reference ID if this chip is installed
     pub fn get_host_id(&self) -> Option<i32> {
-        self.chip_slot.as_ref().and_then(|rc| rc.borrow().id())
+        self.chip_slot
+            .as_ref()
+            .and_then(|weak| weak.upgrade().and_then(|rc| rc.borrow().id()))
     }
 
     /// Attach the chip to a `ChipSlot` and register self device aliases
     pub fn set_chip_slot(&mut self, slot: Shared<ChipSlot>, device_id: i32) {
-        // Store slot reference
-        self.chip_slot = Some(slot.clone());
+        // Store weak slot reference
+        self.chip_slot = Some(std::rc::Rc::downgrade(&slot));
 
         // Add a convenient alias `db` referencing the device itself
         self.add_device_alias("db".to_string(), device_id);
-    }
-
-    /// Clear internal references
-    pub fn clear_internal_references(&mut self) {
-        self.chip_slot = None;
     }
 
     /// Get a reference to the cable network (if connected)

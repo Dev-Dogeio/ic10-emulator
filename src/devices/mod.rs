@@ -634,10 +634,6 @@ pub trait Device: Debug {
     /// Set the network reference for the device
     fn set_network(&mut self, network: OptShared<CableNetwork>);
 
-    /// Clear internal references (like chip slot host pointers) to break reference cycles.
-    /// Default implementation does nothing; devices that hold cross-references should override.
-    fn clear_internal_references(&mut self) {}
-
     /// Read a value from a specific slot
     fn read_slot(&self, _index: usize, _slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
         Err(SimulationError::RuntimeError {
@@ -660,7 +656,7 @@ pub trait Device: Debug {
     }
 
     /// Set the device's name
-    fn set_name(&mut self, name: &str);
+    fn rename(&mut self, name: &str);
 
     /// Update the device state based on the global tick count
     /// Default implementation does nothing - devices can override if they need tick-based updates

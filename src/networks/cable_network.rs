@@ -158,6 +158,16 @@ impl CableNetwork {
         Some(device.borrow_mut())
     }
 
+    /// Get the shared `Shared<dyn Device>` for external callers (cloned)
+    pub fn get_device_shared(&self, ref_id: i32) -> OptShared<dyn Device> {
+        self.devices.get(&ref_id).cloned()
+    }
+
+    /// Return all devices as a vector of shared references
+    pub fn all_devices(&self) -> Vec<Shared<dyn Device>> {
+        self.devices.values().cloned().collect()
+    }
+
     /// Get all devices with a specific prefab hash
     /// Returns a vector of reference IDs
     pub fn get_devices_by_prefab(&self, prefab_hash: i32) -> Vec<i32> {

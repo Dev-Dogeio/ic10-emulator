@@ -165,8 +165,8 @@ impl Device for Filtration {
         self.network = network;
     }
 
-    fn set_name(&mut self, name: &str) {
-        let old_name_hash = string_to_hash(self.name.as_str());
+    fn rename(&mut self, name: &str) {
+        let old_name_hash = self.get_name_hash();
         self.name = name.to_string();
 
         if let Some(network) = &self.network {
@@ -287,10 +287,6 @@ impl Device for Filtration {
                 line: 0,
             }),
         }
-    }
-
-    fn clear_internal_references(&mut self) {
-        self.chip_host.borrow_mut().clear_internal_references();
     }
 
     fn read_slot(&self, index: usize, slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
