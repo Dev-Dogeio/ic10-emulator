@@ -6,8 +6,8 @@
 
 use crate::{
     atmospherics::{
-        MINIMUM_GAS_VOLUME, MINIMUM_VALID_TOTAL_MOLES, PRESSURE_EQUALIZATION_EPSILON,
-        calculate_pressure, kelvin_to_celsius,
+        DEFAULT_STATE_CHANGE_RATIO, MINIMUM_GAS_VOLUME, MINIMUM_VALID_TOTAL_MOLES,
+        PRESSURE_EQUALIZATION_EPSILON, calculate_pressure, kelvin_to_celsius,
     },
     conversions::fmt_trim,
 };
@@ -687,7 +687,7 @@ impl Display for GasMixture {
                 gas_vol,
                 0.0,
                 true,
-                crate::atmospherics::DEFAULT_STATE_CHANGE_RATIO,
+                DEFAULT_STATE_CHANGE_RATIO,
             );
 
             if energy.abs() > 0.0 {

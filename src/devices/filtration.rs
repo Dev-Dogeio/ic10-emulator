@@ -487,7 +487,7 @@ impl Device for Filtration {
         Some(self)
     }
 
-    fn as_slot_host_device(&mut self) -> Option<&mut dyn crate::devices::SlotHostDevice> {
+    fn as_slot_host_device(&mut self) -> Option<&mut dyn SlotHostDevice> {
         Some(self)
     }
 

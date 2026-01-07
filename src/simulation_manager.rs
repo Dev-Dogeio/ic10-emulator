@@ -7,15 +7,15 @@
 //! 1. Process atmospheric network updates
 //! 2. Update all cable networks (which run device updates and IC runners)
 
+use crate::LogicType;
 use crate::conversions::fmt_trim;
+use crate::id::reset_global_id_counter;
 use crate::networks::{AtmosphericNetwork, CableNetwork};
-use crate::types::Shared;
-use std::cell::RefCell;
+use crate::types::{Shared, shared};
 use std::fmt::Display;
-use std::rc::Rc;
 
 thread_local! {
-    static GLOBAL_SIM_MANAGER: Rc<RefCell<SimulationManager>> = Rc::new(RefCell::new(SimulationManager::new()));
+    static GLOBAL_SIM_MANAGER: Shared<SimulationManager> = shared(SimulationManager::new());
 }
 
 /// Central manager for running the simulation
@@ -55,7 +55,7 @@ impl SimulationManager {
     pub fn reset_global() {
         GLOBAL_SIM_MANAGER.with(|g| g.borrow_mut().reset());
         // Also reset the global ID counter
-        crate::id::reset_global_id_counter();
+        reset_global_id_counter();
     }
 
     /// Get the count of registered cable networks on the global manager
@@ -127,48 +127,42 @@ impl Display for SimulationManager {
 
                     let mut values = Vec::new();
 
-                    if device_ref.can_read(crate::devices::LogicType::On)
-                        && let Ok(val) = device_ref.read(crate::devices::LogicType::On)
+                    if device_ref.can_read(LogicType::On)
+                        && let Ok(val) = device_ref.read(LogicType::On)
                     {
                         let state = if val == 0.0 { "Off" } else { "On" };
                         values.push(format!("On: {}", state));
                     }
 
-                    if device_ref.can_read(crate::devices::LogicType::Mode)
-                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Mode)
+                    if device_ref.can_read(LogicType::Mode)
+                        && let Ok(val) = device_ref.read(LogicType::Mode)
                     {
                         let state = if val == 0.0 { "Off" } else { "On" };
                         values.push(format!("Mode: {}", state));
                     }
 
-                    if device_ref.can_read(crate::devices::LogicType::Setting)
-                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Setting)
+                    if device_ref.can_read(LogicType::Setting)
+                        && let Ok(val) = device_ref.read(LogicType::Setting)
                     {
-                        values.push(format!("Setting: {}", crate::conversions::fmt_trim(val, 3)));
+                        values.push(format!("Setting: {}", fmt_trim(val, 3)));
                     }
 
-                    if device_ref.can_read(crate::devices::LogicType::Horizontal)
-                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Horizontal)
+                    if device_ref.can_read(LogicType::Horizontal)
+                        && let Ok(val) = device_ref.read(LogicType::Horizontal)
                     {
-                        values.push(format!(
-                            "Horizontal: {}°",
-                            crate::conversions::fmt_trim(val, 2)
-                        ));
+                        values.push(format!("Horizontal: {}°", fmt_trim(val, 2)));
                     }
 
-                    if device_ref.can_read(crate::devices::LogicType::Vertical)
-                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Vertical)
+                    if device_ref.can_read(LogicType::Vertical)
+                        && let Ok(val) = device_ref.read(LogicType::Vertical)
                     {
-                        values.push(format!(
-                            "Vertical: {}°",
-                            crate::conversions::fmt_trim(val, 2)
-                        ));
+                        values.push(format!("Vertical: {}°", fmt_trim(val, 2)));
                     }
 
-                    if device_ref.can_read(crate::devices::LogicType::Ratio)
-                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Ratio)
+                    if device_ref.can_read(LogicType::Ratio)
+                        && let Ok(val) = device_ref.read(LogicType::Ratio)
                     {
-                        values.push(format!("Ratio: {}", crate::conversions::fmt_trim(val, 3)));
+                        values.push(format!("Ratio: {}", fmt_trim(val, 3)));
                     }
 
                     if !values.is_empty() {
