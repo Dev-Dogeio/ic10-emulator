@@ -624,7 +624,7 @@ impl WasmAtmosphericNetwork {
     pub fn to_string_js(&self) -> String {
         format!("{}", self.inner.borrow())
     }
-} 
+}
 
 #[wasm_bindgen]
 pub struct WasmSimulationManager;
