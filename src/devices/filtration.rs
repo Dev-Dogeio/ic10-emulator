@@ -29,7 +29,6 @@ const MAX_FILTERS: usize = 2;
 const PRESSURE_PER_TICK: f64 = 1000.0;
 
 /// Filtration device - separates specific gases from a gas mixture
-#[derive(Debug)]
 pub struct Filtration {
     /// Device name
     name: String,
@@ -130,6 +129,56 @@ macro_rules! read {
     ($net:expr, $method:ident, $($arg:expr),+) => {
         Ok($net.as_ref().unwrap().borrow().$method($($arg),+))
     };
+}
+
+impl std::fmt::Display for Filtration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let on_str = if *self.on.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let mode_str = if *self.mode.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+
+        write!(
+            f,
+            "Filtration {{ name: \"{}\", id: {}, on: {}, mode: {}",
+            self.name, self.reference_id, on_str, mode_str
+        )?;
+
+        if let Some(net) = &self.input_network {
+            write!(f, ", input: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.filtered_network {
+            write!(f, ", filtered: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.waste_network {
+            write!(f, ", waste: {}", net.borrow().mixture())?;
+        }
+
+        // Active filters
+        let active = self.active_filters();
+        if !active.is_empty() {
+            let list = active
+                .iter()
+                .map(|g| g.symbol())
+                .collect::<Vec<_>>()
+                .join(", ");
+            write!(f, ", filters: [{}]", list)?;
+        }
+
+        write!(f, " }}")
+    }
+}
+
+impl std::fmt::Debug for Filtration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
 }
 
 impl Device for Filtration {

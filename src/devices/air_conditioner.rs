@@ -29,7 +29,6 @@ const INTERNAL_VOLUME_LITRES: f64 = 100.0;
 const ENERGY_COEFFICIENT: f64 = 14000.0;
 
 /// AirConditioner device - moves thermal energy between an input and a waste network, and gas between input and output.
-#[derive(Debug)]
 pub struct AirConditioner {
     /// Device name
     name: String,
@@ -167,6 +166,51 @@ impl AirConditioner {
     }
 }
 
+impl std::fmt::Display for AirConditioner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let on_str = if *self.on.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let mode_str = if *self.mode.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let setting_str = crate::conversions::fmt_trim(*self.setting.borrow(), 2);
+        let processed_str = crate::conversions::fmt_trim(*self.processed_moles.borrow(), 3);
+        let energy_str = crate::conversions::fmt_trim(*self.energy_moved.borrow(), 3);
+
+        write!(
+            f,
+            "AirConditioner {{ name: \"{}\", id: {}, on: {}, mode: {}, setting: {}",
+            self.name, self.reference_id, on_str, mode_str, setting_str
+        )?;
+
+        if let Some(net) = &self.input_network {
+            write!(f, ", input: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.output_network {
+            write!(f, ", output: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.waste_network {
+            write!(f, ", waste: {}", net.borrow().mixture())?;
+        }
+
+        write!(
+            f,
+            ", processed_moles: {}, energy_moved: {} }}",
+            processed_str, energy_str
+        )
+    }
+}
+
+impl std::fmt::Debug for AirConditioner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
 macro_rules! read {
     ($net:expr, $method:ident) => {
         Ok($net.as_ref().unwrap().borrow().$method())
@@ -411,7 +455,9 @@ impl Device for AirConditioner {
         }
 
         // remove that many moles from the input network
-        let transferred_mixture = input_rc.borrow_mut().remove_moles(transfer_moles, MatterState::All);
+        let transferred_mixture = input_rc
+            .borrow_mut()
+            .remove_moles(transfer_moles, MatterState::All);
 
         // add to internal buffer
         {

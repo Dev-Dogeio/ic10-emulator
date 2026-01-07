@@ -13,7 +13,7 @@ use std::rc::Rc;
 /// - Reference ID (unique identifier for each device)
 /// - Prefab hash (type identifier for batch operations like `lb`, `sb`)
 /// - Name hash (for operations like `lbn`, `sbn`)
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CableNetwork {
     /// All devices on the network, keyed by their reference ID
     devices: BTreeMap<i32, Shared<dyn Device>>,
@@ -25,6 +25,18 @@ pub struct CableNetwork {
     /// Index for quick lookup by name hash
     /// Maps name_hash -> list of device reference IDs
     name_index: BTreeMap<i32, Vec<i32>>,
+}
+
+impl std::fmt::Display for CableNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CableNetwork {{ devices: {} }}", self.devices.len())
+    }
+}
+
+impl std::fmt::Debug for CableNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
 }
 
 impl CableNetwork {

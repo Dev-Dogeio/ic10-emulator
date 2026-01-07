@@ -5,7 +5,7 @@
 //! calculations during gas transfers and mixing. Supports phase changes
 //! between gas and liquid states.
 
-use crate::conversions::lerp;
+use crate::conversions::{fmt_trim, lerp};
 
 use super::{GasType, MatterState, chemistry};
 use std::fmt;
@@ -38,7 +38,7 @@ impl PhaseChangeResult {
 }
 
 /// Represents a quantity of gas with its associated thermal energy
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Mole {
     /// The type of gas
     gas_type: GasType,
@@ -741,14 +741,14 @@ impl Default for Mole {
     }
 }
 
-impl fmt::Display for Mole {
+impl fmt::Debug for Mole {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}: {:.4} mol @ {:.2} K",
+            "{}: {} mol @ {} K",
             self.gas_type.symbol(),
-            self.quantity,
-            self.temperature()
+            fmt_trim(self.quantity(), 4),
+            fmt_trim(self.temperature(), 2)
         )
     }
 }

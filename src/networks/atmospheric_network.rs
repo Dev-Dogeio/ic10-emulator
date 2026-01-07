@@ -19,13 +19,19 @@ pub type DeviceId = usize;
 ///
 /// The network maintains a gas mixture that devices can directly interact with.
 /// Devices added to a network are tracked for enumeration purposes.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AtmosphericNetwork {
     /// The shared gas mixture for this network
     mixture: GasMixture,
 
     /// Set of device IDs connected to this network (for enumeration only)
     devices: HashSet<DeviceId>,
+}
+
+impl std::fmt::Debug for AtmosphericNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
 }
 
 impl AtmosphericNetwork {
@@ -227,5 +233,11 @@ impl AtmosphericNetwork {
     /// Returns the actual amount removed
     pub fn remove_energy(&mut self, joules: f64) -> f64 {
         self.mixture.remove_energy(joules)
+    }
+}
+
+impl std::fmt::Display for AtmosphericNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.mixture)
     }
 }

@@ -4,17 +4,19 @@
 //! methods for mixing, transferring, calculating properties like pressure,
 //! temperature, and partial pressures, as well as phase changes.
 
-use crate::atmospherics::{
-    DEFAULT_STATE_CHANGE_RATIO, FULL_STATE_CHANGE_RATIO, MINIMUM_GAS_VOLUME,
-    MINIMUM_VALID_TOTAL_MOLES, MINIMUM_WORLD_VALID_TOTAL_MOLES, PRESSURE_EQUALIZATION_EPSILON,
-    calculate_energy_for_temperature_change, calculate_pressure, kelvin_to_celsius,
+use crate::{
+    atmospherics::{
+        MINIMUM_GAS_VOLUME, MINIMUM_VALID_TOTAL_MOLES, PRESSURE_EQUALIZATION_EPSILON,
+        calculate_pressure, kelvin_to_celsius,
+    },
+    conversions::fmt_trim,
 };
 
 use super::{GasType, MatterState, Mole};
 use std::fmt;
 
 /// A mixture of gases and liquids with their associated energies
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GasMixture {
     // Gases
     pub oxygen: Mole,
@@ -584,144 +586,122 @@ impl GasMixture {
     }
 }
 
-impl fmt::Display for GasMixture {
+impl fmt::Debug for GasMixture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(
-            f,
-            "GasMixture ({:.1} L, {:.1} L gas volume):",
-            self.volume,
-            self.gas_volume()
-        )?;
-        writeln!(
-            f,
-            "  Temperature: {:.4} K ({:.4} °C)",
-            self.temperature(),
-            kelvin_to_celsius(self.temperature())
-        )?;
-        writeln!(f, "  Pressure: {:.4} kPa", self.pressure())?;
-        writeln!(
-            f,
-            "  Total Moles: {:.4} (Gas: {:.4}, Liquid: {:.4})",
-            self.total_moles(),
-            self.total_moles_gases(),
-            self.total_moles_liquids()
-        )?;
+        let mut lines: Vec<String> = Vec::new();
+        // Temperature display: Celsius first, Kelvin in brackets
+        let temp_k = self.temperature();
+        let temp_c = kelvin_to_celsius(temp_k);
 
-        // List gases
-        let has_gases = self.total_moles_gases() > 0.0;
-        if has_gases {
-            writeln!(f, "  Gases:")?;
-            for gas_type in GasType::all_gases() {
-                let mole = self.get_gas(gas_type);
-                if !mole.is_empty() {
-                    writeln!(
-                        f,
-                        "    {}: {:.4} mol ({:.1}%)",
-                        gas_type.symbol(),
-                        mole.quantity(),
-                        self.gas_ratio(gas_type) * 100.0
-                    )?;
-                }
-            }
-        }
+        lines.push(format!(
+            "Mixture (total: {}L, liquid volume: {}L)",
+            fmt_trim(self.volume, 3),
+            fmt_trim(self.total_volume_liquids(), 3)
+        ));
+        lines.push(format!(
+            "  Temperature: {}°C ({}°K)",
+            fmt_trim(temp_c, 2),
+            fmt_trim(temp_k, 2)
+        ));
+        lines.push(format!("  Pressure: {}kPa", fmt_trim(self.pressure(), 3)));
+        lines.push(format!(
+            "  Moles: {} (gases: {}, liquids: {})",
+            fmt_trim(self.total_moles(), 3),
+            fmt_trim(self.total_moles_gases(), 3),
+            fmt_trim(self.total_moles_liquids(), 3)
+        ));
 
-        // List liquids
-        let has_liquids = self.total_moles_liquids() > 0.0;
-        if has_liquids {
-            writeln!(f, "  Liquids ({:.4} L):", self.total_volume_liquids())?;
-            for gas_type in GasType::all_liquids() {
-                let mole = self.get_gas(gas_type);
-                if !mole.is_empty() {
-                    writeln!(
-                        f,
-                        "    {}: {:.4} mol ({:.4} L)",
-                        gas_type.symbol(),
-                        mole.quantity(),
-                        mole.volume()
-                    )?;
-                }
-            }
-        }
-
-        // Calculate latent energy that will be moved next tick and stored latent heat
-        // Positive = energy available to evaporate liquids; Negative = energy released by condensation
-        let mut latent_energy: f64 = 0.0;
-        let mut stored_latent: f64 = 0.0; // total latent heat stored in liquids (n * L)
-        let pressure = self.pressure();
-
-        writeln!(f, "  Phase change breakdown:")?;
-        for gas_type in GasType::all() {
-            let mole = self.get_gas(gas_type);
+        // Gases
+        let mut gas_lines: Vec<String> = Vec::new();
+        for gt in GasType::all_gases() {
+            let mole = self.get_gas(gt);
             if mole.is_empty() {
                 continue;
             }
-
-            if gas_type.is_liquid() {
-                let evap_temp = mole.evaporation_temperature_clamped(pressure);
-
-                let ratio = if mole.quantity() <= MINIMUM_WORLD_VALID_TOTAL_MOLES {
-                    FULL_STATE_CHANGE_RATIO
-                } else {
-                    DEFAULT_STATE_CHANGE_RATIO
-                };
-                let energy_next_tick =
-                    mole.latent_energy_next_tick(pressure, self.volume(), 0.0, true, ratio);
-                let stored = mole.quantity() * gas_type.latent_heat_of_vaporization();
-                stored_latent += stored;
-
-                writeln!(
-                    f,
-                    "    {} (liquid): {:.4} mol @ {:.2} K -> evap_temp {:.2} K: next_tick {:.4} J, stored latent {:.4} J",
-                    gas_type.symbol(),
-                    mole.quantity(),
-                    mole.temperature(),
-                    evap_temp,
-                    energy_next_tick,
-                    stored
-                )?;
-
-                if energy_next_tick > 0.0 {
-                    latent_energy += energy_next_tick;
-                }
-            } else if gas_type.is_gas() {
-                let cond_temp = mole.evaporation_temperature_clamped(pressure);
-                let deficit_energy = calculate_energy_for_temperature_change(
-                    mole.quantity(),
-                    gas_type.specific_heat(),
-                    cond_temp - mole.temperature(),
-                );
-
-                writeln!(
-                    f,
-                    "    {} (gas): {:.4} mol @ {:.2} K -> cond_temp {:.2} K: deficit {:.4} J",
-                    gas_type.symbol(),
-                    mole.quantity(),
-                    mole.temperature(),
-                    cond_temp,
-                    deficit_energy
-                )?;
-
-                if deficit_energy > 0.0 {
-                    latent_energy -= deficit_energy; // condensation would release this energy
-                }
-            }
+            gas_lines.push(format!(
+                "    {}: {} mol",
+                gt.symbol(),
+                fmt_trim(mole.quantity(), 3)
+            ));
+        }
+        if !gas_lines.is_empty() {
+            lines.push("  Gases:".to_string());
+            lines.extend(gas_lines);
         }
 
-        // Compact energy summary (single-line for quick comparison)
-        writeln!(
-            f,
-            "  Energies: total: {:.2} J, gases={:.2} J, liquids={:.2} J",
-            self.total_energy(),
-            self.total_energy_gases(),
-            self.total_energy_liquids(),
-        )?;
+        // Liquids
+        let mut liquid_lines: Vec<String> = Vec::new();
+        for gt in GasType::all_liquids() {
+            let mole = self.get_gas(gt);
+            if mole.is_empty() {
+                continue;
+            }
+            liquid_lines.push(format!(
+                "    {}: {} mol",
+                gt.symbol(),
+                fmt_trim(mole.quantity(), 3)
+            ));
+        }
+        if !liquid_lines.is_empty() {
+            lines.push("  Liquids:".to_string());
+            lines.extend(liquid_lines);
+        }
 
-        writeln!(
-            f,
-            "  Latent: stored_latent={:.2} J, latent_potential={:+.2} J, latent_rate={:+.2} J",
-            stored_latent, latent_energy, -latent_energy
-        )?;
+        // Write joined lines without a trailing newline
+        write!(f, "{}", lines.join("\n"))
+    }
+}
 
-        Ok(())
+impl std::fmt::Display for GasMixture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut lines: Vec<String> = Vec::new();
+        let temp_k = self.temperature();
+        let temp_c = kelvin_to_celsius(temp_k);
+
+        lines.push(format!(
+            "Mixture (total: {} L, liquid volume: {} L)",
+            fmt_trim(self.volume, 3),
+            fmt_trim(self.total_volume_liquids(), 3)
+        ));
+        lines.push(format!(
+            "  Temperature: {} °C ({} K)",
+            fmt_trim(temp_c, 2),
+            fmt_trim(temp_k, 2)
+        ));
+        lines.push(format!("  Pressure: {} kPa", fmt_trim(self.pressure(), 3)));
+        lines.push(format!(
+            "  Moles: {} (gases: {}, liquids: {})",
+            fmt_trim(self.total_moles(), 3),
+            fmt_trim(self.total_moles_gases(), 3),
+            fmt_trim(self.total_moles_liquids(), 3)
+        ));
+
+        // Gases
+        for gt in GasType::all_gases() {
+            let mole = self.get_gas(gt);
+            if mole.is_empty() {
+                continue;
+            }
+            lines.push(format!(
+                "    {}: {} mol",
+                gt.symbol(),
+                fmt_trim(mole.quantity(), 3)
+            ));
+        }
+
+        // Liquids
+        for gt in GasType::all_liquids() {
+            let mole = self.get_gas(gt);
+            if mole.is_empty() {
+                continue;
+            }
+            lines.push(format!(
+                "    {}: {} mol",
+                gt.symbol(),
+                fmt_trim(mole.quantity(), 3)
+            ));
+        }
+
+        write!(f, "{}", lines.join("\n"))
     }
 }

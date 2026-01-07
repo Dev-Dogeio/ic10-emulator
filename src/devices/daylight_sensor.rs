@@ -18,7 +18,6 @@ use crate::{
 };
 
 /// Daylight Sensor - tracks the sun's position in the sky
-#[derive(Debug)]
 pub struct DaylightSensor {
     /// Device name
     name: String,
@@ -179,5 +178,28 @@ impl Device for DaylightSensor {
         *self.vertical.borrow_mut() = vertical;
 
         Ok(())
+    }
+}
+
+impl std::fmt::Display for DaylightSensor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let on_str = if *self.on.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let horiz = crate::conversions::fmt_trim(*self.horizontal.borrow(), 2);
+        let vert = crate::conversions::fmt_trim(*self.vertical.borrow(), 2);
+        write!(
+            f,
+            "DaylightSensor {{ name: \"{}\", id: {}, on: {}, horiz: {}, vert: {} }}",
+            self.name, self.reference_id, on_str, horiz, vert
+        )
+    }
+}
+
+impl std::fmt::Debug for DaylightSensor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }

@@ -15,7 +15,6 @@ use crate::{
 use std::cell::RefCell;
 
 /// Volume pump device - moves gas between an input and output atmospheric network.
-#[derive(Debug)]
 pub struct VolumePump {
     /// Device name
     name: String,
@@ -190,6 +189,38 @@ impl Device for VolumePump {
         }
 
         Ok(())
+    }
+}
+
+impl std::fmt::Display for VolumePump {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let on_str = if *self.on.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let setting_str = crate::conversions::fmt_trim(*self.setting.borrow(), 3);
+
+        write!(
+            f,
+            "VolumePump {{ name: \"{}\", id: {}, on: {}, setting: {}",
+            self.name, self.reference_id, on_str, setting_str
+        )?;
+
+        if let Some(net) = &self.input_network {
+            write!(f, ", input: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.output_network {
+            write!(f, ", output: {}", net.borrow().mixture())?;
+        }
+
+        write!(f, " }}")
+    }
+}
+
+impl std::fmt::Debug for VolumePump {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

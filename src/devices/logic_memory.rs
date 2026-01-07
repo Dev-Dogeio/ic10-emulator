@@ -13,7 +13,6 @@ use crate::{
     types::{OptShared, Shared, shared},
 };
 
-#[derive(Debug)]
 pub struct LogicMemory {
     /// Device name
     name: String,
@@ -118,5 +117,22 @@ impl Device for LogicMemory {
                 line: 0,
             }),
         }
+    }
+}
+
+impl std::fmt::Display for LogicMemory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let setting = crate::conversions::fmt_trim(*self.setting.borrow(), 3);
+        write!(
+            f,
+            "LogicMemory {{ name: \"{}\", id: {}, setting: {} }}",
+            self.name, self.reference_id, setting
+        )
+    }
+}
+
+impl std::fmt::Debug for LogicMemory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }

@@ -2,8 +2,6 @@
 //!
 //! Based on Stationeers gas types, including both gaseous and liquid states.
 
-use std::fmt;
-
 use crate::atmospherics::FUSION_TO_VAPORIZATION_DENOMINATOR;
 
 /// Represents the state of matter for a substance
@@ -436,11 +434,5 @@ impl GasType {
             GasType::Hydrogen | GasType::LiquidHydrogen => 4.4843872973,
             GasType::PollutedWater => 8.27025711260823,
         }
-    }
-}
-
-impl fmt::Display for GasType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.display_name())
     }
 }

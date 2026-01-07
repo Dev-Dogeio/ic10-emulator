@@ -105,3 +105,19 @@ pub fn packed_number_to_text(packed: u64) -> String {
 pub fn lerp(a: f64, b: f64, t: f64) -> f64 {
     a + (b - a) * t.clamp(0.0, 1.0)
 }
+
+/// Format a float with up to `prec` decimal places, trimming trailing zeros
+/// and removing the decimal point when not needed. This is useful for
+/// printing where `3.0` should print as "3" and `3.50` -> "3.5".
+pub fn fmt_trim(v: f64, prec: usize) -> String {
+    let mut s = format!("{:.*}", prec, v);
+    if s.contains('.') {
+        while s.ends_with('0') {
+            s.pop();
+        }
+        if s.ends_with('.') {
+            s.pop();
+        }
+    }
+    s
+}

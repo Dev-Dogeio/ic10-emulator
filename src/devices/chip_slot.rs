@@ -8,7 +8,6 @@ use crate::{
 use std::cell::RefCell;
 
 /// Helper that encapsulates chip slot, device pins and chip execution.
-#[derive(Debug)]
 pub struct ChipSlot {
     /// The host device
     host_device: OptShared<dyn Device>,
@@ -124,5 +123,33 @@ impl ChipSlot {
                 line: 0,
             })
         }
+    }
+}
+
+impl std::fmt::Display for ChipSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let host_str = self
+            .id()
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| "none".to_string());
+        let mounted = self.get_chip().is_some();
+        let pins = self
+            .device_pins
+            .iter()
+            .map(|p| p.map(|i| i.to_string()).unwrap_or_else(|| "-".to_string()))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        write!(
+            f,
+            "ChipSlot {{ host: {}, mounted: {}, pins: [{}] }}",
+            host_str, mounted, pins
+        )
+    }
+}
+
+impl std::fmt::Debug for ChipSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }

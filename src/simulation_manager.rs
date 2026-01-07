@@ -10,13 +10,14 @@
 use crate::networks::{AtmosphericNetwork, CableNetwork};
 use crate::types::Shared;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 thread_local! {
-    static GLOBAL_SIM_MANAGER: RefCell<SimulationManager> = RefCell::new(SimulationManager::new());
+    static GLOBAL_SIM_MANAGER: Rc<RefCell<SimulationManager>> = Rc::new(RefCell::new(SimulationManager::new()));
 }
 
 /// Central manager for running the simulation
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct SimulationManager {
     cable_networks: Vec<Shared<CableNetwork>>,
     atmospheric_networks: Vec<Shared<AtmosphericNetwork>>,
@@ -26,6 +27,10 @@ impl SimulationManager {
     /// Create a new SimulationManager
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn global() -> Shared<SimulationManager> {
+        GLOBAL_SIM_MANAGER.with(|g| g.clone())
     }
 
     /// Register an atmospheric network on the global manager
@@ -106,5 +111,97 @@ impl SimulationManager {
 
         self.cable_networks.clear();
         self.atmospheric_networks.clear();
+    }
+}
+
+impl std::fmt::Display for SimulationManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "SimulationManager {{")?;
+
+        writeln!(f, "  Cable Networks ({}):", self.cable_networks.len())?;
+        for (i, net) in self.cable_networks.iter().enumerate() {
+            let ids = net.borrow().all_device_ids();
+            writeln!(f, "    Network #{}: {} device(s)", i, ids.len())?;
+
+            for id in ids {
+                if let Some(device_ref) = net.borrow().get_device(id) {
+                    let name = device_ref.get_name();
+                    let prefab = device_ref.get_prefab_hash();
+
+                    writeln!(f, "      Device #{}: \"{}\" (prefab: {})", id, name, prefab)?;
+
+                    let mut values = Vec::new();
+
+                    if device_ref.can_read(crate::devices::LogicType::On)
+                        && let Ok(val) = device_ref.read(crate::devices::LogicType::On)
+                    {
+                        let state = if val == 0.0 { "Off" } else { "On" };
+                        values.push(format!("On: {}", state));
+                    }
+
+                    if device_ref.can_read(crate::devices::LogicType::Mode)
+                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Mode)
+                    {
+                        let state = if val == 0.0 { "Off" } else { "On" };
+                        values.push(format!("Mode: {}", state));
+                    }
+
+                    if device_ref.can_read(crate::devices::LogicType::Setting)
+                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Setting)
+                    {
+                        values.push(format!("Setting: {}", crate::conversions::fmt_trim(val, 3)));
+                    }
+
+                    if device_ref.can_read(crate::devices::LogicType::Horizontal)
+                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Horizontal)
+                    {
+                        values.push(format!(
+                            "Horizontal: {}°",
+                            crate::conversions::fmt_trim(val, 2)
+                        ));
+                    }
+
+                    if device_ref.can_read(crate::devices::LogicType::Vertical)
+                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Vertical)
+                    {
+                        values.push(format!(
+                            "Vertical: {}°",
+                            crate::conversions::fmt_trim(val, 2)
+                        ));
+                    }
+
+                    if device_ref.can_read(crate::devices::LogicType::Ratio)
+                        && let Ok(val) = device_ref.read(crate::devices::LogicType::Ratio)
+                    {
+                        values.push(format!("Ratio: {}", crate::conversions::fmt_trim(val, 3)));
+                    }
+
+                    if !values.is_empty() {
+                        writeln!(f, "        State: {}", values.join(", "))?;
+                    }
+                }
+            }
+        }
+
+        writeln!(
+            f,
+            "  Atmospheric Networks ({}):",
+            self.atmospheric_networks.len()
+        )?;
+        for (i, net) in self.atmospheric_networks.iter().enumerate() {
+            let borrowed = net.borrow();
+            let mixture = borrowed.mixture();
+            writeln!(
+                f,
+                "    Network #{}: {} L, {} K, {} kPa, {} mol",
+                i,
+                crate::conversions::fmt_trim(mixture.volume(), 3),
+                crate::conversions::fmt_trim(mixture.temperature(), 2),
+                crate::conversions::fmt_trim(mixture.pressure(), 3),
+                crate::conversions::fmt_trim(mixture.total_moles(), 3)
+            )?;
+        }
+
+        write!(f, "}}")
     }
 }

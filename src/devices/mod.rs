@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter, Result};
+use std::fmt::Debug;
 
 use crate::{
     CableNetwork,
@@ -26,12 +26,28 @@ pub use logic_memory::LogicMemory;
 pub use volume_pump::VolumePump;
 
 /// Simulation settings for devices
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SimulationSettings {
     /// Number of ticks in a full day cycle
     pub ticks_per_day: f64,
     /// Maximum instructions per tick for IC10
     pub max_instructions_per_tick: usize,
+}
+
+impl std::fmt::Display for SimulationSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SimulationSettings {{ ticks_per_day: {}, max_instructions_per_tick: {} }}",
+            self.ticks_per_day, self.max_instructions_per_tick
+        )
+    }
+}
+
+impl std::fmt::Debug for SimulationSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
 }
 
 impl Default for SimulationSettings {
@@ -496,19 +512,6 @@ pub enum DeviceAtmosphericNetworkType {
     Output,
     Output2,
     Internal,
-}
-
-impl Display for DeviceAtmosphericNetworkType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let s = match self {
-            DeviceAtmosphericNetworkType::Input => "Input",
-            DeviceAtmosphericNetworkType::Input2 => "Input2",
-            DeviceAtmosphericNetworkType::Output => "Output",
-            DeviceAtmosphericNetworkType::Output2 => "Output2",
-            DeviceAtmosphericNetworkType::Internal => "Internal",
-        };
-        write!(f, "{}", s)
-    }
 }
 
 /// Trait for devices that can be controlled by IC10

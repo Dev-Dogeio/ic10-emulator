@@ -19,7 +19,6 @@ use std::cell::RefCell;
 
 /// IC Housing - a housing unit that holds an IC10 chip and connects to devices
 /// that can reference ANY device on the cable network by its reference ID.
-#[derive(Debug)]
 pub struct ICHousing {
     /// Device name
     name: String,
@@ -217,3 +216,25 @@ impl ICHostDevice for ICHousing {
 }
 
 impl ICHostDeviceMemoryOverride for ICHousing {}
+
+impl std::fmt::Display for ICHousing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let on_str = if *self.on.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let setting_str = crate::conversions::fmt_trim(*self.setting.borrow(), 3);
+        write!(
+            f,
+            "ICHousing {{ name: \"{}\", id: {}, on: {}, setting: {} }}",
+            self.name, self.reference_id, on_str, setting_str
+        )
+    }
+}
+
+impl std::fmt::Debug for ICHousing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}

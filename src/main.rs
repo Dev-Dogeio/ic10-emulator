@@ -69,7 +69,7 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
         .borrow_mut()
         .add_gas(GasType::Water, 1.0, celsius_to_kelvin(30.0));
 
-    println!("Initial state:\n {}", input_network.borrow().mixture());
+    println!("Initial state:\n{}", input_network.borrow().mixture());
 
     let mut ticks = 1;
     const MAX_TICKS: u64 = 1000;
@@ -109,7 +109,7 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
         .borrow_mut()
         .add_gas(GasType::Water, 1.0, celsius_to_kelvin(30.0));
 
-    println!("Initial state:\n {}", network.borrow().mixture());
+    println!("Initial state:\n{}", network.borrow().mixture());
 
     let mut ticks = 1;
     const MAX_TICKS: u64 = 1000;
