@@ -1,3 +1,4 @@
+//! Unit tests for the parser
 #[cfg(test)]
 mod tests {
     use crate::parser::*;

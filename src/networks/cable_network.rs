@@ -1,10 +1,16 @@
+//! Cable network for connecting devices and managing lookups
+
 use crate::devices::{Device, LogicType};
 use crate::error::SimulationResult;
 use crate::types::{OptShared, Shared, shared};
 use crate::{SimulationError, SimulationManager};
 use std::cell::{Ref, RefMut};
 use std::collections::BTreeMap;
+use std::fmt::{Debug, Display};
 use std::rc::Rc;
+
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 /// A cable network that connects multiple devices together.
 ///
@@ -27,13 +33,13 @@ pub struct CableNetwork {
     name_index: BTreeMap<i32, Vec<i32>>,
 }
 
-impl std::fmt::Display for CableNetwork {
+impl Display for CableNetwork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "CableNetwork {{ devices: {} }}", self.devices.len())
     }
 }
 
-impl std::fmt::Debug for CableNetwork {
+impl Debug for CableNetwork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
@@ -347,16 +353,18 @@ impl CableNetwork {
 }
 
 /// Batch mode for aggregating values from multiple devices
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BatchMode {
     /// Average of all values
-    Average,
+    Average = 0,
     /// Sum of all values
-    Sum,
+    Sum = 1,
     /// Minimum value
-    Minimum,
+    Minimum = 2,
     /// Maximum value
-    Maximum,
+    Maximum = 3,
 }
 
 impl BatchMode {

@@ -13,7 +13,7 @@ pub enum FilterSize {
     Infinite,
 }
 
-/// A filter item for filtration devices
+/// Filter item for filtration devices
 #[derive(Debug)]
 pub struct Filter {
     id: i32,
@@ -23,28 +23,67 @@ pub struct Filter {
 }
 
 impl Filter {
-    /// Create a new filter item
-    pub fn new(quantity: f64, gas_type: GasType, size: FilterSize) -> Self {
-        if !(0.0..=100.0).contains(&quantity) {
-            panic!("Filter quantity must be between 0 and 100");
-        }
-
+    /// Create a new `Filter` with default values
+    pub fn new() -> Self {
         Self {
             id: allocate_global_id(),
-            quantity,
-            gas_type,
-            size,
+            quantity: 100.0,
+            gas_type: GasType::CarbonDioxide,
+            size: FilterSize::Small,
         }
     }
 
-    /// Get the gas type this filter targets
+    /// Set the target gas type for this filter
+    pub fn set_gas_type(&mut self, gas: GasType) {
+        self.gas_type = gas;
+    }
+
+    /// Get the filter's target gas type
     pub fn gas_type(&self) -> GasType {
         self.gas_type
     }
 
-    /// Get the size of this filter
+    /// Set the filter size
+    pub fn set_size(&mut self, size: FilterSize) {
+        self.size = size;
+    }
+
+    /// Get the filter size
     pub fn size(&self) -> FilterSize {
         self.size
+    }
+
+    /// Set filter quantity (0..=100)
+    pub fn set_quantity(&mut self, quantity: u32) -> bool {
+        if quantity <= self.max_quantity() {
+            self.quantity = quantity as f64;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Compute prefab hash for `gas` and `size`
+    pub fn prefab_hash_for(gas: GasType, size: FilterSize) -> i32 {
+        let gas_name = gas.filter_name();
+        let suffix = match size {
+            FilterSize::Small => "",
+            FilterSize::Medium => "M",
+            FilterSize::Large => "L",
+            FilterSize::Infinite => "Infinite",
+        };
+        string_to_hash(&format!("ItemGasFilter{}{}", gas_name, suffix))
+    }
+
+    /// Prefab hash for this filter
+    pub fn prefab_hash(&self) -> i32 {
+        Filter::prefab_hash_for(self.gas_type, self.size)
+    }
+}
+
+impl Default for Filter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

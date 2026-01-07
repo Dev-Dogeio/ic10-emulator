@@ -1,3 +1,5 @@
+//! IC10 instruction definitions and parsing
+
 use crate::constants::REGISTER_COUNT;
 use crate::devices::LogicType;
 use crate::error::{SimulationError, SimulationResult};
@@ -814,6 +816,7 @@ pub struct ParsedInstruction {
 }
 
 impl ParsedInstruction {
+    /// Parse a single line of IC10 code into a ParsedInstruction
     pub fn parse(line: &str, line_number: usize) -> SimulationResult<Self> {
         let original_line = line.to_string();
         let line = line.trim();

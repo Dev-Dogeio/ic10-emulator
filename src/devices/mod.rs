@@ -1,14 +1,18 @@
-use std::fmt::Debug;
+//! Device implementations for the IC10 emulator
+
+use std::fmt::{Debug, Display};
+
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::{
-    CableNetwork,
+    AtmosphericNetwork, CableNetwork, Item,
     error::{SimulationError, SimulationResult},
     items::ItemIntegratedCircuit10,
     types::{OptShared, Shared},
 };
 
 pub mod air_conditioner;
-pub mod atmospheric_device;
 pub mod chip_slot;
 pub mod daylight_sensor;
 pub mod filtration;
@@ -17,7 +21,6 @@ pub mod logic_memory;
 pub mod volume_pump;
 
 pub use air_conditioner::AirConditioner;
-pub use atmospheric_device::AtmosphericDevice;
 pub use chip_slot::ChipSlot;
 pub use daylight_sensor::DaylightSensor;
 pub use filtration::Filtration;
@@ -28,13 +31,13 @@ pub use volume_pump::VolumePump;
 /// Simulation settings for devices
 #[derive(Clone)]
 pub struct SimulationSettings {
-    /// Number of ticks in a full day cycle
+    /// Number of ticks in a day cycle
     pub ticks_per_day: f64,
-    /// Maximum instructions per tick for IC10
+    /// Max IC10 instructions per tick
     pub max_instructions_per_tick: usize,
 }
 
-impl std::fmt::Display for SimulationSettings {
+impl Display for SimulationSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -44,7 +47,7 @@ impl std::fmt::Display for SimulationSettings {
     }
 }
 
-impl std::fmt::Debug for SimulationSettings {
+impl Debug for SimulationSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
@@ -59,7 +62,25 @@ impl Default for SimulationSettings {
     }
 }
 
+/// Create a device by `prefab_hash` returning the instance when recognized.
+pub fn create_device(
+    prefab_hash: i32,
+    simulation_settings: Option<SimulationSettings>,
+) -> OptShared<dyn Device> {
+    match prefab_hash {
+        VolumePump::PREFAB_HASH => Some(VolumePump::new(simulation_settings)),
+        AirConditioner::PREFAB_HASH => Some(AirConditioner::new(simulation_settings)),
+        Filtration::PREFAB_HASH => Some(Filtration::new(simulation_settings)),
+        DaylightSensor::PREFAB_HASH => Some(DaylightSensor::new(simulation_settings)),
+        ICHousing::PREFAB_HASH => Some(ICHousing::new(simulation_settings)),
+        LogicMemory::PREFAB_HASH => Some(LogicMemory::new(simulation_settings)),
+        _ => None,
+    }
+}
+
 /// Slot logic types
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LogicSlotType {
     None = 0,
@@ -217,72 +238,74 @@ impl LogicSlotType {
 
 /// Logic types for device property access
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[repr(i32)]
 pub enum LogicType {
-    Setting,
-    Horizontal,
-    Vertical,
-    Ratio,
-    On,
-    Mode,
-    PrefabHash,
+    Mode = 3,
+    Setting = 12,
+    Horizontal = 20,
+    Vertical = 21,
+    Ratio = 24,
+    On = 28,
+    PrefabHash = 84,
 
     // Atmospheric Input 1
-    PressureInput,
-    TemperatureInput,
-    RatioOxygenInput,
-    RatioCarbonDioxideInput,
-    RatioNitrogenInput,
-    RatioPollutantInput,
-    RatioVolatilesInput,
-    RatioSteamInput,
-    RatioNitrousOxideInput,
-    TotalMolesInput,
+    PressureInput = 106,
+    TemperatureInput = 107,
+    RatioOxygenInput = 108,
+    RatioCarbonDioxideInput = 109,
+    RatioNitrogenInput = 110,
+    RatioPollutantInput = 111,
+    RatioVolatilesInput = 112,
+    RatioSteamInput = 113,
+    RatioNitrousOxideInput = 114,
+    TotalMolesInput = 115,
 
     // Atmospheric Input 2
-    PressureInput2,
-    TemperatureInput2,
-    RatioOxygenInput2,
-    RatioCarbonDioxideInput2,
-    RatioNitrogenInput2,
-    RatioPollutantInput2,
-    RatioVolatilesInput2,
-    RatioSteamInput2,
-    RatioNitrousOxideInput2,
-    TotalMolesInput2,
+    PressureInput2 = 116,
+    TemperatureInput2 = 117,
+    RatioOxygenInput2 = 118,
+    RatioCarbonDioxideInput2 = 119,
+    RatioNitrogenInput2 = 120,
+    RatioPollutantInput2 = 121,
+    RatioVolatilesInput2 = 122,
+    RatioSteamInput2 = 123,
+    RatioNitrousOxideInput2 = 124,
+    TotalMolesInput2 = 125,
 
     // Atmospheric Output 1
-    PressureOutput,
-    TemperatureOutput,
-    RatioOxygenOutput,
-    RatioCarbonDioxideOutput,
-    RatioNitrogenOutput,
-    RatioPollutantOutput,
-    RatioVolatilesOutput,
-    RatioSteamOutput,
-    RatioNitrousOxideOutput,
-    TotalMolesOutput,
+    PressureOutput = 126,
+    TemperatureOutput = 127,
+    RatioOxygenOutput = 128,
+    RatioCarbonDioxideOutput = 129,
+    RatioNitrogenOutput = 130,
+    RatioPollutantOutput = 131,
+    RatioVolatilesOutput = 132,
+    RatioSteamOutput = 133,
+    RatioNitrousOxideOutput = 134,
+    TotalMolesOutput = 135,
 
     // Atmospheric Output 2
-    PressureOutput2,
-    TemperatureOutput2,
-    RatioOxygenOutput2,
-    RatioCarbonDioxideOutput2,
-    RatioNitrogenOutput2,
-    RatioPollutantOutput2,
-    RatioVolatilesOutput2,
-    RatioSteamOutput2,
-    RatioNitrousOxideOutput2,
-    TotalMolesOutput2,
+    PressureOutput2 = 136,
+    TemperatureOutput2 = 137,
+    RatioOxygenOutput2 = 138,
+    RatioCarbonDioxideOutput2 = 139,
+    RatioNitrogenOutput2 = 140,
+    RatioPollutantOutput2 = 141,
+    RatioVolatilesOutput2 = 142,
+    RatioSteamOutput2 = 143,
+    RatioNitrousOxideOutput2 = 144,
+    TotalMolesOutput2 = 145,
 
     // AirConditioner
-    OperationalTemperatureEfficiency,
-    TemperatureDifferentialEfficiency,
-    PressureEfficiency,
+    OperationalTemperatureEfficiency = 150,
+    TemperatureDifferentialEfficiency = 151,
+    PressureEfficiency = 152,
 
-    ReferenceId,
-    LineNumber,
-    StackSize,
-    NameHash,
+    LineNumber = 173,
+    ReferenceId = 217,
+    NameHash = 268,
+    StackSize = 280,
 }
 
 impl LogicType {
@@ -352,8 +375,8 @@ impl LogicType {
 
             173 => Some(LogicType::LineNumber),
             217 => Some(LogicType::ReferenceId),
-            280 => Some(LogicType::StackSize),
             268 => Some(LogicType::NameHash),
+            280 => Some(LogicType::StackSize),
 
             _ => None,
         }
@@ -505,13 +528,54 @@ impl LogicType {
     }
 }
 
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DeviceAtmosphericNetworkType {
-    Input,
-    Input2,
-    Output,
-    Output2,
-    Internal,
+    Internal = 0,
+    Input = 1,
+    Input2 = 2,
+    Output = 3,
+    Output2 = 4,
+}
+
+impl DeviceAtmosphericNetworkType {
+    /// Convert from a numeric value to the enum variant
+    pub fn from_value(value: i32) -> Option<Self> {
+        match value {
+            0 => Some(DeviceAtmosphericNetworkType::Internal),
+            1 => Some(DeviceAtmosphericNetworkType::Input),
+            2 => Some(DeviceAtmosphericNetworkType::Input2),
+            3 => Some(DeviceAtmosphericNetworkType::Output),
+            4 => Some(DeviceAtmosphericNetworkType::Output2),
+            _ => None,
+        }
+    }
+
+    /// Parse from a string name (case-sensitive)
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "Input" => Some(DeviceAtmosphericNetworkType::Input),
+            "Input2" => Some(DeviceAtmosphericNetworkType::Input2),
+            "Output" => Some(DeviceAtmosphericNetworkType::Output),
+            "Output2" => Some(DeviceAtmosphericNetworkType::Output2),
+            "Internal" => Some(DeviceAtmosphericNetworkType::Internal),
+            _ => None,
+        }
+    }
+}
+
+impl Display for DeviceAtmosphericNetworkType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            DeviceAtmosphericNetworkType::Internal => "Internal",
+            DeviceAtmosphericNetworkType::Input => "Input",
+            DeviceAtmosphericNetworkType::Input2 => "Input2",
+            DeviceAtmosphericNetworkType::Output => "Output",
+            DeviceAtmosphericNetworkType::Output2 => "Output2",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 /// Trait for devices that can be controlled by IC10
@@ -609,6 +673,21 @@ pub trait Device: Debug {
     fn run(&self) -> SimulationResult<()> {
         Ok(())
     }
+
+    /// If the device hosts an IC chip, return a mutable reference to it.
+    fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
+        None
+    }
+
+    /// If the device supports item slots, return a mutable reference to it.
+    fn as_slot_host_device(&mut self) -> Option<&mut dyn SlotHostDevice> {
+        None
+    }
+
+    /// If the device is an AtmosphericDevice, return a mutable reference to it.
+    fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
+        None
+    }
 }
 
 /// Marker trait to ensure implementors of `ICHostDevice` explicitly opt into providing device
@@ -638,7 +717,7 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
     /// Read from device internal memory at index. Default implementation proxies to the hosted chip.
     fn get_memory(&self, address: usize) -> SimulationResult<f64> {
         if let Some(chip) = self.chip_slot().borrow().get_chip() {
-            return chip.borrow().read_stack(address);
+            return chip.read_stack(address);
         }
 
         Err(SimulationError::RuntimeError {
@@ -649,8 +728,8 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
 
     /// Write to device internal memory at index. Default implementation proxies to the hosted chip.
     fn set_memory(&self, address: usize, value: f64) -> SimulationResult<()> {
-        if let Some(chip) = self.chip_slot().borrow().get_chip() {
-            return chip.borrow().write_stack(address, value);
+        if let Some(chip) = self.chip_slot().borrow().get_chip_mut() {
+            return chip.write_stack(address, value);
         }
 
         Err(SimulationError::RuntimeError {
@@ -662,7 +741,7 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
     /// Clear device stack memory (clr/clrd). Default proxies to the hosted chip.
     fn clear(&self) -> SimulationResult<()> {
         if let Some(chip) = self.chip_slot().borrow().get_chip() {
-            chip.borrow().clear_stack();
+            chip.clear_stack();
             return Ok(());
         }
 
@@ -676,17 +755,12 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
     fn set_chip(&mut self, chip: Shared<ItemIntegratedCircuit10>) {
         self.chip_slot()
             .borrow_mut()
-            .set_chip(Box::new(chip.clone()))
+            .set_chip(chip.clone())
             .unwrap();
 
         // Attach the slot back to the chip so it can resolve device pins/aliases
         chip.borrow_mut()
             .set_chip_slot(self.chip_slot(), self.ichost_get_id());
-    }
-
-    /// Get the hosted chip (if any).
-    fn get_chip(&self) -> OptShared<ItemIntegratedCircuit10> {
-        self.chip_slot().borrow().get_chip()
     }
 
     /// Set a device pin on the housing's chip slot (d0-dN)
@@ -713,4 +787,38 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
             .run(self.max_instructions_per_tick())?;
         Ok(())
     }
+}
+
+/// Trait for devices that expose normal item slot behaviour (inserting/removing items)
+pub trait SlotHostDevice {
+    /// Try to insert an item into a slot by index. Returns Ok(()) on success or Err(leftover) on failure.
+    fn try_insert_item(
+        &mut self,
+        index: usize,
+        incoming: Shared<dyn Item>,
+    ) -> Result<(), Shared<dyn Item>>;
+
+    /// Remove an item from a slot and return it if present.
+    fn remove_item(&mut self, index: usize) -> OptShared<dyn Item>;
+
+    /// Optional helper to return the number of slots
+    fn slot_count(&self) -> usize {
+        0
+    }
+}
+
+/// Trait for devices that connect to atmospheric networks
+pub trait AtmosphericDevice: Debug {
+    /// Set the atmospheric network for a specific connection on this device
+    fn set_atmospheric_network(
+        &mut self,
+        connection: DeviceAtmosphericNetworkType,
+        network: OptShared<AtmosphericNetwork>,
+    ) -> Result<(), SimulationError>;
+
+    /// Get the atmospheric network for a specific connection on this device
+    fn get_atmospheric_network(
+        &self,
+        connection: DeviceAtmosphericNetworkType,
+    ) -> OptShared<AtmosphericNetwork>;
 }

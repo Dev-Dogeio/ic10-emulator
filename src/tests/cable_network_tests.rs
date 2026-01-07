@@ -1,3 +1,4 @@
+//! Unit tests for cable network
 #[cfg(test)]
 mod tests {
     use crate::Device;
@@ -442,7 +443,7 @@ mod tests {
         let network = CableNetwork::new();
 
         // Add devices with values: 50, 10, 30, 20, 40
-        let values = vec![50.0, 10.0, 30.0, 20.0, 40.0];
+        let values = [50.0, 10.0, 30.0, 20.0, 40.0];
         for (i, &val) in values.iter().enumerate() {
             let device = shared(MockDevice::with_values(
                 (i + 1) as i32,
@@ -467,7 +468,7 @@ mod tests {
         let network = CableNetwork::new();
 
         // Add devices with values: 50, 10, 30, 20, 40
-        let values = vec![50.0, 10.0, 30.0, 20.0, 40.0];
+        let values = [50.0, 10.0, 30.0, 20.0, 40.0];
         for (i, &val) in values.iter().enumerate() {
             let device = shared(MockDevice::with_values(
                 (i + 1) as i32,

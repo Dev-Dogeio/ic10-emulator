@@ -32,6 +32,17 @@ cd IC10-emulator
 cargo build
 ```
 
+### Building WASM
+
+Prerequisites:
+
+-   Install the `wasm-bindgen` CLI: `cargo install wasm-bindgen-cli`
+
+Usage:
+
+-   `cargo xtask build-wasm [--release]`
+-   The generated js bindings will be placed into the `pkg/` directory.
+
 ### Running the example
 
 The example in `src/main.rs` includes a short Filtration device demo and an IC program test. Run it with:

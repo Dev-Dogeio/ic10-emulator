@@ -1,3 +1,4 @@
+//! Unit tests for animation curve
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

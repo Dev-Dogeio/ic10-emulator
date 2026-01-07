@@ -1,10 +1,6 @@
-//! IC Housing device - a housing unit for integrated circuits
-//!
-//! The IC Housing provides:
-//! - 6 device pins (d0-d5) for connecting to other devices on the network
-//! - 18 registers (r0-r15 general purpose, r16=sp stack pointer, r17=ra return address)
-//! - 512 stack memory entries
+//! IC housing device: hosts IC10 chips and exposes registers/memory.
 
+use crate::conversions::fmt_trim;
 use crate::{
     CableNetwork, allocate_global_id,
     constants::STACK_SIZE,
@@ -15,10 +11,11 @@ use crate::{
     parser::string_to_hash,
     types::{OptShared, Shared, shared},
 };
-use std::cell::RefCell;
 
-/// IC Housing - a housing unit that holds an IC10 chip and connects to devices
-/// that can reference ANY device on the cable network by its reference ID.
+use std::cell::RefCell;
+use std::fmt::{Debug, Display};
+
+/// IC housing: holds an IC10 chip and exposes host interfaces
 pub struct ICHousing {
     /// Device name
     name: String,
@@ -39,7 +36,12 @@ pub struct ICHousing {
     settings: SimulationSettings,
 }
 
+/// Constructors and helpers
 impl ICHousing {
+    /// Compile-time prefab hash constant for this device
+    pub const PREFAB_HASH: i32 = string_to_hash("StructureCircuitHousing");
+
+    /// Create a new `ICHousing`
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
         let s = shared(Self {
             name: "IC Housing".to_string(),
@@ -58,15 +60,21 @@ impl ICHousing {
 
         s
     }
+
+    /// Prefab hash for `ICHousing`
+    pub fn prefab_hash() -> i32 {
+        Self::PREFAB_HASH
+    }
 }
 
+/// `Device` trait implementation for `ICHousing` providing logic access, naming, and chip hosting.
 impl Device for ICHousing {
     fn get_id(&self) -> i32 {
         self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        string_to_hash("StructureCircuitHousing")
+        ICHousing::prefab_hash()
     }
 
     fn get_name_hash(&self) -> i32 {
@@ -99,7 +107,7 @@ impl Device for ICHousing {
     }
 
     fn clear_internal_references(&mut self) {
-        self.chip_host.borrow_mut().set_host_device(None);
+        self.chip_host.borrow_mut().clear_internal_references();
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
@@ -131,8 +139,8 @@ impl Device for ICHousing {
             LogicType::On => Ok(*self.on.borrow()),
             LogicType::StackSize => Ok(STACK_SIZE as f64),
             LogicType::LineNumber => {
-                if let Some(chip) = self.get_chip() {
-                    Ok(chip.borrow().get_pc() as f64)
+                if let Some(chip) = self.chip_slot().borrow().get_chip() {
+                    Ok(chip.get_pc() as f64)
                 } else {
                     Ok(0.0)
                 }
@@ -163,8 +171,8 @@ impl Device for ICHousing {
                 }
 
                 let pc = value as usize;
-                if let Some(chip) = self.get_chip() {
-                    chip.borrow().set_pc(pc);
+                if let Some(chip) = self.chip_slot().borrow().get_chip() {
+                    chip.set_pc(pc);
                     Ok(())
                 } else {
                     Err(SimulationError::RuntimeError {
@@ -199,8 +207,13 @@ impl Device for ICHousing {
     fn clear(&self) -> SimulationResult<()> {
         ICHostDevice::clear(self)
     }
+
+    fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
+        Some(self)
+    }
 }
 
+/// `ICHostDevice` helpers for `ICHousing` (chip slot and memory access).
 impl ICHostDevice for ICHousing {
     fn ichost_get_id(&self) -> i32 {
         self.reference_id
@@ -217,14 +230,14 @@ impl ICHostDevice for ICHousing {
 
 impl ICHostDeviceMemoryOverride for ICHousing {}
 
-impl std::fmt::Display for ICHousing {
+impl Display for ICHousing {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let on_str = if *self.on.borrow() == 0.0 {
             "Off"
         } else {
             "On"
         };
-        let setting_str = crate::conversions::fmt_trim(*self.setting.borrow(), 3);
+        let setting_str = fmt_trim(*self.setting.borrow(), 3);
         write!(
             f,
             "ICHousing {{ name: \"{}\", id: {}, on: {}, setting: {} }}",
@@ -233,7 +246,7 @@ impl std::fmt::Display for ICHousing {
     }
 }
 
-impl std::fmt::Debug for ICHousing {
+impl Debug for ICHousing {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }

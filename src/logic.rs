@@ -1,3 +1,5 @@
+//! Instruction execution logic for IC10
+
 use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
 use crate::conversions::{double_to_long, lerp, long_to_double};
 use crate::error::{SimulationError, SimulationResult};
@@ -6,6 +8,7 @@ use crate::items::item_integrated_circuit_10::AliasTarget;
 use crate::networks::BatchMode;
 use crate::{ItemIntegratedCircuit10, LogicSlotType, LogicType};
 
+/// Execute a single IC10 instruction and return the next program counter
 pub fn execute_instruction(
     chip: &ItemIntegratedCircuit10,
     instruction: &ParsedInstruction,

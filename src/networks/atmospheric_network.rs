@@ -11,6 +11,7 @@ use crate::SimulationManager;
 use crate::atmospherics::{GasMixture, GasType, MatterState, Mole};
 use crate::types::{Shared, shared};
 use std::collections::HashSet;
+use std::fmt::{Debug, Display};
 
 /// Identifier for devices on the atmospheric network
 pub type DeviceId = usize;
@@ -26,12 +27,6 @@ pub struct AtmosphericNetwork {
 
     /// Set of device IDs connected to this network (for enumeration only)
     devices: HashSet<DeviceId>,
-}
-
-impl std::fmt::Debug for AtmosphericNetwork {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
 }
 
 impl AtmosphericNetwork {
@@ -236,8 +231,14 @@ impl AtmosphericNetwork {
     }
 }
 
-impl std::fmt::Display for AtmosphericNetwork {
+impl Display for AtmosphericNetwork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.mixture)
+    }
+}
+
+impl Debug for AtmosphericNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }

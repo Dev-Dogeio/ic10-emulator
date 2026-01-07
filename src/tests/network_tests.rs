@@ -1,3 +1,4 @@
+//! Unit tests for networks
 #[cfg(test)]
 mod tests {
     use crate::error::SimulationError;

@@ -16,25 +16,9 @@ pub const UNSIGNED_MASK: i64 = 0x3FFFFFFFFFFFFF; // 18014398509481983
 /// Modulo value for wrapping doubles (2^53 as float)
 pub const MODULO_VALUE: f64 = 9.00719925474099E+15;
 
-/// Convert a double to a long integer for bitwise operations.
+/// Convert a double to a 64-bit integer for bitwise ops.
 ///
-/// This matches the C# implementation:
-/// ```csharp
-/// public static long DoubleToLong(double d, bool signed)
-/// {
-///     long num = (long) (d % 9.00719925474099E+15);
-///     if (!signed)
-///         num &= 18014398509481983L;  // 0x3FFFFFFFFFFFFF
-///     return num;
-/// }
-/// ```
-///
-/// # Arguments
-/// * `d` - The double value to convert
-/// * `signed` - Whether to preserve the sign (true) or mask to unsigned (false)
-///
-/// # Returns
-/// A 64-bit signed integer suitable for bitwise operations
+/// Matches the original C# conversion behavior for IC10 values.
 pub fn double_to_long(d: f64, signed: bool) -> i64 {
     // Handle special cases
     if d.is_nan() || d.is_infinite() {
@@ -47,28 +31,9 @@ pub fn double_to_long(d: f64, signed: bool) -> i64 {
     if signed { num } else { num & UNSIGNED_MASK }
 }
 
-/// Convert a long integer back to a double after bitwise operations.
+/// Convert a 53-bit-style integer back to `f64`.
 ///
-/// This handles IC10's special 53-bit integer representation where bit 53
-/// is used as a sign indicator.
-///
-/// This matches the C# implementation:
-/// ```csharp
-/// public static double LongToDouble(long l)
-/// {
-///     int num = (l & 9007199254740992L) != 0L ? 1 : 0;  // Check bit 53
-///     l &= 9007199254740991L;  // Mask to 53 bits
-///     if (num != 0)
-///         l |= -9007199254740992L;  // Sign extend from bit 53
-///     return (double) l;
-/// }
-/// ```
-///
-/// # Arguments
-/// * `l` - The long value to convert
-///
-/// # Returns
-/// A double representing the value
+/// Handles IC10's sign bit and mantissa masking semantics.
 pub fn long_to_double(l: i64) -> f64 {
     // Check if bit 53 is set (sign indicator)
     let sign_bit_set = (l & BIT_53) != 0;
@@ -86,8 +51,7 @@ pub fn long_to_double(l: i64) -> f64 {
     result as f64
 }
 
-/// Helper function to convert a packed number into a text string.
-/// Each byte in the packed number represents an ASCII character.
+/// Convert a packed 48-bit number into an ASCII string.
 pub fn packed_number_to_text(packed: u64) -> String {
     let mut text = String::new();
     for i in (0..6).rev() {

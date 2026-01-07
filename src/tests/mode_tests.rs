@@ -1,5 +1,5 @@
 use crate::{
-    Filter,
+    Filter, Item,
     atmospherics::GasType,
     devices::{
         AirConditioner, AtmosphericDevice, Device, DeviceAtmosphericNetworkType, Filtration,
@@ -7,6 +7,7 @@ use crate::{
     },
     items::FilterSize,
     networks::AtmosphericNetwork,
+    types::{Shared, shared},
 };
 
 #[test]
@@ -42,11 +43,12 @@ fn filtration_respects_mode() {
     {
         let mut f_borrow = f.borrow_mut();
         let slot = f_borrow.get_slot_mut(0).unwrap();
-        let _ = slot.try_insert(Box::new(Filter::new(
-            1.0,
-            GasType::Oxygen,
-            FilterSize::Small,
-        )));
+        let mut filter_item = Filter::new();
+        filter_item.set_gas_type(GasType::Oxygen);
+        filter_item.set_size(FilterSize::Small);
+        filter_item.set_quantity(1);
+        let filter: Shared<dyn Item> = shared(filter_item);
+        let _ = slot.try_insert(filter);
     }
     f.borrow_mut()
         .set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input_rc.clone()))
@@ -84,11 +86,12 @@ fn filtration_respects_mode() {
     {
         let mut f2_borrow = f2.borrow_mut();
         let slot = f2_borrow.get_slot_mut(0).unwrap();
-        let _ = slot.try_insert(Box::new(Filter::new(
-            1.0,
-            GasType::Oxygen,
-            FilterSize::Small,
-        )));
+        let mut filter_item = Filter::new();
+        filter_item.set_gas_type(GasType::Oxygen);
+        filter_item.set_size(FilterSize::Small);
+        filter_item.set_quantity(1);
+        let filter: Shared<dyn Item> = shared(filter_item);
+        let _ = slot.try_insert(filter);
     }
     f2.borrow_mut()
         .set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input2_rc.clone()))

@@ -1,3 +1,8 @@
+//! IC10 emulator library
+//!
+//! This library provides a complete emulator for the IC10 programmable chip.
+//! It also simulates cable and atmospheric (pipe/grids) networks.
+
 pub mod animation_curve;
 pub mod atmospherics;
 pub mod constants;
@@ -25,3 +30,6 @@ pub use instruction::Instruction;
 pub use items::{Filter, Item, ItemIntegratedCircuit10, ItemType, Slot};
 pub use networks::{AtmosphericNetwork, BatchMode, CableNetwork};
 pub use simulation_manager::SimulationManager;
+
+#[cfg(feature = "wasm")]
+pub mod wasm;

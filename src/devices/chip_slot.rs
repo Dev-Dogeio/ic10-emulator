@@ -1,3 +1,5 @@
+//! Chip slot device for IC-supported devices
+
 use crate::{
     CableNetwork, Device, Item,
     devices::LogicType,
@@ -5,9 +7,12 @@ use crate::{
     items::{ItemIntegratedCircuit10, ItemType, Slot},
     types::{OptShared, Shared, shared},
 };
-use std::cell::RefCell;
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    fmt::{Debug, Display},
+};
 
-/// Helper that encapsulates chip slot, device pins and chip execution.
+/// Chip slot for IC; manages chip, pins, and execution state
 pub struct ChipSlot {
     /// The host device
     host_device: OptShared<dyn Device>,
@@ -23,49 +28,68 @@ pub struct ChipSlot {
 }
 
 impl ChipSlot {
-    /// Create a new ChipHost with one IC chip slot and device pins.
+    /// Create a new `ChipSlot` with `device_pin_count` pins
     pub fn new(device_pin_count: usize) -> Shared<Self> {
         shared(Self {
             host_device: None,
-            slot: Slot::new(Some(ItemType::ItemIntegratedCircuit10)),
             device_pins: vec![None; device_pin_count],
+            slot: Slot::new(Some(ItemType::ItemIntegratedCircuit10)),
             last_executed_instructions: RefCell::new(0),
         })
     }
 
-    /// Set the host device
+    /// Set the host device reference
     pub fn set_host_device(&mut self, device: OptShared<dyn Device>) {
         self.host_device = device;
     }
 
-    /// Insert a chip (will not replace existing chip)
-    /// Returns `Ok(())` on success, or `Err(item)` if insertion failed.
+    /// Get the hosted chip (if any)
+    pub fn get_chip(&self) -> Option<Ref<'_, ItemIntegratedCircuit10>> {
+        self.slot.borrow_item()
+    }
+
+    /// Borrow the item in the slot as type T mutably, if it matches
+    pub fn get_chip_mut(&self) -> Option<RefMut<'_, ItemIntegratedCircuit10>> {
+        self.slot.borrow_item_mut()
+    }
+
+    /// Install `chip` into the slot; returns Err if occupied
     pub fn set_chip(
         &mut self,
-        chip: Box<Shared<ItemIntegratedCircuit10>>,
-    ) -> Result<(), Box<dyn Item>> {
-        self.slot.try_insert(chip)
-    }
-
-    /// Get the hosted chip (if any)
-    pub fn get_chip(&self) -> OptShared<ItemIntegratedCircuit10> {
-        if let Some(item) = self.slot.get_item()
-            && let Some(shared_chip) = item
-                .as_any()
-                .downcast_ref::<Shared<ItemIntegratedCircuit10>>()
-        {
-            return Some(shared_chip.clone());
+        chip: Shared<ItemIntegratedCircuit10>,
+    ) -> Result<(), Shared<ItemIntegratedCircuit10>> {
+        if self.slot.get_item().is_some() {
+            return Err(chip);
         }
 
-        None
+        match self.slot.try_insert(chip.clone()) {
+            Ok(()) => Ok(()),
+            Err(_leftover) => Err(chip),
+        }
     }
 
+    /// Remove and return the installed chip
+    pub fn remove_chip(&mut self) -> OptShared<dyn Item> {
+        self.slot.remove()
+    }
+
+    /// Clear internal references when host device detached
+    pub fn clear_internal_references(&mut self) {
+        if let Some(mut chip) = self.get_chip_mut() {
+            chip.clear_internal_references();
+        }
+
+        self.set_host_device(None);
+    }
+
+    /// Set device pin `pin` to `device_ref_id`
     pub fn set_device_pin(&mut self, pin: usize, device_ref_id: Option<i32>) {
         if pin < self.device_pins.len() {
             self.device_pins[pin] = device_ref_id;
         }
     }
 
+    /// Get the device reference for `pin`
     pub fn get_device_pin(&self, pin: usize) -> Option<i32> {
         if pin < self.device_pins.len() {
             self.device_pins[pin]
@@ -74,20 +98,22 @@ impl ChipSlot {
         }
     }
 
+    /// Run the hosted chip up to `max_instructions_per_tick`
     pub fn run(&self, max_instructions_per_tick: usize) -> SimulationResult<()> {
         if let Some(chip) = self.get_chip() {
-            let instructions = chip.borrow().run(max_instructions_per_tick)?;
+            let instructions = chip.run(max_instructions_per_tick)?;
             *self.last_executed_instructions.borrow_mut() = instructions;
         }
 
         Ok(())
     }
 
+    /// Get last executed instruction count
     pub fn get_last_executed_instructions(&self) -> usize {
         *self.last_executed_instructions.borrow()
     }
 
-    /// Get the network of the hosting device (if present)
+    /// Get host device's network
     pub fn get_network(&self) -> OptShared<CableNetwork> {
         if let Some(host) = &self.host_device {
             host.borrow().get_network()
@@ -96,12 +122,12 @@ impl ChipSlot {
         }
     }
 
-    /// Get the id of the hosting device (or -1 if not present) TODO
+    /// Host device reference ID, if any
     pub fn id(&self) -> Option<i32> {
         self.host_device.as_ref().map(|host| host.borrow().get_id())
     }
 
-    /// Proxy read to the hosting device
+    /// Read a logic value from the host device
     pub fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
         if let Some(host) = &self.host_device {
             host.borrow().read(logic_type)
@@ -113,7 +139,7 @@ impl ChipSlot {
         }
     }
 
-    /// Proxy write to the hosting device
+    /// Write a logic value to the host device
     pub fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
         if let Some(host) = &self.host_device {
             host.borrow().write(logic_type, value)
@@ -126,13 +152,13 @@ impl ChipSlot {
     }
 }
 
-impl std::fmt::Display for ChipSlot {
+impl Display for ChipSlot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let host_str = self
             .id()
             .map(|id| id.to_string())
             .unwrap_or_else(|| "none".to_string());
-        let mounted = self.get_chip().is_some();
+        let mounted = self.slot.get_item().is_some();
         let pins = self
             .device_pins
             .iter()
@@ -148,7 +174,7 @@ impl std::fmt::Display for ChipSlot {
     }
 }
 
-impl std::fmt::Debug for ChipSlot {
+impl Debug for ChipSlot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }

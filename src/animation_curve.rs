@@ -1,7 +1,10 @@
+//! Unity-compatible AnimationCurve implementation with cubic Hermite interpolation
+
 use std::cmp::Ordering;
 
 use serde::Deserialize;
 
+/// Raw keyframe data from JSON
 #[derive(Debug, Deserialize)]
 struct RawKey {
     time: f64,
@@ -12,6 +15,7 @@ struct RawKey {
     out_tangent: f64,
 }
 
+/// Raw curve data from JSON
 #[derive(Debug, Deserialize)]
 struct RawCurve {
     keys: Vec<RawKey>,
@@ -30,7 +34,7 @@ pub struct Keyframe {
     pub out_tangent: f64,
 }
 
-/// Simple AnimationCurve evaluator implementing cubic Hermite interpolation
+/// AnimationCurve evaluator with cubic Hermite interpolation
 #[derive(Debug, Clone)]
 pub struct AnimationCurve {
     keys: Vec<Keyframe>,
@@ -69,6 +73,7 @@ impl AnimationCurve {
         })
     }
 
+    /// Map time value according to wrap modes
     fn map_time(&self, t: f64) -> f64 {
         // If no keys or only a single key, nothing to map
         if self.keys.len() < 2 {
@@ -103,9 +108,7 @@ impl AnimationCurve {
             }
             let relative = t - first;
             let period = 2.0 * length;
-            // Use rem_euclid so negative times map correctly
             let m = relative.rem_euclid(period);
-            // Map into a triangle wave: ping = length - |m - length|
             let ping = length - (m - length).abs();
             return first + ping;
         }
@@ -123,7 +126,6 @@ impl AnimationCurve {
             return self.keys[0].value;
         }
 
-        // map times outside key range according to wrap modes
         let mapped_t = self.map_time(t);
 
         if mapped_t <= self.keys[0].time {
@@ -132,7 +134,6 @@ impl AnimationCurve {
             return self.keys.last().unwrap().value;
         }
 
-        // find segment using mapped time
         let mut idx = 0usize;
         for i in 0..self.keys.len() - 1 {
             if mapped_t >= self.keys[i].time && mapped_t <= self.keys[i + 1].time {
@@ -149,7 +150,6 @@ impl AnimationCurve {
         }
         let x = (mapped_t - k0.time) / dt;
 
-        // Hermite basis
         let t2 = x * x;
         let t3 = t2 * x;
 

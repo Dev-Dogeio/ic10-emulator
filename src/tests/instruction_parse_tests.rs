@@ -1,3 +1,4 @@
+//! Unit tests for instruction parsing
 #[cfg(test)]
 mod tests {
     use crate::{

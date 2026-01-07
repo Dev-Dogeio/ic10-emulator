@@ -1,6 +1,8 @@
+//! Global ID allocation for devices and items
+
 use std::sync::atomic::{AtomicI32, Ordering};
 
-/// Global ID counter shared by devices and items
+/// Global ID counter for devices and items
 static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(1);
 
 /// Allocate a new unique global ID for devices and items

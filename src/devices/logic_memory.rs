@@ -1,10 +1,9 @@
-//! Logic Memory device - stores a single value
-//!
-//! The Logic Memory provides:
-//! - Setting (read/write): stores a single numeric value
+//! Logic memory device: stores a single numeric value.
 
 use std::cell::RefCell;
+use std::fmt::{Debug, Display};
 
+use crate::conversions::fmt_trim;
 use crate::{
     CableNetwork, allocate_global_id,
     devices::{Device, LogicType, SimulationSettings},
@@ -16,12 +15,12 @@ use crate::{
 pub struct LogicMemory {
     /// Device name
     name: String,
-    /// Network this device is connected to
+    /// Connected network
     network: OptShared<CableNetwork>,
 
-    /// The device reference ID
+    /// Device reference ID
     reference_id: i32,
-    /// The Setting state
+    /// Stored setting value
     setting: RefCell<f64>,
 
     /// Simulation settings
@@ -29,7 +28,12 @@ pub struct LogicMemory {
     settings: SimulationSettings,
 }
 
+/// Constructors and helpers
 impl LogicMemory {
+    /// Compile-time prefab hash constant for this device
+    pub const PREFAB_HASH: i32 = string_to_hash("StructureLogicMemory");
+
+    /// Create a new `LogicMemory`
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
         shared(Self {
             name: "Logic Memory".to_string(),
@@ -39,15 +43,21 @@ impl LogicMemory {
             settings: simulation_settings.unwrap_or_default(),
         })
     }
+
+    /// Prefab hash for `LogicMemory`
+    pub fn prefab_hash() -> i32 {
+        Self::PREFAB_HASH
+    }
 }
 
+/// `Device` trait implementation for `LogicMemory` providing memory access helpers for hosted ICs.
 impl Device for LogicMemory {
     fn get_id(&self) -> i32 {
         self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        string_to_hash("StructureLogicMemory")
+        LogicMemory::prefab_hash()
     }
 
     fn get_name_hash(&self) -> i32 {
@@ -120,9 +130,9 @@ impl Device for LogicMemory {
     }
 }
 
-impl std::fmt::Display for LogicMemory {
+impl Display for LogicMemory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let setting = crate::conversions::fmt_trim(*self.setting.borrow(), 3);
+        let setting = fmt_trim(*self.setting.borrow(), 3);
         write!(
             f,
             "LogicMemory {{ name: \"{}\", id: {}, setting: {} }}",
@@ -131,7 +141,7 @@ impl std::fmt::Display for LogicMemory {
     }
 }
 
-impl std::fmt::Debug for LogicMemory {
+impl Debug for LogicMemory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }

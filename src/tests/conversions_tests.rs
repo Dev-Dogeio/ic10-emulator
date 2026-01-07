@@ -1,3 +1,4 @@
+//! Unit tests for numeric conversions
 #[cfg(test)]
 mod tests {
     use crate::conversions::{BIT_53, UNSIGNED_MASK, double_to_long, long_to_double};

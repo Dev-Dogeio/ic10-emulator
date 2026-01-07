@@ -1,3 +1,4 @@
+//! Unit tests for atmospheric networks
 #[cfg(test)]
 mod tests {
     use crate::{atmospherics::GasType, networks::AtmosphericNetwork};

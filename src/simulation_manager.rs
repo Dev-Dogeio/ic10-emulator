@@ -7,9 +7,11 @@
 //! 1. Process atmospheric network updates
 //! 2. Update all cable networks (which run device updates and IC runners)
 
+use crate::conversions::fmt_trim;
 use crate::networks::{AtmosphericNetwork, CableNetwork};
 use crate::types::Shared;
 use std::cell::RefCell;
+use std::fmt::Display;
 use std::rc::Rc;
 
 thread_local! {
@@ -24,31 +26,32 @@ pub struct SimulationManager {
 }
 
 impl SimulationManager {
-    /// Create a new SimulationManager
+    /// Create a new `SimulationManager` with default settings
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Get the global `SimulationManager` instance
     pub fn global() -> Shared<SimulationManager> {
         GLOBAL_SIM_MANAGER.with(|g| g.clone())
     }
 
-    /// Register an atmospheric network on the global manager
+    /// Register an atmospheric network globally
     pub fn register_atmospheric_network_global(network: Shared<AtmosphericNetwork>) {
         GLOBAL_SIM_MANAGER.with(|g| g.borrow_mut().register_atmospheric_network(network));
     }
 
-    /// Register a cable network on the global manager
+    /// Register a cable network globally
     pub fn register_cable_network_global(network: Shared<CableNetwork>) {
         GLOBAL_SIM_MANAGER.with(|g| g.borrow_mut().register_cable_network(network));
     }
 
-    /// Run a tick on the global manager and return the total number of phase changes that occurred.
+    /// Run a global tick and return number of atmospheric phase changes.
     pub fn update_global(tick: u64) -> u32 {
         GLOBAL_SIM_MANAGER.with(|g| g.borrow().update(tick))
     }
 
-    /// Reset the global simulation manager: remove/cleanup all devices and atmospheric networks and reset global IDs.
+    /// Reset the global simulation manager and global IDs (for tests).
     pub fn reset_global() {
         GLOBAL_SIM_MANAGER.with(|g| g.borrow_mut().reset());
         // Also reset the global ID counter
@@ -114,7 +117,7 @@ impl SimulationManager {
     }
 }
 
-impl std::fmt::Display for SimulationManager {
+impl Display for SimulationManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "SimulationManager {{")?;
 
@@ -195,10 +198,10 @@ impl std::fmt::Display for SimulationManager {
                 f,
                 "    Network #{}: {} L, {} K, {} kPa, {} mol",
                 i,
-                crate::conversions::fmt_trim(mixture.volume(), 3),
-                crate::conversions::fmt_trim(mixture.temperature(), 2),
-                crate::conversions::fmt_trim(mixture.pressure(), 3),
-                crate::conversions::fmt_trim(mixture.total_moles(), 3)
+                fmt_trim(mixture.volume(), 3),
+                fmt_trim(mixture.temperature(), 2),
+                fmt_trim(mixture.pressure(), 3),
+                fmt_trim(mixture.total_moles(), 3)
             )?;
         }
 

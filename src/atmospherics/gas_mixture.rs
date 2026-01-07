@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::{GasType, MatterState, Mole};
-use std::fmt;
+use std::fmt::{self, Debug, Display};
 
 /// A mixture of gases and liquids with their associated energies
 #[derive(Clone)]
@@ -44,7 +44,7 @@ pub struct GasMixture {
 }
 
 impl GasMixture {
-    /// Create a new empty gas mixture with specified volume
+    /// Create an empty `GasMixture` with the given volume (L)
     pub fn new(volume: f64) -> Self {
         Self {
             // Gases
@@ -72,17 +72,17 @@ impl GasMixture {
         }
     }
 
-    /// Get the volume in Litres
+    /// Volume in litres
     pub fn volume(&self) -> f64 {
         self.volume
     }
 
-    /// Set the volume in Litres
+    /// Set container volume (L)
     pub fn set_volume(&mut self, volume: f64) {
         self.volume = volume.max(MINIMUM_GAS_VOLUME);
     }
 
-    /// Get a reference to the mole for a specific gas type
+    /// Get reference to the `Mole` for `gas_type`
     pub fn get_gas(&self, gas_type: GasType) -> &Mole {
         match gas_type {
             GasType::Oxygen => &self.oxygen,
@@ -105,7 +105,7 @@ impl GasMixture {
         }
     }
 
-    /// Get a mutable reference to the mole for a specific gas type
+    /// Get mutable reference to the `Mole` for `gas_type`
     pub fn get_gas_mut(&mut self, gas_type: GasType) -> &mut Mole {
         match gas_type {
             GasType::Oxygen => &mut self.oxygen,
@@ -128,12 +128,12 @@ impl GasMixture {
         }
     }
 
-    /// Get the quantity of a specific gas/liquid in moles
+    /// Get moles of `gas_type`
     pub fn get_moles(&self, gas_type: GasType) -> f64 {
         self.get_gas(gas_type).quantity()
     }
 
-    /// Add gas/liquid to the mixture
+    /// Add gas/liquid to the mixture and equalize temperature
     pub fn add_gas(&mut self, gas_type: GasType, moles: f64, temperature: f64) {
         let new_mole = Mole::new(gas_type, moles, temperature);
         self.get_gas_mut(gas_type).add(&new_mole);
@@ -141,26 +141,26 @@ impl GasMixture {
         self.cleanup();
     }
 
-    /// Add a Mole to the mixture
+    /// Add a `Mole` and equalize temperature
     pub fn add_mole(&mut self, mole: &Mole) {
         self.get_gas_mut(mole.gas_type()).add(mole);
         self.equalize_internal_energy();
         self.cleanup();
     }
 
-    /// Add a Mole to the mixture without equalizing temperature
+    /// Add a `Mole` without temperature equalization
     pub fn add_mole_no_equalize(&mut self, mole: &Mole) {
         self.get_gas_mut(mole.gas_type()).add(mole);
     }
 
-    /// Remove gas/liquid from the mixture, returning the removed Mole
+    /// Remove `moles` of `gas_type`, returning the removed `Mole`
     pub fn remove_gas(&mut self, gas_type: GasType, moles: f64) -> Mole {
         let removed = self.get_gas_mut(gas_type).remove(moles);
         self.cleanup();
         removed
     }
 
-    /// Remove all moles of a specific gas/liquid type and return them
+    /// Remove all of `gas_type` and return it
     pub fn remove_all_gas(&mut self, gas_type: GasType) -> Mole {
         let qty = self.get_moles(gas_type);
         if qty <= 0.0 {
@@ -171,7 +171,7 @@ impl GasMixture {
         removed
     }
 
-    /// Get total moles of gases only
+    /// Total moles of gases
     pub fn total_moles_gases(&self) -> f64 {
         self.oxygen.quantity()
             + self.nitrogen.quantity()
@@ -183,7 +183,7 @@ impl GasMixture {
             + self.hydrogen.quantity()
     }
 
-    /// Get total moles of liquids only
+    /// Total moles of liquids
     pub fn total_moles_liquids(&self) -> f64 {
         self.water.quantity()
             + self.polluted_water.quantity()
@@ -196,12 +196,12 @@ impl GasMixture {
             + self.liquid_hydrogen.quantity()
     }
 
-    /// Get total moles of all gases and liquids
+    /// Total moles (all species)
     pub fn total_moles(&self) -> f64 {
         self.total_moles_gases() + self.total_moles_liquids()
     }
 
-    /// Get total moles filtered by matter state
+    /// Total moles filtered by `MatterState`
     pub fn total_moles_by_state(&self, state: MatterState) -> f64 {
         match state {
             MatterState::Gas => self.total_moles_gases(),
@@ -211,7 +211,7 @@ impl GasMixture {
         }
     }
 
-    /// Get total volume of liquids in litres
+    /// Total liquid volume (L)
     pub fn total_volume_liquids(&self) -> f64 {
         self.water.volume()
             + self.polluted_water.volume()
@@ -224,7 +224,7 @@ impl GasMixture {
             + self.liquid_hydrogen.volume()
     }
 
-    /// Get the liquid volume ratio (0.0 to 1.0)
+    /// Fraction of total volume occupied by liquids
     pub fn liquid_volume_ratio(&self) -> f64 {
         if self.volume <= 0.0 {
             return 0.0;
@@ -232,12 +232,12 @@ impl GasMixture {
         (self.total_volume_liquids() / self.volume).min(1.0)
     }
 
-    /// Get the available gas volume (total volume minus liquid volume)
+    /// Gas volume (L)
     pub fn gas_volume(&self) -> f64 {
         (self.volume - self.total_volume_liquids()).max(MINIMUM_GAS_VOLUME)
     }
 
-    /// Get total thermal energy in Joules (gases only)
+    /// Total thermal energy of gases (J)
     pub fn total_energy_gases(&self) -> f64 {
         self.oxygen.energy()
             + self.nitrogen.energy()
@@ -249,7 +249,7 @@ impl GasMixture {
             + self.hydrogen.energy()
     }
 
-    /// Get total thermal energy in Joules (liquids only)
+    /// Total thermal energy of liquids (J)
     pub fn total_energy_liquids(&self) -> f64 {
         self.water.energy()
             + self.polluted_water.energy()
@@ -262,7 +262,7 @@ impl GasMixture {
             + self.liquid_hydrogen.energy()
     }
 
-    /// Get total thermal energy in Joules
+    /// Total thermal energy (J)
     pub fn total_energy(&self) -> f64 {
         self.total_energy_gases() + self.total_energy_liquids()
     }
@@ -586,7 +586,7 @@ impl GasMixture {
     }
 }
 
-impl fmt::Debug for GasMixture {
+impl Debug for GasMixture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut lines: Vec<String> = Vec::new();
         // Temperature display: Celsius first, Kelvin in brackets
@@ -652,7 +652,7 @@ impl fmt::Debug for GasMixture {
     }
 }
 
-impl std::fmt::Display for GasMixture {
+impl Display for GasMixture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut lines: Vec<String> = Vec::new();
         let temp_k = self.temperature();
@@ -675,6 +675,32 @@ impl std::fmt::Display for GasMixture {
             fmt_trim(self.total_moles_gases(), 3),
             fmt_trim(self.total_moles_liquids(), 3)
         ));
+
+        // Compute latent energy (J) that will be moved on the next tick
+        let mut total_latent_energy_j: f64 = 0.0;
+        let gas_vol = self.gas_volume();
+        let pressure = self.pressure();
+        for gt in GasType::all_liquids() {
+            let mole = self.get_gas(gt);
+            let energy = mole.latent_energy_next_tick(
+                pressure,
+                gas_vol,
+                0.0,
+                true,
+                crate::atmospherics::DEFAULT_STATE_CHANGE_RATIO,
+            );
+
+            if energy.abs() > 0.0 {
+                total_latent_energy_j += energy;
+            }
+        }
+
+        lines.push(format!(
+            "  Latent: {} J",
+            fmt_trim(-total_latent_energy_j, 3)
+        ));
+
+        lines.push("  Contents:".to_string());
 
         // Gases
         for gt in GasType::all_gases() {

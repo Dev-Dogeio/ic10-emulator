@@ -1,4 +1,4 @@
-//! Volume pump device - moves gas between an input and output atmospheric network based on the setting volume.
+//! Volume pump device: moves gas between input and output networks.
 
 use crate::{
     CableNetwork, allocate_global_id,
@@ -12,9 +12,13 @@ use crate::{
     types::{OptShared, Shared, shared},
 };
 
-use std::cell::RefCell;
+use crate::conversions::fmt_trim;
+use std::{
+    cell::RefCell,
+    fmt::{Debug, Display},
+};
 
-/// Volume pump device - moves gas between an input and output atmospheric network.
+/// Volume pump: moves gas between input and output networks
 pub struct VolumePump {
     /// Device name
     name: String,
@@ -38,7 +42,12 @@ pub struct VolumePump {
     settings: SimulationSettings,
 }
 
+/// Constructors for `VolumePump`.
 impl VolumePump {
+    /// Compile-time prefab hash constant for this device
+    pub const PREFAB_HASH: i32 = string_to_hash("StructureVolumePump");
+
+    /// Create a new `VolumePump`. Optionally accepts simulation settings.
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
         shared(Self {
             name: "Volume Pump".to_string(),
@@ -51,15 +60,21 @@ impl VolumePump {
             output_network: None,
         })
     }
+
+    /// Return the prefab hash for `VolumePump`.
+    pub fn prefab_hash() -> i32 {
+        Self::PREFAB_HASH
+    }
 }
 
+/// `Device` trait implementation for `VolumePump` providing logic access, naming, and update behavior.
 impl Device for VolumePump {
     fn get_id(&self) -> i32 {
         self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        string_to_hash("StructureVolumePump")
+        VolumePump::prefab_hash()
     }
 
     fn get_name_hash(&self) -> i32 {
@@ -190,16 +205,20 @@ impl Device for VolumePump {
 
         Ok(())
     }
+
+    fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
+        Some(self)
+    }
 }
 
-impl std::fmt::Display for VolumePump {
+impl Display for VolumePump {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let on_str = if *self.on.borrow() == 0.0 {
             "Off"
         } else {
             "On"
         };
-        let setting_str = crate::conversions::fmt_trim(*self.setting.borrow(), 3);
+        let setting_str = fmt_trim(*self.setting.borrow(), 3);
 
         write!(
             f,
@@ -218,12 +237,13 @@ impl std::fmt::Display for VolumePump {
     }
 }
 
-impl std::fmt::Debug for VolumePump {
+impl Debug for VolumePump {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
 }
 
+/// `AtmosphericDevice` implementation for `VolumePump` that manages input/output atmospheric network connections.
 impl AtmosphericDevice for VolumePump {
     fn set_atmospheric_network(
         &mut self,

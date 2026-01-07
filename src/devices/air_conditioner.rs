@@ -1,4 +1,4 @@
-//! AirConditioner device - moves thermal energy between an input and a waste network, and gas between input and output.
+//! AirConditioner device: transfers heat and gas between atmospheric networks.
 
 use crate::{
     CableNetwork, allocate_global_id,
@@ -14,8 +14,10 @@ use crate::{
 };
 
 use crate::animation_curve::AnimationCurve;
+use crate::conversions::fmt_trim;
 use std::{
     cell::RefCell,
+    fmt::{Debug, Display},
     sync::{Arc, OnceLock},
 };
 
@@ -28,7 +30,7 @@ const INTERNAL_VOLUME_LITRES: f64 = 100.0;
 /// Energy coefficient
 const ENERGY_COEFFICIENT: f64 = 14000.0;
 
-/// AirConditioner device - moves thermal energy between an input and a waste network, and gas between input and output.
+/// AirConditioner device: transfers heat and gas between networks
 pub struct AirConditioner {
     /// Device name
     name: String,
@@ -77,7 +79,12 @@ pub struct AirConditioner {
     chip_host: Shared<ChipSlot>,
 }
 
+/// Constructors and helpers
 impl AirConditioner {
+    /// Compile-time prefab hash constant for this device
+    pub const PREFAB_HASH: i32 = string_to_hash("StructureAirConditioner");
+
+    /// Create a new `AirConditioner`. Optionally accepts simulation settings.
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
         // Load curves once and share them across instances
         static TEMPERATURE_DELTA_CURVE: OnceLock<Arc<AnimationCurve>> = OnceLock::new();
@@ -130,12 +137,13 @@ impl AirConditioner {
 
         s
     }
-    /// Get the energy moved in the last tick
+
+    /// Energy moved in the last tick
     pub fn energy_moved_last_tick(&self) -> f64 {
         *self.energy_moved.borrow()
     }
 
-    /// Get the processed moles in the last tick
+    /// Processed moles in the last tick
     pub fn processed_moles_last_tick(&self) -> f64 {
         *self.processed_moles.borrow()
     }
@@ -164,53 +172,14 @@ impl AirConditioner {
     pub fn get_input_and_waste_curve(&self) -> Arc<AnimationCurve> {
         Arc::clone(&self.input_and_waste_curve)
     }
-}
 
-impl std::fmt::Display for AirConditioner {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let on_str = if *self.on.borrow() == 0.0 {
-            "Off"
-        } else {
-            "On"
-        };
-        let mode_str = if *self.mode.borrow() == 0.0 {
-            "Off"
-        } else {
-            "On"
-        };
-        let setting_str = crate::conversions::fmt_trim(*self.setting.borrow(), 2);
-        let processed_str = crate::conversions::fmt_trim(*self.processed_moles.borrow(), 3);
-        let energy_str = crate::conversions::fmt_trim(*self.energy_moved.borrow(), 3);
-
-        write!(
-            f,
-            "AirConditioner {{ name: \"{}\", id: {}, on: {}, mode: {}, setting: {}",
-            self.name, self.reference_id, on_str, mode_str, setting_str
-        )?;
-
-        if let Some(net) = &self.input_network {
-            write!(f, ", input: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.output_network {
-            write!(f, ", output: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.waste_network {
-            write!(f, ", waste: {}", net.borrow().mixture())?;
-        }
-
-        write!(
-            f,
-            ", processed_moles: {}, energy_moved: {} }}",
-            processed_str, energy_str
-        )
+    /// Return the prefab hash for `AirConditioner`.
+    pub fn prefab_hash() -> i32 {
+        Self::PREFAB_HASH
     }
 }
 
-impl std::fmt::Debug for AirConditioner {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
+/// Helper macro to call a method on an optional network
 macro_rules! read {
     ($net:expr, $method:ident) => {
         Ok($net.as_ref().unwrap().borrow().$method())
@@ -220,13 +189,14 @@ macro_rules! read {
     };
 }
 
+/// `Device` trait implementation for `AirConditioner` providing logic access, naming, and update behavior.
 impl Device for AirConditioner {
     fn get_id(&self) -> i32 {
         self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        string_to_hash("StructureAirConditioner")
+        AirConditioner::prefab_hash()
     }
 
     fn get_name_hash(&self) -> i32 {
@@ -537,10 +507,19 @@ impl Device for AirConditioner {
     }
 
     fn clear_internal_references(&mut self) {
-        self.chip_host.borrow_mut().set_host_device(None);
+        self.chip_host.borrow_mut().clear_internal_references();
+    }
+
+    fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
+        Some(self)
+    }
+
+    fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
+        Some(self)
     }
 }
 
+/// `ICHostDevice` helpers for `AirConditioner` (chip hosting and memory access helpers).
 impl ICHostDevice for AirConditioner {
     fn ichost_get_id(&self) -> i32 {
         self.reference_id
@@ -557,6 +536,7 @@ impl ICHostDevice for AirConditioner {
 
 impl ICHostDeviceMemoryOverride for AirConditioner {}
 
+/// `AtmosphericDevice` implementation for `AirConditioner` that manages input/output/waste networks.
 impl AtmosphericDevice for AirConditioner {
     fn set_atmospheric_network(
         &mut self,
@@ -599,5 +579,51 @@ impl AtmosphericDevice for AirConditioner {
             Internal => Some(self.internal.clone()),
             _ => None,
         }
+    }
+}
+
+impl Display for AirConditioner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let on_str = if *self.on.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let mode_str = if *self.mode.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let setting_str = fmt_trim(*self.setting.borrow(), 2);
+        let processed_str = fmt_trim(*self.processed_moles.borrow(), 3);
+        let energy_str = fmt_trim(*self.energy_moved.borrow(), 3);
+
+        write!(
+            f,
+            "AirConditioner {{ name: \"{}\", id: {}, on: {}, mode: {}, setting: {}",
+            self.name, self.reference_id, on_str, mode_str, setting_str
+        )?;
+
+        if let Some(net) = &self.input_network {
+            write!(f, ", input: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.output_network {
+            write!(f, ", output: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.waste_network {
+            write!(f, ", waste: {}", net.borrow().mixture())?;
+        }
+
+        write!(
+            f,
+            ", processed_moles: {}, energy_moved: {} }}",
+            processed_str, energy_str
+        )
+    }
+}
+
+impl Debug for AirConditioner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }

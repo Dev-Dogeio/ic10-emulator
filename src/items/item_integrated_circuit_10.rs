@@ -1,3 +1,5 @@
+//! IC10 programmable chip item implementation
+
 use crate::constants::{REGISTER_COUNT, RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX, STACK_SIZE};
 use crate::devices::ChipSlot;
 use crate::error::{SimulationError, SimulationResult};
@@ -10,7 +12,7 @@ use std::any::Any;
 use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 
-/// The main IC10 programmable chip
+/// The IC10 programmable chip
 #[derive(Debug)]
 pub struct ItemIntegratedCircuit10 {
     /// Unique global ID
@@ -59,7 +61,7 @@ pub enum AliasTarget {
 }
 
 impl ItemIntegratedCircuit10 {
-    /// Create a new IC10 chip
+    /// Create a new `ItemIntegratedCircuit10`
     pub fn new() -> Self {
         let mut aliases = HashMap::new();
 
@@ -85,7 +87,7 @@ impl ItemIntegratedCircuit10 {
         }
     }
 
-    /// Load a program from source code
+    /// Load IC10 source code into the chip
     pub fn load_program(&mut self, source: &str) -> SimulationResult<()> {
         self.program.borrow_mut().clear();
         self.labels.borrow_mut().clear();
@@ -125,7 +127,6 @@ impl ItemIntegratedCircuit10 {
             {
                 // pin_idx in parsed instruction is the pin index (stored as i32)
                 let pin = pin_idx as usize;
-                // TODO: don't use constant
                 if pin >= 6 {
                     return Err(SimulationError::IC10ParseError {
                         line: line_num,
@@ -140,7 +141,7 @@ impl ItemIntegratedCircuit10 {
         Ok(())
     }
 
-    /// Execute one instruction
+    /// Execute a single instruction; returns whether executed
     pub fn step(&self) -> SimulationResult<bool> {
         if *self.halted.borrow() {
             return Ok(false);
@@ -166,8 +167,7 @@ impl ItemIntegratedCircuit10 {
         }
     }
 
-    /// Execute multiple steps, stopping at yield, sleep, or max_steps
-    /// Housing's last_executed_instructions is not updated here
+    /// Run up to `max_steps`, stopping at yield or sleep
     pub fn run(&self, max_steps: usize) -> SimulationResult<usize> {
         let mut steps = 0;
 
@@ -198,12 +198,12 @@ impl ItemIntegratedCircuit10 {
         Ok(steps)
     }
 
-    /// Execute a single instruction and return the next PC
+    /// Execute `instruction` and return next program counter
     fn execute_instruction(&self, instruction: &ParsedInstruction) -> SimulationResult<usize> {
         logic::execute_instruction(self, instruction)
     }
 
-    /// Resolve a value from an operand
+    /// Resolve an `Operand` to a runtime value
     pub(crate) fn resolve_value(&self, operand: &Operand) -> SimulationResult<f64> {
         match operand {
             Operand::Register(idx) => self.get_register(*idx),
@@ -246,7 +246,7 @@ impl ItemIntegratedCircuit10 {
         }
     }
 
-    /// Resolve an operand to a register index (for use as a destination)
+    /// Resolve an `Operand` to a register index
     pub(crate) fn resolve_register(&self, operand: &Operand) -> SimulationResult<usize> {
         match operand {
             Operand::Register(idx) => Ok(*idx),
@@ -277,8 +277,8 @@ impl ItemIntegratedCircuit10 {
         }
     }
 
-    /// Resolve an operand to a device reference ID
-    /// For device pins (d0-d5), looks up the reference ID stored in the housing's pin
+    /// Resolve an `Operand` to a device reference ID
+    /// Device pin operands consult the hosting chip slot
     pub(crate) fn resolve_device_ref_id(&self, operand: &Operand) -> SimulationResult<i32> {
         match operand {
             Operand::DevicePin(pin_idx) => {
@@ -330,7 +330,7 @@ impl ItemIntegratedCircuit10 {
         }
     }
 
-    /// Resolve an alias to its target
+    /// Resolve an alias name to its `AliasTarget`
     pub(crate) fn resolve_alias(&self, name: &str) -> SimulationResult<AliasTarget> {
         match self.aliases.borrow().get(name) {
             Some(target) => Ok(target.clone()),
@@ -341,7 +341,7 @@ impl ItemIntegratedCircuit10 {
         }
     }
 
-    /// Check if a device with the given reference ID exists on the network
+    /// Check whether a device with `ref_id` exists on the local network
     pub(crate) fn device_exists_by_id(&self, ref_id: i32) -> bool {
         if let Some(slot_rc) = &self.chip_slot {
             let slot = slot_rc.borrow();
@@ -357,7 +357,7 @@ impl ItemIntegratedCircuit10 {
         }
     }
 
-    /// Get a register value
+    /// Get register value at `index`
     pub fn get_register(&self, index: usize) -> SimulationResult<f64> {
         if index >= REGISTER_COUNT {
             return Err(SimulationError::RegisterOutOfBounds(index));
@@ -365,7 +365,7 @@ impl ItemIntegratedCircuit10 {
         Ok(self.registers.borrow()[index])
     }
 
-    /// Set a register value
+    /// Set register at `index` to `value`
     pub fn set_register(&self, index: usize, value: f64) -> SimulationResult<()> {
         if index >= REGISTER_COUNT {
             return Err(SimulationError::RegisterOutOfBounds(index));
@@ -374,7 +374,7 @@ impl ItemIntegratedCircuit10 {
         Ok(())
     }
 
-    /// Read from stack memory
+    /// Read from stack memory at `address`
     pub fn read_stack(&self, address: usize) -> SimulationResult<f64> {
         if address >= STACK_SIZE {
             return Err(SimulationError::StackOutOfBounds(address));
@@ -382,7 +382,7 @@ impl ItemIntegratedCircuit10 {
         Ok(self.stack.borrow()[address])
     }
 
-    /// Write to stack memory
+    /// Write `value` into stack memory at `address`
     pub fn write_stack(&self, address: usize, value: f64) -> SimulationResult<()> {
         if address >= STACK_SIZE {
             return Err(SimulationError::StackOutOfBounds(address));
@@ -391,12 +391,12 @@ impl ItemIntegratedCircuit10 {
         Ok(())
     }
 
-    /// Clear stack memory
+    /// Clear the stack memory
     pub fn clear_stack(&self) {
         self.stack.borrow_mut().fill(0.0);
     }
 
-    /// Insert a define (compile-time constant)
+    /// Insert a compile-time define constant
     pub fn insert_define(&self, name: &str, value: f64) {
         self.defines.borrow_mut().insert(name.to_string(), value);
     }
@@ -473,6 +473,11 @@ impl ItemIntegratedCircuit10 {
         self.add_device_alias("db".to_string(), device_id);
     }
 
+    /// Clear internal references
+    pub fn clear_internal_references(&mut self) {
+        self.chip_slot = None;
+    }
+
     /// Get a reference to the cable network (if connected)
     pub fn get_network(&self) -> OptShared<CableNetwork> {
         self.get_chip_slot().borrow().get_network()
@@ -532,6 +537,16 @@ impl Default for ItemIntegratedCircuit10 {
     }
 }
 
+impl ItemIntegratedCircuit10 {
+    /// Compile-time prefab hash constant for this item
+    pub const PREFAB_HASH: i32 = string_to_hash("ItemIntegratedCircuit10");
+
+    /// Return the prefab hash for an IC10 item
+    pub fn prefab_hash() -> i32 {
+        Self::PREFAB_HASH
+    }
+}
+
 /// Operand types for instructions
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operand {
@@ -541,18 +556,18 @@ pub enum Operand {
     DevicePin(usize),
 }
 
-// Implement the Item trait for Shared<ItemIntegratedCircuit10> so the chip itself can be stored in slots
-impl Item for Shared<ItemIntegratedCircuit10> {
+// Implement the Item trait for ItemIntegratedCircuit10
+impl Item for ItemIntegratedCircuit10 {
     fn item_type(&self) -> ItemType {
         ItemType::ItemIntegratedCircuit10
     }
 
     fn get_id(&self) -> i32 {
-        self.borrow().id
+        self.id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        string_to_hash("ItemIntegratedCircuit10")
+        ItemIntegratedCircuit10::prefab_hash()
     }
 
     fn quantity(&self) -> u32 {

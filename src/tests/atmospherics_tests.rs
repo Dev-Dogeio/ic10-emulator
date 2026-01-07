@@ -1,3 +1,4 @@
+//! Unit tests for atmospherics utilities
 #[cfg(test)]
 mod tests {
     use crate::atmospherics::{

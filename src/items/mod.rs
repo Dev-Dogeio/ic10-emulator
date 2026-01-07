@@ -1,5 +1,9 @@
 //! Item and slot system for devices
+use std::cell::{Ref, RefMut};
 use std::collections::HashSet;
+
+use crate::types::OptShared;
+use crate::types::{Shared, shared};
 
 pub mod filter;
 pub mod item;
@@ -10,12 +14,56 @@ pub use filter::FilterSize;
 pub use item::{Item, ItemType};
 pub use item_integrated_circuit_10::ItemIntegratedCircuit10;
 
-/// Represents a slot in a device that can hold items
-/// Slots can have filters that restrict which items they accept
+/// Create an item by `prefab_hash`, returning `Some` when recognized.
+pub fn create_item(prefab_hash: i32) -> OptShared<dyn Item> {
+    use crate::atmospherics::GasType;
+    use crate::items::FilterSize;
+
+    if prefab_hash == ItemIntegratedCircuit10::PREFAB_HASH {
+        return Some(shared(ItemIntegratedCircuit10::new()));
+    }
+
+    // Filters: enumerate gas types and sizes
+    let gas_types = [
+        GasType::Oxygen,
+        GasType::Nitrogen,
+        GasType::CarbonDioxide,
+        GasType::Volatiles,
+        GasType::Pollutant,
+        GasType::NitrousOxide,
+        GasType::Steam,
+        GasType::Hydrogen,
+        GasType::Water,
+    ];
+
+    let sizes = [
+        FilterSize::Small,
+        FilterSize::Medium,
+        FilterSize::Large,
+        FilterSize::Infinite,
+    ];
+
+    for &g in &gas_types {
+        for &s in &sizes {
+            if Filter::prefab_hash_for(g, s) == prefab_hash {
+                let mut f = Filter::new();
+                f.set_gas_type(g);
+                f.set_size(s);
+                f.set_quantity(100);
+                let filter: Shared<dyn Item> = shared(f);
+                return Some(filter);
+            }
+        }
+    }
+
+    None
+}
+
+/// A device slot that can hold an item and enforces allowed types
 #[derive(Debug)]
 pub struct Slot {
-    /// The current item in the slot, if any
-    item: Option<Box<dyn Item>>,
+    /// The current item in the slot, if any (shared reference)
+    item: OptShared<dyn Item>,
 
     /// Set of allowed item types for this slot
     /// If empty, all item types are allowed
@@ -44,30 +92,30 @@ impl Slot {
     ///
     /// Semantics:
     /// - If the slot rejects the item type, insertion fails.
-    /// - If the slot is empty the item is placed into the slot (ownership moved).
+    /// - If the slot is empty the item is placed into the slot.
     /// - If the slot contains an item of the same `ItemType`, we attempt to merge
     ///   the incoming item into the existing one using `Item::merge`. If the
     ///   incoming item still has leftover quantity after merging it is returned
     ///   to the caller as `Err(leftover)`.
-    pub fn try_insert(&mut self, mut incoming: Box<dyn Item>) -> Result<(), Box<dyn Item>> {
-        if !self.is_allowed(incoming.item_type()) {
+    pub fn try_insert(&mut self, incoming: Shared<dyn Item>) -> Result<(), Shared<dyn Item>> {
+        if !self.is_allowed(incoming.borrow().item_type()) {
             return Err(incoming);
         }
 
-        match self.item.as_mut() {
+        match &self.item {
             None => {
                 self.item = Some(incoming);
                 Ok(())
             }
-            Some(item) => {
+            Some(existing) => {
                 // Only same item types may be merged
-                if item.item_type() != incoming.item_type() {
+                if existing.borrow().item_type() != incoming.borrow().item_type() {
                     return Err(incoming);
                 }
 
-                item.merge(&mut *incoming);
+                existing.borrow_mut().merge(&mut *incoming.borrow_mut());
 
-                if incoming.quantity() == 0 {
+                if incoming.borrow().quantity() == 0 {
                     Ok(())
                 } else {
                     Err(incoming)
@@ -83,7 +131,7 @@ impl Slot {
     }
 
     /// Remove an item from the slot
-    pub fn remove(&mut self) -> Option<Box<dyn Item + '_>> {
+    pub fn remove(&mut self) -> OptShared<dyn Item> {
         self.item.take()
     }
 
@@ -101,7 +149,10 @@ impl Slot {
     pub fn available_space(&self) -> u32 {
         match &self.item {
             None => u32::MAX,
-            Some(item) => item.max_quantity().saturating_sub(item.quantity()),
+            Some(item) => item
+                .borrow()
+                .max_quantity()
+                .saturating_sub(item.borrow().quantity()),
         }
     }
 
@@ -114,23 +165,49 @@ impl Slot {
         match &self.item {
             None => incoming.max_quantity(),
             Some(existing) => {
-                if existing.item_type() != incoming.item_type() {
+                let existing_ref = existing.borrow();
+                if existing_ref.item_type() != incoming.item_type() {
                     0
                 } else {
-                    existing.max_quantity().saturating_sub(existing.quantity())
+                    existing_ref
+                        .max_quantity()
+                        .saturating_sub(existing_ref.quantity())
                 }
             }
         }
     }
 
-    /// Get a reference to the item in the slot
-    pub fn get_item(&self) -> Option<&dyn Item> {
-        self.item.as_deref()
+    /// Get the shared item in the slot
+    pub fn get_item(&self) -> OptShared<dyn Item> {
+        self.item.clone()
     }
 
-    /// Get a mutable reference to the item in the slot
-    pub fn get_item_mut(&mut self) -> Option<&mut (dyn Item + 'static)> {
-        self.item.as_deref_mut()
+    /// Borrow the item in the slot as type T, if it matches
+    pub fn borrow_item<T: Item + 'static>(&self) -> Option<Ref<'_, T>> {
+        let shared = self.item.as_ref()?;
+        let borrow = shared.borrow();
+
+        if borrow.as_any().is::<T>() {
+            Some(Ref::map(borrow, |item| {
+                item.as_any().downcast_ref::<T>().unwrap()
+            }))
+        } else {
+            None
+        }
+    }
+
+    /// Borrow the item in the slot as type T mutably, if it matches
+    pub fn borrow_item_mut<T: Item + 'static>(&self) -> Option<RefMut<'_, T>> {
+        let shared = self.item.as_ref()?;
+        let borrow = shared.borrow_mut();
+
+        if borrow.as_any().is::<T>() {
+            Some(RefMut::map(borrow, |item| {
+                item.as_any_mut().downcast_mut::<T>().unwrap()
+            }))
+        } else {
+            None
+        }
     }
 }
 

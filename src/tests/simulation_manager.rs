@@ -1,13 +1,13 @@
+//! Unit tests for the simulation manager
 #[cfg(test)]
 mod tests {
     use crate::{
         SimulationManager,
-        atmospherics::GasType,
         devices::{
             AirConditioner, AtmosphericDevice, DaylightSensor, DeviceAtmosphericNetworkType,
             Filtration, ICHostDevice, ICHousing, LogicMemory, VolumePump,
         },
-        items::{Filter, FilterSize, ItemIntegratedCircuit10},
+        items::ItemIntegratedCircuit10,
         networks::{AtmosphericNetwork, CableNetwork},
         types::shared,
     };
@@ -48,32 +48,19 @@ mod tests {
 
         // Insert an IC chip into each IC host device (AirConditioner, Filtration, ICHousing)
         let chip_ac = shared(ItemIntegratedCircuit10::new());
+        let chip_ac_weak = std::rc::Rc::downgrade(&chip_ac);
         ac.borrow_mut().set_chip(chip_ac.clone());
         drop(chip_ac);
 
         let chip_fil = shared(ItemIntegratedCircuit10::new());
+        let chip_fil_weak = std::rc::Rc::downgrade(&chip_fil);
         fil.borrow_mut().set_chip(chip_fil.clone());
         drop(chip_fil);
 
         let chip_housing = shared(ItemIntegratedCircuit10::new());
+        let chip_housing_weak = std::rc::Rc::downgrade(&chip_housing);
         housing.borrow_mut().set_chip(chip_housing.clone());
         drop(chip_housing);
-
-        // Fill filtration slots with filter items
-        if let Some(slot0) = fil.borrow_mut().get_slot_mut(0) {
-            let _ = slot0.try_insert(Box::new(Filter::new(
-                100.0,
-                GasType::Oxygen,
-                FilterSize::Small,
-            )));
-        }
-        if let Some(slot1) = fil.borrow_mut().get_slot_mut(1) {
-            let _ = slot1.try_insert(Box::new(Filter::new(
-                100.0,
-                GasType::CarbonDioxide,
-                FilterSize::Small,
-            )));
-        }
 
         // Create and attach atmospheric networks to atmospheric devices
         let an_ac_in = AtmosphericNetwork::new(40.0);
@@ -193,6 +180,20 @@ mod tests {
         assert!(
             ac_internal_weak.upgrade().is_none(),
             "AirConditioner internal atmospheric network should be dropped"
+        );
+
+        // Chips inserted into hosts should be dropped as well
+        assert!(
+            chip_ac_weak.upgrade().is_none(),
+            "Chip in AirConditioner should be dropped"
+        );
+        assert!(
+            chip_fil_weak.upgrade().is_none(),
+            "Chip in Filtration should be dropped"
+        );
+        assert!(
+            chip_housing_weak.upgrade().is_none(),
+            "Chip in ICHousing should be dropped"
         );
     }
 }

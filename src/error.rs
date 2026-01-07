@@ -1,5 +1,8 @@
+//! Error types for the IC10 emulator
+
 use thiserror::Error;
 
+/// Simulation error types
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum SimulationError {
     #[error("Parse error at line {line}: {message}")]
@@ -25,4 +28,5 @@ pub enum SimulationError {
     },
 }
 
+/// Result type for simulation operations
 pub type SimulationResult<T> = Result<T, SimulationError>;

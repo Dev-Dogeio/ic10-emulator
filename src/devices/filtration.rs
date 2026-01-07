@@ -1,21 +1,17 @@
-//! Filtration device - filters gases out of networks
-//!
-//! The Filtration device has three atmospheric connections:
-//! - input: receives gas mixture
-//! - filtered: outputs the filtered gas types
-//! - waste: outputs the remaining gas mixture
-//!
-//! The device can be configured to filter up to 2 different gas types.
+//! Filtration device: separates specified gases from an input mixture.
 
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    fmt::{Debug, Display},
+};
 
 use crate::{
-    CableNetwork, Filter, ItemType, LogicSlotType, Slot, allocate_global_id,
+    CableNetwork, Filter, Item, ItemType, LogicSlotType, Slot, allocate_global_id,
     atmospherics::{GasType, MAX_PRESSURE_GAS_PIPE, MatterState, PIPE_VOLUME, calculate_moles},
     conversions::lerp,
     devices::{
         AtmosphericDevice, ChipSlot, Device, DeviceAtmosphericNetworkType, ICHostDevice,
-        ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
+        ICHostDeviceMemoryOverride, LogicType, SimulationSettings, SlotHostDevice,
     },
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
@@ -28,7 +24,7 @@ const MAX_FILTERS: usize = 2;
 
 const PRESSURE_PER_TICK: f64 = 1000.0;
 
-/// Filtration device - separates specific gases from a gas mixture
+/// Filtration device: separates specified gases
 pub struct Filtration {
     /// Device name
     name: String,
@@ -49,7 +45,7 @@ pub struct Filtration {
     /// The waste network
     waste_network: OptShared<AtmosphericNetwork>,
 
-    /// Device slots: Filter, Filter
+    /// Device slots (2x Filter)
     slots: Vec<Slot>,
 
     /// Simulation settings
@@ -63,8 +59,12 @@ pub struct Filtration {
 /// Minimum mole fraction threshold to also siphon remaining gas from the input atmosphere
 const MIN_RATIO_TO_FILTER_ALL: f64 = 1.0 / 1000.0;
 
+/// Constructors and helper methods
 impl Filtration {
-    /// Create a new Filtration device
+    /// Compile-time prefab hash constant for this device
+    pub const PREFAB_HASH: i32 = string_to_hash("StructureFiltration");
+
+    /// Create a new `Filtration`. Optionally accepts simulation settings.
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
         let s = shared(Self {
             name: "Filtration".to_string(),
@@ -110,18 +110,26 @@ impl Filtration {
         let mut out = Vec::new();
 
         for slot in &self.slots {
-            if let Some(item) = slot.get_item()
-                && item.item_type() == ItemType::Filter
-                && let Some(filter_item) = item.as_any().downcast_ref::<Filter>()
-            {
-                out.push(filter_item.gas_type());
+            if let Some(item) = slot.get_item() {
+                let item_ref = item.borrow();
+                if item_ref.item_type() == ItemType::Filter
+                    && let Some(filter_item) = item_ref.as_any().downcast_ref::<Filter>()
+                {
+                    out.push(filter_item.gas_type());
+                }
             }
         }
 
         out
     }
+
+    /// Return the prefab hash for `Filtration`.
+    pub fn prefab_hash() -> i32 {
+        Self::PREFAB_HASH
+    }
 }
 
+/// Helper macro to call a method on an optional network
 macro_rules! read {
     ($net:expr, $method:ident) => {
         Ok($net.as_ref().unwrap().borrow().$method())
@@ -131,63 +139,14 @@ macro_rules! read {
     };
 }
 
-impl std::fmt::Display for Filtration {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let on_str = if *self.on.borrow() == 0.0 {
-            "Off"
-        } else {
-            "On"
-        };
-        let mode_str = if *self.mode.borrow() == 0.0 {
-            "Off"
-        } else {
-            "On"
-        };
-
-        write!(
-            f,
-            "Filtration {{ name: \"{}\", id: {}, on: {}, mode: {}",
-            self.name, self.reference_id, on_str, mode_str
-        )?;
-
-        if let Some(net) = &self.input_network {
-            write!(f, ", input: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.filtered_network {
-            write!(f, ", filtered: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.waste_network {
-            write!(f, ", waste: {}", net.borrow().mixture())?;
-        }
-
-        // Active filters
-        let active = self.active_filters();
-        if !active.is_empty() {
-            let list = active
-                .iter()
-                .map(|g| g.symbol())
-                .collect::<Vec<_>>()
-                .join(", ");
-            write!(f, ", filters: [{}]", list)?;
-        }
-
-        write!(f, " }}")
-    }
-}
-
-impl std::fmt::Debug for Filtration {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
+/// `Device` trait implementation for `Filtration` providing logic access and network handling.
 impl Device for Filtration {
     fn get_id(&self) -> i32 {
         self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        string_to_hash("StructureFiltration")
+        Filtration::prefab_hash()
     }
 
     fn get_name_hash(&self) -> i32 {
@@ -331,7 +290,7 @@ impl Device for Filtration {
     }
 
     fn clear_internal_references(&mut self) {
-        self.chip_host.borrow_mut().set_host_device(None);
+        self.chip_host.borrow_mut().clear_internal_references();
     }
 
     fn read_slot(&self, index: usize, slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
@@ -348,43 +307,40 @@ impl Device for Filtration {
             LogicSlotType::Occupied => Ok(if slot.is_empty() { 0.0 } else { 1.0 }),
             LogicSlotType::OccupantHash => {
                 if let Some(item) = slot.get_item() {
-                    Ok(item.get_prefab_hash() as f64)
+                    Ok(item.borrow().get_prefab_hash() as f64)
                 } else {
                     Ok(0.0)
                 }
             }
             LogicSlotType::Quantity => {
                 if let Some(item) = slot.get_item() {
-                    Ok(item.quantity() as f64)
+                    Ok(item.borrow().quantity() as f64)
                 } else {
                     Ok(0.0)
                 }
             }
             LogicSlotType::MaxQuantity => {
                 if let Some(item) = slot.get_item() {
-                    Ok(item.max_quantity() as f64)
+                    Ok(item.borrow().max_quantity() as f64)
                 } else {
                     Ok(0.0)
                 }
             }
             LogicSlotType::FilterType => {
                 if let Some(item) = slot.get_item() {
-                    if item.item_type() == ItemType::Filter {
-                        if let Some(filter_item) = item.as_any().downcast_ref::<Filter>() {
-                            Ok(filter_item.gas_type() as u32 as f64)
-                        } else {
-                            Ok(0.0)
-                        }
-                    } else {
-                        Ok(0.0)
+                    let item_ref = item.borrow();
+                    if item_ref.item_type() == ItemType::Filter
+                        && let Some(filter_item) = item_ref.as_any().downcast_ref::<Filter>()
+                    {
+                        return Ok(filter_item.gas_type() as u32 as f64);
                     }
-                } else {
-                    Ok(0.0)
                 }
+
+                Ok(0.0)
             }
             LogicSlotType::ReferenceId => {
                 if let Some(item) = slot.get_item() {
-                    Ok(item.get_id() as f64)
+                    Ok(item.borrow().get_id() as f64)
                 } else {
                     Ok(0.0)
                 }
@@ -530,6 +486,18 @@ impl Device for Filtration {
     fn clear(&self) -> SimulationResult<()> {
         ICHostDevice::clear(self)
     }
+
+    fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
+        Some(self)
+    }
+
+    fn as_slot_host_device(&mut self) -> Option<&mut dyn crate::devices::SlotHostDevice> {
+        Some(self)
+    }
+
+    fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
+        Some(self)
+    }
 }
 
 impl ICHostDevice for Filtration {
@@ -547,6 +515,33 @@ impl ICHostDevice for Filtration {
 }
 
 impl ICHostDeviceMemoryOverride for Filtration {}
+
+impl SlotHostDevice for Filtration {
+    fn try_insert_item(
+        &mut self,
+        index: usize,
+        incoming: Shared<dyn Item>,
+    ) -> Result<(), Shared<dyn Item>> {
+        if index >= self.slots.len() {
+            return Err(incoming);
+        }
+
+        let slot = &mut self.slots[index];
+        slot.try_insert(incoming)
+    }
+
+    fn remove_item(&mut self, index: usize) -> OptShared<dyn Item> {
+        if index >= self.slots.len() {
+            None
+        } else {
+            self.slots[index].remove()
+        }
+    }
+
+    fn slot_count(&self) -> usize {
+        self.slots.len()
+    }
+}
 
 impl AtmosphericDevice for Filtration {
     fn set_atmospheric_network(
@@ -589,5 +584,55 @@ impl AtmosphericDevice for Filtration {
             Output2 => self.waste_network.clone(),
             _ => None,
         }
+    }
+}
+
+impl Display for Filtration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let on_str = if *self.on.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+        let mode_str = if *self.mode.borrow() == 0.0 {
+            "Off"
+        } else {
+            "On"
+        };
+
+        write!(
+            f,
+            "Filtration {{ name: \"{}\", id: {}, on: {}, mode: {}",
+            self.name, self.reference_id, on_str, mode_str
+        )?;
+
+        if let Some(net) = &self.input_network {
+            write!(f, ", input: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.filtered_network {
+            write!(f, ", filtered: {}", net.borrow().mixture())?;
+        }
+        if let Some(net) = &self.waste_network {
+            write!(f, ", waste: {}", net.borrow().mixture())?;
+        }
+
+        // Active filters
+        let active = self.active_filters();
+        if !active.is_empty() {
+            let list = active
+                .iter()
+                .map(|g| g.symbol())
+                .collect::<Vec<_>>()
+                .join(", ");
+            write!(f, ", filters: [{}]", list)?;
+        }
+
+        write!(f, " }}")
+    }
+}
+
+impl Debug for Filtration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }

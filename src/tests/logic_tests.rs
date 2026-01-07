@@ -1,9 +1,11 @@
+//! Unit tests for IC logic and instruction execution
 #[cfg(test)]
 mod tests {
     use std::f64;
 
     use crate::CableNetwork;
     use crate::Filter;
+    use crate::Item;
     use crate::ItemIntegratedCircuit10;
     use crate::LogicType;
     use crate::atmospherics::GasType;
@@ -1572,11 +1574,12 @@ yield
         {
             let mut f_borrow = filtration.borrow_mut();
             let slot = f_borrow.get_slot_mut(0).unwrap();
-            let _ = slot.try_insert(Box::new(Filter::new(
-                10.0,
-                GasType::Oxygen,
-                FilterSize::Small,
-            )));
+            let mut filter_item = Filter::new();
+            filter_item.set_gas_type(GasType::Oxygen);
+            filter_item.set_size(FilterSize::Small);
+            filter_item.set_quantity(10);
+            let filter: Shared<dyn Item> = shared(filter_item);
+            let _ = slot.try_insert(filter);
         }
 
         let program = format!(
@@ -1609,15 +1612,17 @@ yield
         // Compare to expected values from the inserted item
         let f_borrow = filtration.borrow();
         let item = f_borrow.get_slot(0).unwrap().get_item().unwrap();
-        let expected_hash = item.get_prefab_hash() as f64;
-        let expected_qty = item.quantity() as f64;
-        let expected_max = item.max_quantity() as f64;
-        let expected_type = if let Some(filter_item) = item.as_any().downcast_ref::<Filter>() {
+        let item_ref = item.borrow();
+        let expected_hash = item_ref.get_prefab_hash() as f64;
+        let expected_qty = item_ref.quantity() as f64;
+        let expected_max = item_ref.max_quantity() as f64;
+        let expected_type = if let Some(filter_item) = item_ref.as_any().downcast_ref::<Filter>() {
             filter_item.gas_type() as u32 as f64
         } else {
             0.0
         };
-        let expected_id = item.get_id() as f64;
+        let expected_id = item_ref.get_id() as f64;
+        drop(item_ref);
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 1.0);
         assert_eq!(chip.borrow().get_register(1).unwrap(), expected_hash);

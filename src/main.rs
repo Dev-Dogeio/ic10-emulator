@@ -1,7 +1,9 @@
+//! IC10 emulator test application
+
 use std::{error::Error, thread::sleep, time::Duration};
 
-use ic10_emulator::{
-    CableNetwork, Device, ItemIntegratedCircuit10, LogicType, SimulationManager,
+use ic10_emulator_lib::{
+    CableNetwork, Device, Item, ItemIntegratedCircuit10, LogicType, SimulationManager,
     atmospherics::{GasType, celsius_to_kelvin},
     devices::{
         AirConditioner, AtmosphericDevice, DeviceAtmosphericNetworkType, Filtration, ICHostDevice,
@@ -10,7 +12,7 @@ use ic10_emulator::{
     items::{Filter, FilterSize},
     networks::AtmosphericNetwork,
     parser::{preprocess, string_to_hash},
-    types::shared,
+    types::{Shared, shared},
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -41,8 +43,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 #[allow(dead_code)]
+/// Atmospheric phase change test
 fn phase_change_test() -> Result<(), Box<dyn Error>> {
-    // Atmospheric phase change test
     SimulationManager::reset_global();
 
     let cable_network = CableNetwork::new();
@@ -72,7 +74,7 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
     println!("Initial state:\n{}", input_network.borrow().mixture());
 
     let mut ticks = 1;
-    const MAX_TICKS: u64 = 1000;
+    const MAX_TICKS: u64 = 15;
 
     loop {
         let changes = SimulationManager::update_global(ticks);
@@ -99,8 +101,8 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
 }
 
 #[allow(dead_code)]
+/// Atmospheric phase change test
 fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
-    // Atmospheric phase change test
     SimulationManager::reset_global();
 
     let network = AtmosphericNetwork::new(10.0);
@@ -331,12 +333,12 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
         let mut f = filtration.borrow_mut();
         // Insert a filter item into slot 0
         let slot = f.get_slot_mut(0).unwrap();
-        slot.try_insert(Box::new(Filter::new(
-            100.0,
-            GasType::Oxygen,
-            FilterSize::Small,
-        )))
-        .unwrap();
+        let mut filter_item = Filter::new();
+        filter_item.set_gas_type(GasType::Oxygen);
+        filter_item.set_size(FilterSize::Small);
+        filter_item.set_quantity(100);
+        let filter: Shared<dyn Item> = shared(filter_item);
+        slot.try_insert(filter).unwrap();
 
         f.set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input.clone()))?;
         f.set_atmospheric_network(DeviceAtmosphericNetworkType::Output, Some(filtered.clone()))?;

@@ -1,14 +1,9 @@
-//! Daylight Sensor device - tracks sun position
-//!
-//! The daylight sensor provides:
-//! - Horizontal angle (azimuth): 0-360 degrees, representing compass direction
-//! - Vertical angle (altitude): 0-180 degrees, 0 when sun is directly overhead (zenith),
-//!   180 when sun is on the opposite side of the planet (nadir)
-//!
-//! Note: Doesn't match the game, just a simple simulation for testing purposes.
+//! Daylight sensor: provides horizontal and vertical sun angles.
 
+use std::fmt::{Debug, Display};
 use std::{cell::RefCell, f64};
 
+use crate::conversions::fmt_trim;
 use crate::{
     CableNetwork, allocate_global_id,
     devices::{Device, LogicType, SimulationSettings},
@@ -17,7 +12,7 @@ use crate::{
     types::{OptShared, Shared, shared},
 };
 
-/// Daylight Sensor - tracks the sun's position in the sky
+/// Daylight sensor: tracks sun position
 pub struct DaylightSensor {
     /// Device name
     name: String,
@@ -37,7 +32,12 @@ pub struct DaylightSensor {
     settings: SimulationSettings,
 }
 
+/// Constructors and helpers
 impl DaylightSensor {
+    /// Compile-time prefab hash constant for this device
+    pub const PREFAB_HASH: i32 = string_to_hash("StructureDaylightSensor");
+
+    /// Create a new `DaylightSensor`
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
         shared(Self {
             name: "Daylight Sensor".to_string(),
@@ -50,24 +50,30 @@ impl DaylightSensor {
         })
     }
 
-    /// Get the current horizontal angle
+    /// Current horizontal angle (degrees)
     pub fn horizontal(&self) -> f64 {
         *self.horizontal.borrow()
     }
 
-    /// Get the current vertical angle
+    /// Current vertical angle (degrees)
     pub fn vertical(&self) -> f64 {
         *self.vertical.borrow()
     }
+
+    /// Prefab hash for `DaylightSensor`
+    pub fn prefab_hash() -> i32 {
+        Self::PREFAB_HASH
+    }
 }
 
+/// `Device` trait implementation for `DaylightSensor` providing logic access and day-cycle updates.
 impl Device for DaylightSensor {
     fn get_id(&self) -> i32 {
         self.reference_id
     }
 
     fn get_prefab_hash(&self) -> i32 {
-        string_to_hash("StructureDaylightSensor")
+        DaylightSensor::prefab_hash()
     }
 
     fn get_name_hash(&self) -> i32 {
@@ -181,15 +187,15 @@ impl Device for DaylightSensor {
     }
 }
 
-impl std::fmt::Display for DaylightSensor {
+impl Display for DaylightSensor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let on_str = if *self.on.borrow() == 0.0 {
             "Off"
         } else {
             "On"
         };
-        let horiz = crate::conversions::fmt_trim(*self.horizontal.borrow(), 2);
-        let vert = crate::conversions::fmt_trim(*self.vertical.borrow(), 2);
+        let horiz = fmt_trim(*self.horizontal.borrow(), 2);
+        let vert = fmt_trim(*self.vertical.borrow(), 2);
         write!(
             f,
             "DaylightSensor {{ name: \"{}\", id: {}, on: {}, horiz: {}, vert: {} }}",
@@ -198,7 +204,7 @@ impl std::fmt::Display for DaylightSensor {
     }
 }
 
-impl std::fmt::Debug for DaylightSensor {
+impl Debug for DaylightSensor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
