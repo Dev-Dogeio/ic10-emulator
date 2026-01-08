@@ -25,7 +25,7 @@ pub use constants::get_builtin_constants;
 pub use devices::{DaylightSensor, Device, ICHousing, LogicSlotType, LogicType};
 pub use error::{SimulationError, SimulationResult};
 
-pub use id::allocate_global_id;
+pub use id::{allocate_global_id, reserve_global_id, reset_global_id_counter};
 pub use instruction::Instruction;
 pub use items::{Filter, Item, ItemIntegratedCircuit10, ItemType, Slot};
 pub use networks::{AtmosphericNetwork, BatchMode, CableNetwork};

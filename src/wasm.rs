@@ -6,7 +6,8 @@ use crate::atmospherics::{GasMixture, GasType, MatterState};
 use crate::devices::DeviceAtmosphericNetworkType;
 use crate::devices::LogicSlotType;
 use crate::devices::LogicType;
-use crate::devices::{Device, SimulationSettings, create_device};
+use crate::devices::device_factory::create_device;
+use crate::devices::{Device, SimulationSettings};
 use crate::items::item::Item;
 use crate::items::{ItemIntegratedCircuit10, create_item};
 use crate::networks::BatchMode;
@@ -1083,10 +1084,13 @@ impl WasmSimulationManager {
         prefab_hash: i32,
         ticks_per_day: f64,
         max_instructions_per_tick: usize,
+        id: Option<i32>,
     ) -> Result<WasmDevice, JsValue> {
         let settings = SimulationSettings {
             ticks_per_day,
             max_instructions_per_tick,
+            id,
+            internal_atmospheric_network: None,
         };
 
         match create_device(prefab_hash, Some(settings)) {

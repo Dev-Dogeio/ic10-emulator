@@ -1,16 +1,22 @@
 //! Daylight sensor: provides horizontal and vertical sun angles.
 
 use std::fmt::{Debug, Display};
+use std::sync::OnceLock;
 use std::{cell::RefCell, f64};
 
 use crate::conversions::fmt_trim;
 use crate::{
     CableNetwork, allocate_global_id,
-    devices::{Device, LogicType, SimulationSettings},
-    error::{SimulationError, SimulationResult},
+    devices::{
+        Device, LogicType, SimulationSettings,
+        property_descriptor::{PropertyDescriptor, PropertyRegistry},
+    },
+    error::SimulationResult,
     parser::string_to_hash,
+    reserve_global_id,
     types::{OptShared, Shared, shared},
 };
+use crate::{prop_ro, prop_rw_bool};
 
 /// Daylight sensor: tracks sun position
 pub struct DaylightSensor {
@@ -39,14 +45,21 @@ impl DaylightSensor {
 
     /// Create a new `DaylightSensor`
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+        let settings = simulation_settings.unwrap_or_default();
+        let reference_id = if let Some(id) = settings.id {
+            reserve_global_id(id)
+        } else {
+            allocate_global_id()
+        };
+
         shared(Self {
             name: "Daylight Sensor".to_string(),
             network: None,
-            reference_id: allocate_global_id(),
+            reference_id,
             on: RefCell::new(1.0),
             horizontal: RefCell::new(0.0),
             vertical: RefCell::new(0.0),
-            settings: simulation_settings.unwrap_or_default(),
+            settings,
         })
     }
 
@@ -63,6 +76,25 @@ impl DaylightSensor {
     /// Prefab hash for `DaylightSensor`
     pub fn prefab_hash() -> i32 {
         Self::PREFAB_HASH
+    }
+
+    /// Get the property registry for this device type
+    #[rustfmt::skip]
+    fn properties() -> &'static PropertyRegistry<Self> {
+        static REGISTRY: OnceLock<PropertyRegistry<DaylightSensor>> = OnceLock::new();
+
+        REGISTRY.get_or_init(|| {
+            const DESCRIPTORS: &[PropertyDescriptor<DaylightSensor>] = &[
+                prop_ro!(LogicType::ReferenceId, |device, _| Ok(device.reference_id as f64)),
+                prop_ro!(LogicType::PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
+                prop_ro!(LogicType::NameHash, |device, _| Ok(device.get_name_hash() as f64)),
+                prop_ro!(LogicType::Horizontal, |device, _| Ok(*device.horizontal.borrow())),
+                prop_ro!(LogicType::Vertical, |device, _| Ok(*device.vertical.borrow())),
+                prop_rw_bool!(LogicType::On, on),
+            ];
+
+            PropertyRegistry::new(DESCRIPTORS)
+        })
     }
 }
 
@@ -106,51 +138,19 @@ impl Device for DaylightSensor {
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
-        matches!(
-            logic_type,
-            LogicType::PrefabHash
-                | LogicType::ReferenceId
-                | LogicType::NameHash
-                | LogicType::Horizontal
-                | LogicType::Vertical
-                | LogicType::On
-        )
+        Self::properties().can_read(logic_type)
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
-        matches!(logic_type, LogicType::On)
+        Self::properties().can_write(logic_type)
     }
 
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
-        match logic_type {
-            LogicType::PrefabHash => Ok(self.get_prefab_hash() as f64),
-            LogicType::ReferenceId => Ok(self.reference_id as f64),
-            LogicType::NameHash => Ok(self.get_name_hash() as f64),
-            LogicType::Horizontal => Ok(*self.horizontal.borrow()),
-            LogicType::Vertical => Ok(*self.vertical.borrow()),
-            LogicType::On => Ok(*self.on.borrow()),
-            _ => Err(SimulationError::RuntimeError {
-                message: format!(
-                    "Daylight sensor does not support reading logic type {logic_type:?}"
-                ),
-                line: 0,
-            }),
-        }
+        Self::properties().read(self, logic_type)
     }
 
     fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
-        match logic_type {
-            LogicType::On => {
-                *self.on.borrow_mut() = if value < 1.0 { 0.0 } else { 1.0 };
-                Ok(())
-            }
-            _ => Err(SimulationError::RuntimeError {
-                message: format!(
-                    "Daylight sensor does not support writing logic type {logic_type:?}"
-                ),
-                line: 0,
-            }),
-        }
+        Self::properties().write(self, logic_type, value)
     }
 
     fn update(&self, tick: u64) -> SimulationResult<()> {

@@ -2,15 +2,21 @@
 
 use std::cell::RefCell;
 use std::fmt::{Debug, Display};
+use std::sync::OnceLock;
 
 use crate::conversions::fmt_trim;
 use crate::{
     CableNetwork, allocate_global_id,
-    devices::{Device, LogicType, SimulationSettings},
-    error::{SimulationError, SimulationResult},
+    devices::{
+        Device, LogicType, SimulationSettings,
+        property_descriptor::{PropertyDescriptor, PropertyRegistry},
+    },
+    error::SimulationResult,
     parser::string_to_hash,
+    reserve_global_id,
     types::{OptShared, Shared, shared},
 };
+use crate::{prop_ro, prop_rw_clamped};
 
 pub struct LogicMemory {
     /// Device name
@@ -35,18 +41,42 @@ impl LogicMemory {
 
     /// Create a new `LogicMemory`
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+        let settings = simulation_settings.unwrap_or_default();
+        let reference_id = if let Some(id) = settings.id {
+            reserve_global_id(id)
+        } else {
+            allocate_global_id()
+        };
+
         shared(Self {
             name: "Logic Memory".to_string(),
             network: None,
             setting: RefCell::new(0.0),
-            reference_id: allocate_global_id(),
-            settings: simulation_settings.unwrap_or_default(),
+            reference_id,
+            settings,
         })
     }
 
     /// Prefab hash for `LogicMemory`
     pub fn prefab_hash() -> i32 {
         Self::PREFAB_HASH
+    }
+
+    /// Get the property registry for this device type
+    #[rustfmt::skip]
+    fn properties() -> &'static PropertyRegistry<Self> {
+        static REGISTRY: OnceLock<PropertyRegistry<LogicMemory>> = OnceLock::new();
+
+        REGISTRY.get_or_init(|| {
+            const DESCRIPTORS: &[PropertyDescriptor<LogicMemory>] = &[
+                prop_ro!(LogicType::ReferenceId, |device, _| Ok(device.reference_id as f64)),
+                prop_ro!(LogicType::PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
+                prop_ro!(LogicType::NameHash, |device, _| Ok(device.get_name_hash() as f64)),
+                prop_rw_clamped!(LogicType::Setting, setting, -f64::INFINITY, f64::INFINITY),
+            ];
+
+            PropertyRegistry::new(DESCRIPTORS)
+        })
     }
 }
 
@@ -90,43 +120,19 @@ impl Device for LogicMemory {
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
-        matches!(
-            logic_type,
-            LogicType::PrefabHash
-                | LogicType::ReferenceId
-                | LogicType::NameHash
-                | LogicType::Setting
-        )
+        Self::properties().can_read(logic_type)
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
-        matches!(logic_type, LogicType::Setting)
+        Self::properties().can_write(logic_type)
     }
 
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
-        match logic_type {
-            LogicType::PrefabHash => Ok(self.get_prefab_hash() as f64),
-            LogicType::ReferenceId => Ok(self.reference_id as f64),
-            LogicType::NameHash => Ok(self.get_name_hash() as f64),
-            LogicType::Setting => Ok(*self.setting.borrow()),
-            _ => Err(SimulationError::RuntimeError {
-                message: format!("Logic Memory does not support reading logic type {logic_type:?}"),
-                line: 0,
-            }),
-        }
+        Self::properties().read(self, logic_type)
     }
 
     fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
-        match logic_type {
-            LogicType::Setting => {
-                *self.setting.borrow_mut() = value;
-                Ok(())
-            }
-            _ => Err(SimulationError::RuntimeError {
-                message: format!("Logic Memory does not support writing logic type {logic_type:?}"),
-                line: 0,
-            }),
-        }
+        Self::properties().write(self, logic_type, value)
     }
 }
 

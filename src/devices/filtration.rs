@@ -3,6 +3,7 @@
 use std::{
     cell::RefCell,
     fmt::{Debug, Display},
+    sync::OnceLock,
 };
 
 use crate::{
@@ -12,10 +13,12 @@ use crate::{
     devices::{
         AtmosphericDevice, ChipSlot, Device, DeviceAtmosphericNetworkType, ICHostDevice,
         ICHostDeviceMemoryOverride, LogicType, SimulationSettings, SlotHostDevice,
+        property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
     parser::string_to_hash,
+    prop_ro, prop_rw_bool, reserve_global_id,
     types::{OptShared, Shared, shared},
 };
 
@@ -66,13 +69,20 @@ impl Filtration {
 
     /// Create a new `Filtration`. Optionally accepts simulation settings.
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+        let settings = simulation_settings.unwrap_or_default();
+        let reference_id = if let Some(id) = settings.id {
+            reserve_global_id(id)
+        } else {
+            allocate_global_id()
+        };
+
         let s = shared(Self {
             name: "Filtration".to_string(),
             network: None,
             on: RefCell::new(1.0),
             mode: RefCell::new(0.0),
-            reference_id: allocate_global_id(),
-            settings: simulation_settings.unwrap_or_default(),
+            reference_id,
+            settings,
             input_network: None,
             waste_network: None,
             filtered_network: None,
@@ -127,16 +137,160 @@ impl Filtration {
     pub fn prefab_hash() -> i32 {
         Self::PREFAB_HASH
     }
-}
 
-/// Helper macro to call a method on an optional network
-macro_rules! read {
-    ($net:expr, $method:ident) => {
-        Ok($net.as_ref().unwrap().borrow().$method())
-    };
-    ($net:expr, $method:ident, $($arg:expr),+) => {
-        Ok($net.as_ref().unwrap().borrow().$method($($arg),+))
-    };
+    /// Get the property registry for this device type
+    #[rustfmt::skip]
+    fn properties() -> &'static PropertyRegistry<Self> {
+        use LogicType::*;
+        use DeviceAtmosphericNetworkType::*;
+        use GasType::*;
+        static REGISTRY: OnceLock<PropertyRegistry<Filtration>> = OnceLock::new();
+
+        REGISTRY.get_or_init(|| {
+            const DESCRIPTORS: &[PropertyDescriptor<Filtration>] = &[
+                prop_ro!(ReferenceId, |device, _| Ok(device.reference_id as f64)),
+                prop_ro!(PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
+                prop_ro!(NameHash, |device, _| Ok(device.get_name_hash() as f64)),
+                prop_rw_bool!(On, on),
+                prop_rw_bool!(Mode, mode),
+
+                prop_ro!(PressureInput, |device, _| device.read_network_prop(Input, |net| net.pressure())),
+                prop_ro!(TemperatureInput, |device, _| device.read_network_prop(Input, |net| net.temperature())),
+                prop_ro!(TotalMolesInput, |device, _| device.read_network_prop(Input, |net| net.total_moles())),
+                prop_ro!(CombustionInput, |_, _| Err(SimulationError::RuntimeError { message: "CombustionInput not implemented for Filtration".to_string(), line: 0 })),
+                prop_ro!(RatioOxygenInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(Oxygen))),
+                prop_ro!(RatioCarbonDioxideInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(CarbonDioxide))),
+                prop_ro!(RatioNitrogenInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(Nitrogen))),
+                prop_ro!(RatioPollutantInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(Pollutant))),
+                prop_ro!(RatioVolatilesInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(Volatiles))),
+                prop_ro!(RatioWaterInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(Water))),
+                prop_ro!(RatioSteamInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(Steam))),
+                prop_ro!(RatioNitrousOxideInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(NitrousOxide))),
+                prop_ro!(RatioLiquidNitrogenInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(LiquidNitrogen))),
+                prop_ro!(RatioLiquidOxygenInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(LiquidOxygen))),
+                prop_ro!(RatioLiquidVolatilesInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(LiquidVolatiles))),
+                prop_ro!(RatioLiquidCarbonDioxideInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(LiquidCarbonDioxide))),
+                prop_ro!(RatioLiquidPollutantInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(LiquidPollutant))),
+                prop_ro!(RatioLiquidNitrousOxideInput, |device, _| device.read_network_prop(Input, |net| net.gas_ratio(LiquidNitrousOxide))),
+
+                prop_ro!(PressureOutput, |device, _| device.read_network_prop(Output, |net| net.pressure())),
+                prop_ro!(TemperatureOutput, |device, _| device.read_network_prop(Output, |net| net.temperature())),
+                prop_ro!(TotalMolesOutput, |device, _| device.read_network_prop(Output, |net| net.total_moles())),
+                prop_ro!(CombustionOutput, |_, _| Err(SimulationError::RuntimeError { message: "CombustionOutput not implemented for Filtration".to_string(), line: 0 })),
+                prop_ro!(RatioOxygenOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(Oxygen))),
+                prop_ro!(RatioCarbonDioxideOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(CarbonDioxide))),
+                prop_ro!(RatioNitrogenOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(Nitrogen))),
+                prop_ro!(RatioPollutantOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(Pollutant))),
+                prop_ro!(RatioVolatilesOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(Volatiles))),
+                prop_ro!(RatioWaterOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(Water))),
+                prop_ro!(RatioSteamOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(Steam))),
+                prop_ro!(RatioNitrousOxideOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(NitrousOxide))),
+                prop_ro!(RatioLiquidNitrogenOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(LiquidNitrogen))),
+                prop_ro!(RatioLiquidOxygenOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(LiquidOxygen))),
+                prop_ro!(RatioLiquidVolatilesOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(LiquidVolatiles))),
+                prop_ro!(RatioLiquidCarbonDioxideOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(LiquidCarbonDioxide))),
+                prop_ro!(RatioLiquidPollutantOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(LiquidPollutant))),
+                prop_ro!(RatioLiquidNitrousOxideOutput, |device, _| device.read_network_prop(Output, |net| net.gas_ratio(LiquidNitrousOxide))),
+
+                prop_ro!(PressureOutput2, |device, _| device.read_network_prop(Output2, |net| net.pressure())),
+                prop_ro!(TemperatureOutput2, |device, _| device.read_network_prop(Output2, |net| net.temperature())),
+                prop_ro!(TotalMolesOutput2, |device, _| device.read_network_prop(Output2, |net| net.total_moles())),
+                prop_ro!(CombustionOutput2, |_, _| Err(SimulationError::RuntimeError { message: "CombustionOutput2 not implemented for Filtration".to_string(), line: 0 })),
+                prop_ro!(RatioOxygenOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(Oxygen))),
+                prop_ro!(RatioCarbonDioxideOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(CarbonDioxide))),
+                prop_ro!(RatioNitrogenOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(Nitrogen))),
+                prop_ro!(RatioPollutantOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(Pollutant))),
+                prop_ro!(RatioVolatilesOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(Volatiles))),
+                prop_ro!(RatioWaterOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(Water))),
+                prop_ro!(RatioSteamOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(Steam))),
+                prop_ro!(RatioNitrousOxideOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(NitrousOxide))),
+                prop_ro!(RatioLiquidNitrogenOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(LiquidNitrogen))),
+                prop_ro!(RatioLiquidOxygenOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(LiquidOxygen))),
+                prop_ro!(RatioLiquidVolatilesOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(LiquidVolatiles))),
+                prop_ro!(RatioLiquidCarbonDioxideOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(LiquidCarbonDioxide))),
+                prop_ro!(RatioLiquidPollutantOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(LiquidPollutant))),
+                prop_ro!(RatioLiquidNitrousOxideOutput2, |device, _| device.read_network_prop(Output2, |net| net.gas_ratio(LiquidNitrousOxide))),
+            ];
+
+            PropertyRegistry::new(DESCRIPTORS)
+        })
+    }
+
+    // Helper methods to get atmospheric networks
+    fn require_network(
+        &self,
+        connection: DeviceAtmosphericNetworkType,
+    ) -> SimulationResult<Shared<AtmosphericNetwork>> {
+        use DeviceAtmosphericNetworkType::*;
+        match connection {
+            Input => self
+                .input_network
+                .as_ref()
+                .cloned()
+                .ok_or(SimulationError::RuntimeError {
+                    message: "Filtration device has no input atmospheric network".to_string(),
+                    line: 0,
+                }),
+            Output => {
+                self.filtered_network
+                    .as_ref()
+                    .cloned()
+                    .ok_or(SimulationError::RuntimeError {
+                        message: "Filtration device has no filtered atmospheric network"
+                            .to_string(),
+                        line: 0,
+                    })
+            }
+            Output2 => self
+                .waste_network
+                .as_ref()
+                .cloned()
+                .ok_or(SimulationError::RuntimeError {
+                    message: "Filtration device has no waste atmospheric network".to_string(),
+                    line: 0,
+                }),
+            _ => Err(SimulationError::RuntimeError {
+                message: format!(
+                    "Filtration device does not support atmospheric connection type {:?}",
+                    connection
+                ),
+                line: 0,
+            }),
+        }
+    }
+
+    /// Helper to read a property from an atmospheric network
+    fn read_network_prop<T, F>(
+        &self,
+        connection: DeviceAtmosphericNetworkType,
+        f: F,
+    ) -> SimulationResult<T>
+    where
+        F: FnOnce(&AtmosphericNetwork) -> T,
+    {
+        let net = self.require_network(connection)?;
+        Ok(f(&net.borrow()))
+    }
+
+    /// Helper to get a mutable reference to an atmospheric network slot
+    fn network_slot_mut(
+        &mut self,
+        connection: DeviceAtmosphericNetworkType,
+    ) -> Result<&mut OptShared<AtmosphericNetwork>, SimulationError> {
+        use DeviceAtmosphericNetworkType::*;
+        match connection {
+            Input => Ok(&mut self.input_network),
+            Output => Ok(&mut self.filtered_network),
+            Output2 => Ok(&mut self.waste_network),
+            _ => Err(SimulationError::RuntimeError {
+                message: format!(
+                    "Filtration device does not support atmospheric connection type {:?}",
+                    connection
+                ),
+                line: 0,
+            }),
+        }
+    }
 }
 
 /// `Device` trait implementation for `Filtration` providing logic access and network handling.
@@ -179,114 +333,19 @@ impl Device for Filtration {
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
-        matches!(
-            logic_type,
-            LogicType::PrefabHash
-                | LogicType::ReferenceId
-                | LogicType::NameHash
-                | LogicType::On
-                | LogicType::Mode
-                | LogicType::PressureInput
-                | LogicType::TemperatureInput
-                | LogicType::RatioOxygenInput
-                | LogicType::RatioCarbonDioxideInput
-                | LogicType::RatioNitrogenInput
-                | LogicType::RatioPollutantInput
-                | LogicType::RatioVolatilesInput
-                | LogicType::RatioSteamInput
-                | LogicType::RatioNitrousOxideInput
-                | LogicType::TotalMolesInput
-                | LogicType::PressureOutput
-                | LogicType::TemperatureOutput
-                | LogicType::RatioOxygenOutput
-                | LogicType::RatioCarbonDioxideOutput
-                | LogicType::RatioNitrogenOutput
-                | LogicType::RatioPollutantOutput
-                | LogicType::RatioVolatilesOutput
-                | LogicType::RatioSteamOutput
-                | LogicType::RatioNitrousOxideOutput
-                | LogicType::TotalMolesOutput
-                | LogicType::PressureOutput2
-                | LogicType::TemperatureOutput2
-                | LogicType::RatioOxygenOutput2
-                | LogicType::RatioCarbonDioxideOutput2
-                | LogicType::RatioNitrogenOutput2
-                | LogicType::RatioPollutantOutput2
-                | LogicType::RatioVolatilesOutput2
-                | LogicType::RatioSteamOutput2
-                | LogicType::RatioNitrousOxideOutput2
-                | LogicType::TotalMolesOutput2
-        )
+        Self::properties().can_read(logic_type)
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
-        matches!(logic_type, LogicType::On | LogicType::Mode)
+        Self::properties().can_write(logic_type)
     }
 
-    #[rustfmt::skip]
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
-        match logic_type {
-            LogicType::PrefabHash => Ok(self.get_prefab_hash() as f64),
-            LogicType::ReferenceId => Ok(self.reference_id as f64),
-            LogicType::NameHash => Ok(self.get_name_hash() as f64),
-            LogicType::On => Ok(*self.on.borrow()),
-            LogicType::Mode => Ok(*self.mode.borrow()),
-
-            LogicType::PressureInput => read!(self.input_network, pressure),
-            LogicType::TemperatureInput => read!(self.input_network, temperature),
-            LogicType::RatioOxygenInput => read!(self.input_network, gas_ratio, GasType::Oxygen),
-            LogicType::RatioCarbonDioxideInput => read!(self.input_network, gas_ratio, GasType::CarbonDioxide),
-            LogicType::RatioNitrogenInput => read!(self.input_network, gas_ratio, GasType::Nitrogen),
-            LogicType::RatioPollutantInput => read!(self.input_network, gas_ratio, GasType::Pollutant),
-            LogicType::RatioVolatilesInput => read!(self.input_network, gas_ratio, GasType::Volatiles),
-            LogicType::RatioSteamInput => read!(self.input_network, gas_ratio, GasType::Steam),
-            LogicType::RatioNitrousOxideInput => read!(self.input_network, gas_ratio, GasType::NitrousOxide),
-            LogicType::TotalMolesInput => read!(self.input_network, total_moles),
-
-            LogicType::PressureOutput => read!(self.filtered_network, pressure),
-            LogicType::TemperatureOutput => read!(self.filtered_network, temperature),
-            LogicType::RatioOxygenOutput => read!(self.filtered_network, gas_ratio, GasType::Oxygen),
-            LogicType::RatioCarbonDioxideOutput => read!(self.filtered_network, gas_ratio, GasType::CarbonDioxide),
-            LogicType::RatioNitrogenOutput => read!(self.filtered_network, gas_ratio, GasType::Nitrogen),
-            LogicType::RatioPollutantOutput => read!(self.filtered_network, gas_ratio, GasType::Pollutant),
-            LogicType::RatioVolatilesOutput => read!(self.filtered_network, gas_ratio, GasType::Volatiles),
-            LogicType::RatioSteamOutput => read!(self.filtered_network, gas_ratio, GasType::Steam),
-            LogicType::RatioNitrousOxideOutput => read!(self.filtered_network, gas_ratio, GasType::NitrousOxide),
-            LogicType::TotalMolesOutput => read!(self.filtered_network, total_moles),
-
-            LogicType::PressureOutput2 => read!(self.waste_network, pressure),
-            LogicType::TemperatureOutput2 => read!(self.waste_network, temperature),
-            LogicType::RatioOxygenOutput2 => read!(self.waste_network, gas_ratio, GasType::Oxygen),
-            LogicType::RatioCarbonDioxideOutput2 => read!(self.waste_network, gas_ratio, GasType::CarbonDioxide),
-            LogicType::RatioNitrogenOutput2 => read!(self.waste_network, gas_ratio, GasType::Nitrogen),
-            LogicType::RatioPollutantOutput2 => read!(self.waste_network, gas_ratio, GasType::Pollutant),
-            LogicType::RatioVolatilesOutput2 => read!(self.waste_network, gas_ratio, GasType::Volatiles),
-            LogicType::RatioSteamOutput2 => read!(self.waste_network, gas_ratio, GasType::Steam),
-            LogicType::RatioNitrousOxideOutput2 => read!(self.waste_network, gas_ratio, GasType::NitrousOxide),
-            LogicType::TotalMolesOutput2 => read!(self.waste_network, total_moles),
-
-            _ => Err(SimulationError::RuntimeError {
-                message: format!("Filtration does not support reading logic type {logic_type:?}"),
-                line: 0,
-            }),
-        }
+        Self::properties().read(self, logic_type)
     }
 
-    fn write(&self, logic_type: LogicType, _value: f64) -> SimulationResult<()> {
-        match logic_type {
-            LogicType::On => {
-                *self.on.borrow_mut() = if _value < 1.0 { 0.0 } else { 1.0 };
-                Ok(())
-            }
-            LogicType::Mode => {
-                *self.mode.borrow_mut() = if _value < 1.0 { 0.0 } else { 1.0 };
-                Ok(())
-            }
-            _ => Err(SimulationError::RuntimeError {
-                message: format!("Filtration does not support writing logic type {logic_type:?}"),
-                line: 0,
-            }),
-        }
+    fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
+        Self::properties().write(self, logic_type, value)
     }
 
     fn read_slot(&self, index: usize, slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
@@ -373,29 +432,9 @@ impl Device for Filtration {
         }
 
         // Ensure input and both outputs exist; error if any missing
-        let input_rc = self
-            .input_network
-            .as_ref()
-            .ok_or(SimulationError::RuntimeError {
-                message: "Filtration device has no input atmospheric network".to_string(),
-                line: 0,
-            })?;
-
-        let filtered_rc = self
-            .filtered_network
-            .as_ref()
-            .ok_or(SimulationError::RuntimeError {
-                message: "Filtration device has no filtered atmospheric network".to_string(),
-                line: 0,
-            })?;
-
-        let waste_rc = self
-            .waste_network
-            .as_ref()
-            .ok_or(SimulationError::RuntimeError {
-                message: "Filtration device has no waste atmospheric network".to_string(),
-                line: 0,
-            })?;
+        let input_rc = self.require_network(DeviceAtmosphericNetworkType::Input)?;
+        let filtered_rc = self.require_network(DeviceAtmosphericNetworkType::Output)?;
+        let waste_rc = self.require_network(DeviceAtmosphericNetworkType::Output2)?;
 
         let mut input_mut = input_rc.borrow_mut();
 
@@ -545,28 +584,9 @@ impl AtmosphericDevice for Filtration {
         connection: DeviceAtmosphericNetworkType,
         network: OptShared<AtmosphericNetwork>,
     ) -> SimulationResult<()> {
-        use DeviceAtmosphericNetworkType::*;
-        match connection {
-            Input => {
-                let _: () = self.input_network = network;
-                Ok(())
-            }
-            Output => {
-                let _: () = self.filtered_network = network;
-                Ok(())
-            }
-            Output2 => {
-                let _: () = self.waste_network = network;
-                Ok(())
-            }
-            _ => Err(SimulationError::RuntimeError {
-                message: format!(
-                    "Filtration device does not support atmospheric connection type {:?}",
-                    connection
-                ),
-                line: 0,
-            }),
-        }
+        let slot = self.network_slot_mut(connection)?;
+        *slot = network;
+        Ok(())
     }
 
     fn get_atmospheric_network(

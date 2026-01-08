@@ -4,8 +4,9 @@ mod tests {
     use crate::{
         SimulationManager,
         devices::{
-            AirConditioner, AtmosphericDevice, DaylightSensor, DeviceAtmosphericNetworkType,
-            Filtration, ICHostDevice, ICHousing, LogicMemory, VolumePump,
+            AirConditioner, AtmosphericDevice, DaylightSensor, Device,
+            DeviceAtmosphericNetworkType, Filtration, ICHostDevice, ICHousing, LogicMemory,
+            VolumePump,
         },
         items::ItemIntegratedCircuit10,
         networks::{AtmosphericNetwork, CableNetwork},
@@ -195,5 +196,80 @@ mod tests {
             chip_housing_weak.upgrade().is_none(),
             "Chip in ICHousing should be dropped"
         );
+    }
+
+    #[test]
+    fn test_simulation_settings_internal_network_used_by_devices() {
+        SimulationManager::reset_global();
+        let an_internal = AtmosphericNetwork::new(50.0);
+        let settings = crate::devices::SimulationSettings {
+            ticks_per_day: 2400.0,
+            max_instructions_per_tick: 128,
+            id: None,
+            internal_atmospheric_network: Some(an_internal.clone()),
+        };
+        let ac = AirConditioner::new(Some(settings));
+        let ac_internal = ac
+            .borrow()
+            .get_atmospheric_network(DeviceAtmosphericNetworkType::Internal)
+            .unwrap();
+        assert!(std::rc::Rc::ptr_eq(&an_internal, &ac_internal));
+    }
+
+    #[test]
+    fn test_simulation_settings_id_used_by_all_devices() {
+        SimulationManager::reset_global();
+
+        // Create distinct settings for each device with explicit ids
+        let ac_settings = crate::devices::SimulationSettings {
+            ticks_per_day: 2400.0,
+            max_instructions_per_tick: 128,
+            id: Some(1100),
+            internal_atmospheric_network: None,
+        };
+        let fil_settings = crate::devices::SimulationSettings {
+            ticks_per_day: 2400.0,
+            max_instructions_per_tick: 128,
+            id: Some(1101),
+            internal_atmospheric_network: None,
+        };
+        let pump_settings = crate::devices::SimulationSettings {
+            ticks_per_day: 2400.0,
+            max_instructions_per_tick: 128,
+            id: Some(1102),
+            internal_atmospheric_network: None,
+        };
+        let housing_settings = crate::devices::SimulationSettings {
+            ticks_per_day: 2400.0,
+            max_instructions_per_tick: 128,
+            id: Some(1103),
+            internal_atmospheric_network: None,
+        };
+        let ds_settings = crate::devices::SimulationSettings {
+            ticks_per_day: 2400.0,
+            max_instructions_per_tick: 128,
+            id: Some(1104),
+            internal_atmospheric_network: None,
+        };
+        let lm_settings = crate::devices::SimulationSettings {
+            ticks_per_day: 2400.0,
+            max_instructions_per_tick: 128,
+            id: Some(1105),
+            internal_atmospheric_network: None,
+        };
+
+        let ac = AirConditioner::new(Some(ac_settings));
+        let fil = Filtration::new(Some(fil_settings));
+        let pump = VolumePump::new(Some(pump_settings));
+        let housing = ICHousing::new(Some(housing_settings));
+        let ds = DaylightSensor::new(Some(ds_settings));
+        let lm = LogicMemory::new(Some(lm_settings));
+
+        assert_eq!(ac.borrow().get_id(), 1100);
+        assert_eq!(fil.borrow().get_id(), 1101);
+        assert_eq!(pump.borrow().get_id(), 1102);
+        assert_eq!(housing.borrow().get_id(), 1103);
+        assert_eq!(ds.borrow().get_id(), 1104);
+        assert_eq!(lm.borrow().get_id(), 1105);
     }
 }

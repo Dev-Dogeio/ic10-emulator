@@ -6,14 +6,18 @@ use crate::{
     constants::STACK_SIZE,
     devices::{
         ChipSlot, Device, ICHostDevice, ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
+        property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::{SimulationError, SimulationResult},
     parser::string_to_hash,
+    reserve_global_id,
     types::{OptShared, Shared, shared},
 };
+use crate::{prop_ro, prop_rw_bool, prop_rw_clamped};
 
 use std::cell::RefCell;
 use std::fmt::{Debug, Display};
+use std::sync::OnceLock;
 
 /// IC housing: holds an IC10 chip and exposes host interfaces
 pub struct ICHousing {
@@ -43,14 +47,21 @@ impl ICHousing {
 
     /// Create a new `ICHousing`
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+        let settings = simulation_settings.unwrap_or_default();
+        let reference_id = if let Some(id) = settings.id {
+            reserve_global_id(id)
+        } else {
+            allocate_global_id()
+        };
+
         let s = shared(Self {
             name: "IC Housing".to_string(),
             network: None,
             setting: RefCell::new(0.0),
             on: RefCell::new(1.0),
-            reference_id: allocate_global_id(),
+            reference_id,
             chip_host: ChipSlot::new(6),
-            settings: simulation_settings.unwrap_or_default(),
+            settings,
         });
 
         s.borrow()
@@ -64,6 +75,54 @@ impl ICHousing {
     /// Prefab hash for `ICHousing`
     pub fn prefab_hash() -> i32 {
         Self::PREFAB_HASH
+    }
+
+    /// Get the property registry for this device type
+    #[rustfmt::skip]
+    fn properties() -> &'static PropertyRegistry<Self> {
+        static REGISTRY: OnceLock<PropertyRegistry<ICHousing>> = OnceLock::new();
+
+        REGISTRY.get_or_init(|| {
+            const DESCRIPTORS: &[PropertyDescriptor<ICHousing>] = &[
+                prop_ro!(LogicType::ReferenceId, |device, _| Ok(device.reference_id as f64)),
+                prop_ro!(LogicType::PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
+                prop_ro!(LogicType::NameHash, |device, _| Ok(device.get_name_hash() as f64)),
+                prop_rw_clamped!(LogicType::Setting, setting, -f64::INFINITY, f64::INFINITY),
+                prop_rw_bool!(LogicType::On, on),
+                prop_ro!(LogicType::StackSize, |_, _| Ok(STACK_SIZE as f64)),
+                PropertyDescriptor::read_write(
+                    LogicType::LineNumber,
+                    |device, _| {
+                        if let Some(chip) = device.chip_slot().borrow().get_chip() {
+                            Ok(chip.get_pc() as f64)
+                        } else {
+                            Ok(0.0)
+                        }
+                    },
+                    |device, _, value| {
+                        if value.is_nan() || value.is_infinite() || value < 0.0 {
+                            return Err(SimulationError::RuntimeError {
+                                message: "Invalid line number".to_string(),
+                                line: 0,
+                            });
+                        }
+
+                        let pc = value as usize;
+                        if let Some(chip) = device.chip_slot().borrow().get_chip() {
+                            chip.set_pc(pc);
+                            Ok(())
+                        } else {
+                            Err(SimulationError::RuntimeError {
+                                message: "No chip installed".to_string(),
+                                line: 0,
+                            })
+                        }
+                    },
+                ),
+            ];
+
+            PropertyRegistry::new(DESCRIPTORS)
+        })
     }
 }
 
@@ -107,81 +166,19 @@ impl Device for ICHousing {
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
-        matches!(
-            logic_type,
-            LogicType::PrefabHash
-                | LogicType::ReferenceId
-                | LogicType::NameHash
-                | LogicType::Setting
-                | LogicType::On
-                | LogicType::StackSize
-                | LogicType::LineNumber
-        )
+        Self::properties().can_read(logic_type)
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
-        matches!(
-            logic_type,
-            LogicType::Setting | LogicType::On | LogicType::LineNumber
-        )
+        Self::properties().can_write(logic_type)
     }
 
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
-        match logic_type {
-            LogicType::PrefabHash => Ok(self.get_prefab_hash() as f64),
-            LogicType::ReferenceId => Ok(self.reference_id as f64),
-            LogicType::NameHash => Ok(self.get_name_hash() as f64),
-            LogicType::Setting => Ok(*self.setting.borrow()),
-            LogicType::On => Ok(*self.on.borrow()),
-            LogicType::StackSize => Ok(STACK_SIZE as f64),
-            LogicType::LineNumber => {
-                if let Some(chip) = self.chip_slot().borrow().get_chip() {
-                    Ok(chip.get_pc() as f64)
-                } else {
-                    Ok(0.0)
-                }
-            }
-            _ => Err(SimulationError::RuntimeError {
-                message: format!("IC Housing does not support reading logic type {logic_type:?}"),
-                line: 0,
-            }),
-        }
+        Self::properties().read(self, logic_type)
     }
 
     fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
-        match logic_type {
-            LogicType::Setting => {
-                *self.setting.borrow_mut() = value;
-                Ok(())
-            }
-            LogicType::On => {
-                *self.on.borrow_mut() = if value < 1.0 { 0.0 } else { 1.0 };
-                Ok(())
-            }
-            LogicType::LineNumber => {
-                if value.is_nan() || value.is_infinite() || value < 0.0 {
-                    return Err(SimulationError::RuntimeError {
-                        message: "Invalid line number".to_string(),
-                        line: 0,
-                    });
-                }
-
-                let pc = value as usize;
-                if let Some(chip) = self.chip_slot().borrow().get_chip() {
-                    chip.set_pc(pc);
-                    Ok(())
-                } else {
-                    Err(SimulationError::RuntimeError {
-                        message: "No chip installed".to_string(),
-                        line: 0,
-                    })
-                }
-            }
-            _ => Err(SimulationError::RuntimeError {
-                message: format!("IC Housing does not support writing logic type {logic_type:?}"),
-                line: 0,
-            }),
-        }
+        Self::properties().write(self, logic_type, value)
     }
 
     fn run(&self) -> SimulationResult<()> {

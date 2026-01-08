@@ -5,10 +5,12 @@ use crate::{
     atmospherics::MatterState,
     devices::{
         AtmosphericDevice, Device, DeviceAtmosphericNetworkType, LogicType, SimulationSettings,
+        property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
     parser::string_to_hash,
+    prop_ro, prop_rw_bool, prop_rw_clamped, reserve_global_id,
     types::{OptShared, Shared, shared},
 };
 
@@ -16,6 +18,7 @@ use crate::conversions::fmt_trim;
 use std::{
     cell::RefCell,
     fmt::{Debug, Display},
+    sync::OnceLock,
 };
 
 /// Volume pump: moves gas between input and output networks
@@ -49,13 +52,22 @@ impl VolumePump {
 
     /// Create a new `VolumePump`. Optionally accepts simulation settings.
     pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+        let settings = simulation_settings.unwrap_or_default();
+
+        // Use specific ID if provided, otherwise allocate new one
+        let reference_id = if let Some(id) = settings.id {
+            reserve_global_id(id)
+        } else {
+            allocate_global_id()
+        };
+
         shared(Self {
             name: "Volume Pump".to_string(),
             network: None,
             setting: RefCell::new(5.0),
             on: RefCell::new(0.0),
-            reference_id: allocate_global_id(),
-            settings: simulation_settings.unwrap_or_default(),
+            reference_id,
+            settings,
             input_network: None,
             output_network: None,
         })
@@ -64,6 +76,26 @@ impl VolumePump {
     /// Return the prefab hash for `VolumePump`.
     pub fn prefab_hash() -> i32 {
         Self::PREFAB_HASH
+    }
+
+    /// Get the property registry for this device type
+    #[rustfmt::skip]
+    fn properties() -> &'static PropertyRegistry<Self> {
+        use LogicType::*;
+        static REGISTRY: OnceLock<PropertyRegistry<VolumePump>> = OnceLock::new();
+
+        REGISTRY.get_or_init(|| {
+            const DESCRIPTORS: &[PropertyDescriptor<VolumePump>] = &[
+                prop_ro!(ReferenceId, |device, _| Ok(device.reference_id as f64)),
+                prop_ro!(PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
+                prop_ro!(NameHash, |device, _| Ok(device.get_name_hash() as f64)),
+                prop_ro!(Ratio, |device, _| Ok(*device.setting.borrow() / 10.0)),
+                prop_rw_bool!(On, on),
+                prop_rw_clamped!(Setting, setting, 0.0, 10.0),
+            ];
+
+            PropertyRegistry::new(DESCRIPTORS)
+        })
     }
 }
 
@@ -107,55 +139,19 @@ impl Device for VolumePump {
     }
 
     fn can_read(&self, logic_type: LogicType) -> bool {
-        matches!(
-            logic_type,
-            LogicType::ReferenceId
-                | LogicType::PrefabHash
-                | LogicType::NameHash
-                | LogicType::Ratio
-                | LogicType::On
-                | LogicType::Setting
-        )
+        Self::properties().can_read(logic_type)
     }
 
     fn can_write(&self, logic_type: LogicType) -> bool {
-        matches!(logic_type, LogicType::On | LogicType::Setting)
+        Self::properties().can_write(logic_type)
     }
 
-    #[rustfmt::skip]
     fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
-        match logic_type {
-            LogicType::ReferenceId => Ok(self.reference_id as f64),
-            LogicType::PrefabHash => Ok(self.get_prefab_hash() as f64),
-            LogicType::NameHash => Ok(self.get_name_hash() as f64),
-            LogicType::Ratio => Ok(*self.setting.borrow() / 10.0),
-            LogicType::On => Ok(*self.on.borrow()),
-            LogicType::Setting => Ok(*self.setting.borrow()),
-
-            _ => Err(SimulationError::RuntimeError {
-                message: format!(
-                    "VolumePump does not support reading logic type {logic_type:?}"
-                ),
-                line: 0,
-            }),
-        }
+        Self::properties().read(self, logic_type)
     }
 
     fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
-        match logic_type {
-            LogicType::On => {
-                *self.on.borrow_mut() = if value < 1.0 { 0.0 } else { 1.0 };
-                Ok(())
-            }
-            LogicType::Setting => {
-                *self.setting.borrow_mut() = value.clamp(0.0, 10.0);
-                Ok(())
-            }
-            _ => Err(SimulationError::RuntimeError {
-                message: format!("VolumePump does not support writing logic type {logic_type:?}"),
-                line: 0,
-            }),
-        }
+        Self::properties().write(self, logic_type, value)
     }
 
     fn update(&self, _tick: u64) -> SimulationResult<()> {
