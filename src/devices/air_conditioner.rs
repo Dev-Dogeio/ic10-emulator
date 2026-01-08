@@ -73,9 +73,8 @@ pub struct AirConditioner {
     /// Operating temperature efficiency curve
     input_and_waste_curve: Arc<AnimationCurve>,
 
-    /// Simulation settings
-    #[allow(dead_code)]
-    settings: SimulationSettings,
+    /// Max instructions an installed IC can execute per tick
+    max_instructions_per_tick: usize,
 
     /// Chip hosting helper (slot 0 may hold an IC10 chip)
     chip_host: Shared<ChipSlot>,
@@ -124,14 +123,20 @@ impl AirConditioner {
             allocate_global_id()
         };
 
+        let name = if let Some(n) = settings.name.as_ref() {
+            n.to_string()
+        } else {
+            Self::display_name_static().to_string()
+        };
+
         let s = shared(Self {
-            name: "Air Conditioner".to_string(),
+            name,
             network: None,
             setting: RefCell::new(20.0),
             on: RefCell::new(1.0),
             mode: RefCell::new(0.0),
             reference_id,
-            settings,
+            max_instructions_per_tick: settings.max_instructions_per_tick,
             input_network: None,
             output_network: None,
             waste_network: None,
@@ -194,9 +199,14 @@ impl AirConditioner {
         Self::PREFAB_HASH
     }
 
+    /// Human-readable display name
+    pub fn display_name_static() -> &'static str {
+        "Air Conditioner"
+    }
+
     /// Get the property registry for this device type
     #[rustfmt::skip]
-    fn properties() -> &'static PropertyRegistry<Self> {
+    pub fn properties() -> &'static PropertyRegistry<Self> {
         use LogicType::*;
         use DeviceAtmosphericNetworkType::*;
         use GasType::*;
@@ -522,10 +532,14 @@ impl Device for AirConditioner {
         if *self.on.borrow() != 0.0 {
             self.chip_host
                 .borrow()
-                .run(self.settings.max_instructions_per_tick)?
+                .run(self.max_instructions_per_tick)?
         }
 
         Ok(())
+    }
+
+    fn supported_types(&self) -> Vec<LogicType> {
+        Self::properties().supported_types()
     }
 
     fn get_memory(&self, index: usize) -> SimulationResult<f64> {
@@ -538,6 +552,14 @@ impl Device for AirConditioner {
 
     fn clear(&self) -> SimulationResult<()> {
         ICHostDevice::clear(self)
+    }
+
+    fn properties() -> &'static PropertyRegistry<Self> {
+        AirConditioner::properties()
+    }
+
+    fn display_name_static() -> &'static str {
+        AirConditioner::display_name_static()
     }
 
     fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
@@ -560,7 +582,7 @@ impl ICHostDevice for AirConditioner {
     }
 
     fn max_instructions_per_tick(&self) -> usize {
-        self.settings.max_instructions_per_tick
+        self.max_instructions_per_tick
     }
 }
 

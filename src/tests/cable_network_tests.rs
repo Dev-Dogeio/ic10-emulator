@@ -4,7 +4,7 @@ mod tests {
     use crate::Device;
     use crate::SimulationResult;
     use crate::devices::LogicType;
-    use crate::error::SimulationError;
+    use crate::devices::property_descriptor::{PropertyDescriptor, PropertyRegistry};
     use crate::networks::{BatchMode, CableNetwork};
     use crate::types::{OptShared, shared};
     use std::cell::{Cell, RefCell};
@@ -89,50 +89,67 @@ mod tests {
         }
 
         fn can_read(&self, logic_type: LogicType) -> bool {
-            matches!(
-                logic_type,
-                LogicType::Setting | LogicType::Horizontal | LogicType::Vertical
-            )
+            Self::properties().can_read(logic_type)
         }
 
         fn can_write(&self, logic_type: LogicType) -> bool {
-            matches!(
-                logic_type,
-                LogicType::Setting | LogicType::Horizontal | LogicType::Vertical
-            )
+            Self::properties().can_write(logic_type)
         }
 
         fn read(&self, logic_type: LogicType) -> SimulationResult<f64> {
-            match logic_type {
-                LogicType::Setting => Ok(self.setting.get()),
-                LogicType::Horizontal => Ok(self.horizontal.get()),
-                LogicType::Vertical => Ok(self.vertical.get()),
-                _ => Err(SimulationError::RuntimeError {
-                    message: format!("Cannot read {:?}", logic_type),
-                    line: 0,
-                }),
-            }
+            Self::properties().read(self, logic_type)
         }
 
         fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
-            match logic_type {
-                LogicType::Setting => {
-                    self.setting.set(value);
-                    Ok(())
-                }
-                LogicType::Horizontal => {
-                    self.horizontal.set(value);
-                    Ok(())
-                }
-                LogicType::Vertical => {
-                    self.vertical.set(value);
-                    Ok(())
-                }
-                _ => Err(SimulationError::RuntimeError {
-                    message: format!("Cannot write {:?}", logic_type),
-                    line: 0,
-                }),
-            }
+            Self::properties().write(self, logic_type, value)
+        }
+
+        fn supported_types(&self) -> Vec<LogicType> {
+            Self::properties().supported_types()
+        }
+
+        fn properties() -> &'static PropertyRegistry<Self>
+        where
+            Self: Sized,
+        {
+            static REG: std::sync::OnceLock<PropertyRegistry<MockDevice>> =
+                std::sync::OnceLock::new();
+            REG.get_or_init(|| {
+                const DESCRIPTORS: &[PropertyDescriptor<MockDevice>] = &[
+                    PropertyDescriptor::read_write(
+                        LogicType::Setting,
+                        |device, _| Ok(device.setting.get()),
+                        |device, _, value| {
+                            device.setting.set(value);
+                            Ok(())
+                        },
+                    ),
+                    PropertyDescriptor::read_write(
+                        LogicType::Horizontal,
+                        |device, _| Ok(device.horizontal.get()),
+                        |device, _, value| {
+                            device.horizontal.set(value);
+                            Ok(())
+                        },
+                    ),
+                    PropertyDescriptor::read_write(
+                        LogicType::Vertical,
+                        |device, _| Ok(device.vertical.get()),
+                        |device, _, value| {
+                            device.vertical.set(value);
+                            Ok(())
+                        },
+                    ),
+                ];
+                PropertyRegistry::new(DESCRIPTORS)
+            })
+        }
+
+        fn display_name_static() -> &'static str
+        where
+            Self: Sized,
+        {
+            "MockDevice"
         }
     }
 

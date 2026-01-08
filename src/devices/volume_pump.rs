@@ -39,10 +39,6 @@ pub struct VolumePump {
     input_network: OptShared<AtmosphericNetwork>,
     /// The output network
     output_network: OptShared<AtmosphericNetwork>,
-
-    /// Simulation settings
-    #[allow(dead_code)]
-    settings: SimulationSettings,
 }
 
 /// Constructors for `VolumePump`.
@@ -61,13 +57,18 @@ impl VolumePump {
             allocate_global_id()
         };
 
+        let name = if let Some(n) = settings.name.as_ref() {
+            n.to_string()
+        } else {
+            Self::display_name_static().to_string()
+        };
+
         shared(Self {
-            name: "Volume Pump".to_string(),
+            name,
             network: None,
             setting: RefCell::new(5.0),
             on: RefCell::new(0.0),
             reference_id,
-            settings,
             input_network: None,
             output_network: None,
         })
@@ -78,9 +79,14 @@ impl VolumePump {
         Self::PREFAB_HASH
     }
 
+    /// Human-readable display name
+    pub fn display_name_static() -> &'static str {
+        "Volume Pump"
+    }
+
     /// Get the property registry for this device type
     #[rustfmt::skip]
-    fn properties() -> &'static PropertyRegistry<Self> {
+    pub fn properties() -> &'static PropertyRegistry<Self> {
         use LogicType::*;
         static REGISTRY: OnceLock<PropertyRegistry<VolumePump>> = OnceLock::new();
 
@@ -154,6 +160,10 @@ impl Device for VolumePump {
         Self::properties().write(self, logic_type, value)
     }
 
+    fn supported_types(&self) -> Vec<LogicType> {
+        Self::properties().supported_types()
+    }
+
     fn update(&self, _tick: u64) -> SimulationResult<()> {
         // Only run when device is On and Mode is enabled
         if *self.on.borrow() == 0.0 {
@@ -200,6 +210,14 @@ impl Device for VolumePump {
         }
 
         Ok(())
+    }
+
+    fn properties() -> &'static PropertyRegistry<Self> {
+        VolumePump::properties()
+    }
+
+    fn display_name_static() -> &'static str {
+        VolumePump::display_name_static()
     }
 
     fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {

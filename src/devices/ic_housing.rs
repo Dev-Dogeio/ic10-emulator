@@ -36,8 +36,8 @@ pub struct ICHousing {
     /// Chip hosting helper (shared so it can be referenced by chips)
     chip_host: Shared<ChipSlot>,
 
-    /// Simulation settings
-    settings: SimulationSettings,
+    /// Max instructions an installed IC can execute per tick
+    max_instructions_per_tick: usize,
 }
 
 /// Constructors and helpers
@@ -54,14 +54,20 @@ impl ICHousing {
             allocate_global_id()
         };
 
+        let name = if let Some(n) = settings.name.as_ref() {
+            n.to_string()
+        } else {
+            Self::display_name_static().to_string()
+        };
+
         let s = shared(Self {
-            name: "IC Housing".to_string(),
+            name,
             network: None,
             setting: RefCell::new(0.0),
             on: RefCell::new(1.0),
             reference_id,
             chip_host: ChipSlot::new(6),
-            settings,
+            max_instructions_per_tick: settings.max_instructions_per_tick,
         });
 
         s.borrow()
@@ -77,9 +83,13 @@ impl ICHousing {
         Self::PREFAB_HASH
     }
 
+    pub fn display_name_static() -> &'static str {
+        "IC Housing"
+    }
+
     /// Get the property registry for this device type
     #[rustfmt::skip]
-    fn properties() -> &'static PropertyRegistry<Self> {
+    pub fn properties() -> &'static PropertyRegistry<Self> {
         static REGISTRY: OnceLock<PropertyRegistry<ICHousing>> = OnceLock::new();
 
         REGISTRY.get_or_init(|| {
@@ -181,6 +191,10 @@ impl Device for ICHousing {
         Self::properties().write(self, logic_type, value)
     }
 
+    fn supported_types(&self) -> Vec<LogicType> {
+        Self::properties().supported_types()
+    }
+
     fn run(&self) -> SimulationResult<()> {
         if *self.on.borrow() != 0.0 {
             ICHostDevice::run(self)?;
@@ -201,6 +215,14 @@ impl Device for ICHousing {
         ICHostDevice::clear(self)
     }
 
+    fn properties() -> &'static PropertyRegistry<Self> {
+        ICHousing::properties()
+    }
+
+    fn display_name_static() -> &'static str {
+        ICHousing::display_name_static()
+    }
+
     fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
         Some(self)
     }
@@ -217,7 +239,7 @@ impl ICHostDevice for ICHousing {
     }
 
     fn max_instructions_per_tick(&self) -> usize {
-        self.settings.max_instructions_per_tick
+        self.max_instructions_per_tick
     }
 }
 

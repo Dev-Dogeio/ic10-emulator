@@ -98,9 +98,10 @@ impl SimulationManager {
     fn reset(&mut self) {
         // Remove all devices from cable networks
         for net in &self.cable_networks {
-            let ids = net.borrow().all_device_ids();
+            let mut net_mut = net.borrow_mut();
+            let ids = net_mut.all_device_ids();
             for id in ids {
-                net.borrow_mut().remove_device(id).unwrap();
+                net_mut.remove_device(id).unwrap();
             }
         }
 
@@ -114,12 +115,13 @@ impl Display for SimulationManager {
         writeln!(f, "SimulationManager {{")?;
 
         writeln!(f, "  Cable Networks ({}):", self.cable_networks.len())?;
-        for (i, net) in self.cable_networks.iter().enumerate() {
-            let ids = net.borrow().all_device_ids();
+        for (i, n) in self.cable_networks.iter().enumerate() {
+            let net = n.borrow();
+            let ids = net.all_device_ids();
             writeln!(f, "    Network #{}: {} device(s)", i, ids.len())?;
 
             for id in ids {
-                if let Some(device_ref) = net.borrow().get_device(id) {
+                if let Some(device_ref) = net.get_device(id) {
                     let name = device_ref.get_name();
                     let prefab = device_ref.get_prefab_hash();
 

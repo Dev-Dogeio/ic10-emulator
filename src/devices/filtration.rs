@@ -51,9 +51,8 @@ pub struct Filtration {
     /// Device slots (2x Filter)
     slots: Vec<Slot>,
 
-    /// Simulation settings
-    #[allow(dead_code)]
-    settings: SimulationSettings,
+    /// Max instructions an installed IC can execute per tick
+    max_instructions_per_tick: usize,
 
     /// Chip hosting helper (slot 0 may hold an IC10 chip)
     chip_host: Shared<ChipSlot>,
@@ -76,13 +75,19 @@ impl Filtration {
             allocate_global_id()
         };
 
+        let name = if let Some(n) = settings.name.as_ref() {
+            n.to_string()
+        } else {
+            Self::display_name_static().to_string()
+        };
+
         let s = shared(Self {
-            name: "Filtration".to_string(),
+            name,
             network: None,
             on: RefCell::new(1.0),
             mode: RefCell::new(0.0),
             reference_id,
-            settings,
+            max_instructions_per_tick: settings.max_instructions_per_tick,
             input_network: None,
             waste_network: None,
             filtered_network: None,
@@ -138,9 +143,13 @@ impl Filtration {
         Self::PREFAB_HASH
     }
 
+    pub fn display_name_static() -> &'static str {
+        "Filtration"
+    }
+
     /// Get the property registry for this device type
     #[rustfmt::skip]
-    fn properties() -> &'static PropertyRegistry<Self> {
+    pub fn properties() -> &'static PropertyRegistry<Self> {
         use LogicType::*;
         use DeviceAtmosphericNetworkType::*;
         use GasType::*;
@@ -348,6 +357,10 @@ impl Device for Filtration {
         Self::properties().write(self, logic_type, value)
     }
 
+    fn supported_types(&self) -> Vec<LogicType> {
+        Self::properties().supported_types()
+    }
+
     fn read_slot(&self, index: usize, slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
         if index >= self.slots.len() {
             return Err(SimulationError::RuntimeError {
@@ -504,7 +517,7 @@ impl Device for Filtration {
         if *self.on.borrow() != 0.0 {
             self.chip_host
                 .borrow()
-                .run(self.settings.max_instructions_per_tick)?
+                .run(self.max_instructions_per_tick)?
         }
 
         Ok(())
@@ -520,6 +533,14 @@ impl Device for Filtration {
 
     fn clear(&self) -> SimulationResult<()> {
         ICHostDevice::clear(self)
+    }
+
+    fn properties() -> &'static PropertyRegistry<Self> {
+        Filtration::properties()
+    }
+
+    fn display_name_static() -> &'static str {
+        Filtration::display_name_static()
     }
 
     fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
@@ -545,7 +566,7 @@ impl ICHostDevice for Filtration {
     }
 
     fn max_instructions_per_tick(&self) -> usize {
-        self.settings.max_instructions_per_tick
+        self.max_instructions_per_tick
     }
 }
 

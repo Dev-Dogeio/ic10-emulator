@@ -6,7 +6,7 @@ mod tests {
         devices::{
             AirConditioner, AtmosphericDevice, DaylightSensor, Device,
             DeviceAtmosphericNetworkType, Filtration, ICHostDevice, ICHousing, LogicMemory,
-            VolumePump,
+            SimulationSettings, VolumePump,
         },
         items::ItemIntegratedCircuit10,
         networks::{AtmosphericNetwork, CableNetwork},
@@ -202,9 +202,10 @@ mod tests {
     fn test_simulation_settings_internal_network_used_by_devices() {
         SimulationManager::reset_global();
         let an_internal = AtmosphericNetwork::new(50.0);
-        let settings = crate::devices::SimulationSettings {
+        let settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
+            name: None,
             id: None,
             internal_atmospheric_network: Some(an_internal.clone()),
         };
@@ -221,39 +222,45 @@ mod tests {
         SimulationManager::reset_global();
 
         // Create distinct settings for each device with explicit ids
-        let ac_settings = crate::devices::SimulationSettings {
+        let ac_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
+            name: None,
             id: Some(1100),
             internal_atmospheric_network: None,
         };
-        let fil_settings = crate::devices::SimulationSettings {
+        let fil_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
+            name: None,
             id: Some(1101),
             internal_atmospheric_network: None,
         };
-        let pump_settings = crate::devices::SimulationSettings {
+        let pump_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
+            name: None,
             id: Some(1102),
             internal_atmospheric_network: None,
         };
-        let housing_settings = crate::devices::SimulationSettings {
+        let housing_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
+            name: None,
             id: Some(1103),
             internal_atmospheric_network: None,
         };
-        let ds_settings = crate::devices::SimulationSettings {
+        let ds_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
+            name: None,
             id: Some(1104),
             internal_atmospheric_network: None,
         };
-        let lm_settings = crate::devices::SimulationSettings {
+        let lm_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
+            name: None,
             id: Some(1105),
             internal_atmospheric_network: None,
         };

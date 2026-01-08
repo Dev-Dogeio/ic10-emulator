@@ -3,16 +3,18 @@
 use wasm_bindgen::prelude::*;
 
 use crate::atmospherics::{GasMixture, GasType, MatterState};
-use crate::devices::DeviceAtmosphericNetworkType;
 use crate::devices::LogicSlotType;
 use crate::devices::LogicType;
 use crate::devices::device_factory::create_device;
 use crate::devices::{Device, SimulationSettings};
+use crate::devices::{DeviceAtmosphericNetworkType, device_factory};
 use crate::items::item::Item;
 use crate::items::{ItemIntegratedCircuit10, create_item};
 use crate::networks::BatchMode;
-use crate::types::{OptShared, Shared};
+use crate::types::{OptShared, Shared, shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager};
+use js_sys::Reflect;
+use js_sys::{Array, Object};
 use std::rc::Rc;
 
 #[wasm_bindgen]
@@ -508,6 +510,29 @@ impl WasmDevice {
             .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 
+    /// Return supported logic types for this device as numeric values
+    pub fn supported_types(&self) -> Vec<f64> {
+        self.inner
+            .borrow()
+            .supported_types()
+            .into_iter()
+            .map(|lt| lt.to_value())
+            .collect()
+    }
+
+    /// Read a batch of logic types and return an array of values (null for failures)
+    pub fn read_batch(&self, logic_types: Vec<LogicType>) -> Result<Array, JsValue> {
+        let arr = Array::new();
+        let device = self.inner.borrow();
+        for lt in logic_types {
+            match device.read(lt) {
+                Ok(val) => arr.push(&JsValue::from_f64(val)),
+                Err(_) => arr.push(&JsValue::NULL),
+            };
+        }
+        Ok(arr)
+    }
+
     /// Add this device to a cable network
     pub fn add_to_network(&self, network: &WasmCableNetwork) -> Result<(), JsValue> {
         network
@@ -747,7 +772,7 @@ impl WasmICChip {
     #[wasm_bindgen(constructor)]
     pub fn new() -> WasmICChip {
         WasmICChip {
-            inner: crate::types::shared(ItemIntegratedCircuit10::new()),
+            inner: shared(ItemIntegratedCircuit10::new()),
         }
     }
 
@@ -1082,15 +1107,18 @@ impl WasmSimulationManager {
     /// Create a device with explicit simulation settings
     pub fn create_device_with_settings(
         prefab_hash: i32,
+        id: Option<i32>,
+        name: Option<String>,
+        internal_atmospheric_network: Option<WasmAtmosphericNetwork>,
         ticks_per_day: f64,
         max_instructions_per_tick: usize,
-        id: Option<i32>,
     ) -> Result<WasmDevice, JsValue> {
         let settings = SimulationSettings {
+            id,
+            name,
+            internal_atmospheric_network: internal_atmospheric_network.map(|n| n.inner.clone()),
             ticks_per_day,
             max_instructions_per_tick,
-            id,
-            internal_atmospheric_network: None,
         };
 
         match create_device(prefab_hash, Some(settings)) {
@@ -1111,5 +1139,62 @@ impl WasmSimulationManager {
         Err(JsValue::from_str(
             "Unsupported prefab hash for item creation",
         ))
+    }
+}
+
+/// Return a list of registered device prefab hashes
+#[wasm_bindgen]
+pub fn get_registered_device_prefabs() -> Vec<i32> {
+    device_factory::get_registered_device_prefabs()
+}
+
+/// Get property metadata for a prefab: returns an array of objects { device_name, prefab_hash, logic_name, readable, writable }
+#[wasm_bindgen]
+pub fn get_prefab_properties(prefab_hash: i32) -> Result<Array, JsValue> {
+    if let Some((device_name, props)) = device_factory::get_prefab_metadata(prefab_hash) {
+        let arr = Array::new();
+        for (lt, readable, writable) in props {
+            let obj = Object::new();
+            Reflect::set(
+                &obj,
+                &JsValue::from_str("device_name"),
+                &JsValue::from_str(device_name),
+            )
+            .unwrap();
+            Reflect::set(
+                &obj,
+                &JsValue::from_str("prefab_hash"),
+                &JsValue::from_f64(prefab_hash as f64),
+            )
+            .unwrap();
+            Reflect::set(
+                &obj,
+                &JsValue::from_str("logic"),
+                &JsValue::from_f64(lt.to_value()),
+            )
+            .unwrap();
+            Reflect::set(
+                &obj,
+                &JsValue::from_str("logic_name"),
+                &JsValue::from_str(&format!("{:?}", lt)),
+            )
+            .unwrap();
+            Reflect::set(
+                &obj,
+                &JsValue::from_str("readable"),
+                &JsValue::from_bool(readable),
+            )
+            .unwrap();
+            Reflect::set(
+                &obj,
+                &JsValue::from_str("writable"),
+                &JsValue::from_bool(writable),
+            )
+            .unwrap();
+            arr.push(&JsValue::from(obj));
+        }
+        Ok(arr)
+    } else {
+        Err(JsValue::from_str("Unknown prefab hash"))
     }
 }

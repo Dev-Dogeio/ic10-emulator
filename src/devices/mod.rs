@@ -7,6 +7,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     AtmosphericNetwork, CableNetwork, Item,
+    devices::property_descriptor::PropertyRegistry,
     error::{SimulationError, SimulationResult},
     items::ItemIntegratedCircuit10,
     types::{OptShared, Shared},
@@ -37,6 +38,8 @@ pub struct SimulationSettings {
     pub ticks_per_day: f64,
     /// Max IC10 instructions per tick
     pub max_instructions_per_tick: usize,
+    /// Optional device name override
+    pub name: Option<String>,
     /// The device will request this ID and panic if already allocated
     pub id: Option<i32>,
     /// Optional internal atmospheric network to use for devices that require an internal buffer, ignored otherwise
@@ -47,9 +50,10 @@ impl Display for SimulationSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "SimulationSettings {{ ticks_per_day: {}, max_instructions_per_tick: {}, id: {:?}, internal: {} }}",
+            "SimulationSettings {{ ticks_per_day: {}, max_instructions_per_tick: {}, name: {:?}, id: {:?}, internal: {} }}",
             self.ticks_per_day,
             self.max_instructions_per_tick,
+            self.name,
             self.id,
             if self.internal_atmospheric_network.is_some() {
                 "Some"
@@ -71,6 +75,7 @@ impl Default for SimulationSettings {
         Self {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
+            name: None,
             id: None,
             internal_atmospheric_network: None,
         }
@@ -735,6 +740,16 @@ pub trait Device: Debug {
     /// Write a logic value to the device
     fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()>;
 
+    /// Static access to the property registry for this device type.
+    fn properties() -> &'static PropertyRegistry<Self>
+    where
+        Self: Sized;
+
+    /// Human-readable static display name for the prefab.
+    fn display_name_static() -> &'static str
+    where
+        Self: Sized;
+
     /// Read from device internal memory at index
     fn get_memory(&self, _index: usize) -> SimulationResult<f64> {
         Err(SimulationError::RuntimeError {
@@ -811,6 +826,11 @@ pub trait Device: Debug {
     /// If the device is an AtmosphericDevice, return a mutable reference to it.
     fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
         None
+    }
+
+    /// Get the list of supported `LogicType` values for this device.
+    fn supported_types(&self) -> Vec<LogicType> {
+        Vec::new()
     }
 }
 

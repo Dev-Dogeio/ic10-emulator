@@ -34,8 +34,8 @@ pub struct DaylightSensor {
     /// The vertical angle (degrees)
     vertical: RefCell<f64>,
 
-    /// Simulation settings
-    settings: SimulationSettings,
+    /// Number of ticks in a day cycle used to determine sun position
+    ticks_per_day: f64,
 }
 
 /// Constructors and helpers
@@ -52,14 +52,20 @@ impl DaylightSensor {
             allocate_global_id()
         };
 
+        let name = if let Some(n) = settings.name.as_ref() {
+            n.to_string()
+        } else {
+            Self::display_name_static().to_string()
+        };
+
         shared(Self {
-            name: "Daylight Sensor".to_string(),
+            name,
             network: None,
             reference_id,
             on: RefCell::new(1.0),
             horizontal: RefCell::new(0.0),
             vertical: RefCell::new(0.0),
-            settings,
+            ticks_per_day: settings.ticks_per_day,
         })
     }
 
@@ -78,9 +84,13 @@ impl DaylightSensor {
         Self::PREFAB_HASH
     }
 
+    pub fn display_name_static() -> &'static str {
+        "Daylight Sensor"
+    }
+
     /// Get the property registry for this device type
     #[rustfmt::skip]
-    fn properties() -> &'static PropertyRegistry<Self> {
+    pub fn properties() -> &'static PropertyRegistry<Self> {
         static REGISTRY: OnceLock<PropertyRegistry<DaylightSensor>> = OnceLock::new();
 
         REGISTRY.get_or_init(|| {
@@ -153,6 +163,10 @@ impl Device for DaylightSensor {
         Self::properties().write(self, logic_type, value)
     }
 
+    fn supported_types(&self) -> Vec<LogicType> {
+        Self::properties().supported_types()
+    }
+
     fn update(&self, tick: u64) -> SimulationResult<()> {
         // Only update when device is On (non-zero)
         if *self.on.borrow() == 0.0 {
@@ -160,8 +174,7 @@ impl Device for DaylightSensor {
         }
 
         // Calculate position within the day cycle [0.0, 1.0)
-        let day_progress =
-            ((tick % self.settings.ticks_per_day as u64) as f64) / self.settings.ticks_per_day;
+        let day_progress = ((tick % self.ticks_per_day as u64) as f64) / self.ticks_per_day;
 
         // Horizontal angle: simple rotation around the compass
         // 0 degrees at tick 0, 360 degrees at tick 2400
@@ -184,6 +197,14 @@ impl Device for DaylightSensor {
         *self.vertical.borrow_mut() = vertical;
 
         Ok(())
+    }
+
+    fn properties() -> &'static PropertyRegistry<Self> {
+        DaylightSensor::properties()
+    }
+
+    fn display_name_static() -> &'static str {
+        DaylightSensor::display_name_static()
     }
 }
 

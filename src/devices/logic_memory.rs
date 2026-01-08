@@ -28,10 +28,6 @@ pub struct LogicMemory {
     reference_id: i32,
     /// Stored setting value
     setting: RefCell<f64>,
-
-    /// Simulation settings
-    #[allow(dead_code)]
-    settings: SimulationSettings,
 }
 
 /// Constructors and helpers
@@ -48,12 +44,17 @@ impl LogicMemory {
             allocate_global_id()
         };
 
+        let name = if let Some(n) = settings.name.as_ref() {
+            n.to_string()
+        } else {
+            Self::display_name_static().to_string()
+        };
+
         shared(Self {
-            name: "Logic Memory".to_string(),
+            name,
             network: None,
             setting: RefCell::new(0.0),
             reference_id,
-            settings,
         })
     }
 
@@ -62,9 +63,13 @@ impl LogicMemory {
         Self::PREFAB_HASH
     }
 
+    pub fn display_name_static() -> &'static str {
+        "Logic Memory"
+    }
+
     /// Get the property registry for this device type
     #[rustfmt::skip]
-    fn properties() -> &'static PropertyRegistry<Self> {
+    pub fn properties() -> &'static PropertyRegistry<Self> {
         static REGISTRY: OnceLock<PropertyRegistry<LogicMemory>> = OnceLock::new();
 
         REGISTRY.get_or_init(|| {
@@ -133,6 +138,18 @@ impl Device for LogicMemory {
 
     fn write(&self, logic_type: LogicType, value: f64) -> SimulationResult<()> {
         Self::properties().write(self, logic_type, value)
+    }
+
+    fn supported_types(&self) -> Vec<LogicType> {
+        Self::properties().supported_types()
+    }
+
+    fn properties() -> &'static PropertyRegistry<Self> {
+        LogicMemory::properties()
+    }
+
+    fn display_name_static() -> &'static str {
+        LogicMemory::display_name_static()
     }
 }
 

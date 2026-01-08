@@ -1,12 +1,14 @@
 //! Unit tests for networks
 #[cfg(test)]
 mod tests {
+    use crate::devices::property_descriptor::{PropertyDescriptor, PropertyRegistry};
     use crate::error::SimulationError;
     use crate::parser::string_to_hash;
     use crate::types::{OptShared, shared};
     use crate::{BatchMode, Device, LogicType, SimulationResult};
     use crate::{CableNetwork, devices::ICHousing};
     use std::cell::Cell;
+    use std::sync::OnceLock;
 
     /// Test device for network testing
     #[derive(Debug)]
@@ -80,6 +82,36 @@ mod tests {
                     line: 0,
                 }),
             }
+        }
+
+        fn supported_types(&self) -> Vec<LogicType> {
+            vec![LogicType::Setting]
+        }
+
+        fn properties() -> &'static PropertyRegistry<Self>
+        where
+            Self: Sized,
+        {
+            static REG: OnceLock<PropertyRegistry<TestNetworkDevice>> = OnceLock::new();
+            REG.get_or_init(|| {
+                const DESCRIPTORS: &[PropertyDescriptor<TestNetworkDevice>] =
+                    &[PropertyDescriptor::read_write(
+                        LogicType::Setting,
+                        |device, _| Ok(device.setting.get()),
+                        |device, _, value| {
+                            device.setting.set(value);
+                            Ok(())
+                        },
+                    )];
+                PropertyRegistry::new(DESCRIPTORS)
+            })
+        }
+
+        fn display_name_static() -> &'static str
+        where
+            Self: Sized,
+        {
+            "TestNetworkDevice"
         }
     }
 
