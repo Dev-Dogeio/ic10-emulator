@@ -5,7 +5,6 @@ use wasm_bindgen::prelude::*;
 use crate::atmospherics::{GasMixture, GasType, MatterState};
 use crate::devices::LogicSlotType;
 use crate::devices::LogicType;
-use crate::devices::device_factory::create_device;
 use crate::devices::{Device, SimulationDeviceSettings};
 use crate::devices::{DeviceAtmosphericNetworkType, device_factory};
 use crate::items::item::Item;
@@ -1128,10 +1127,10 @@ impl WasmSimulationManager {
         format!("{}", self.inner)
     }
 
-    /// Create a device by prefab hash and register it in the global device map.
+    /// Create a device by prefab hash via this `SimulationManager` and track it.
     /// Returns a `WasmDevice` wrapper for the created instance.
-    pub fn create_device(prefab_hash: i32) -> Result<WasmDevice, JsValue> {
-        match create_device(prefab_hash, None) {
+    pub fn create_device(&mut self, prefab_hash: i32) -> Result<WasmDevice, JsValue> {
+        match self.inner.create_device(prefab_hash, None) {
             Some(d) => Ok(WasmDevice { inner: d }),
             None => Err(JsValue::from_str(
                 "Unsupported prefab hash for device creation",
@@ -1139,8 +1138,9 @@ impl WasmSimulationManager {
         }
     }
 
-    /// Create a device with explicit simulation settings
+    /// Create a device with explicit simulation settings via this `SimulationManager` and track it.
     pub fn create_device_with_settings(
+        &mut self,
         prefab_hash: i32,
         id: Option<i32>,
         name: Option<String>,
@@ -1156,7 +1156,7 @@ impl WasmSimulationManager {
             max_instructions_per_tick,
         };
 
-        match create_device(prefab_hash, Some(settings)) {
+        match self.inner.create_device(prefab_hash, Some(settings)) {
             Some(d) => Ok(WasmDevice { inner: d }),
             None => Err(JsValue::from_str(
                 "Unsupported prefab hash for device creation",
@@ -1164,10 +1164,10 @@ impl WasmSimulationManager {
         }
     }
 
-    /// Create an item by `prefab_hash` and return a `WasmItem` wrapper (not registered).
+    /// Create an item by `prefab_hash` via this `SimulationManager` and track it.
     /// Supports IC10 and filter prefabs by probing known variants.
-    pub fn create_item(prefab_hash: i32) -> Result<WasmItem, JsValue> {
-        if let Some(item) = items::create_item(prefab_hash, None) {
+    pub fn create_item(&mut self, prefab_hash: i32) -> Result<WasmItem, JsValue> {
+        if let Some(item) = self.inner.create_item(prefab_hash, None) {
             return Ok(WasmItem { inner: Some(item) });
         }
 
@@ -1178,6 +1178,7 @@ impl WasmSimulationManager {
 
     /// Create an item with explicit simulation settings
     pub fn create_item_with_settings(
+        &mut self,
         prefab_hash: i32,
         id: Option<i32>,
         quantity: Option<u32>,
@@ -1191,13 +1192,31 @@ impl WasmSimulationManager {
             filter_size,
         };
 
-        if let Some(item) = items::create_item(prefab_hash, Some(settings)) {
+        if let Some(item) = self.inner.create_item(prefab_hash, Some(settings)) {
             return Ok(WasmItem { inner: Some(item) });
         }
 
         Err(JsValue::from_str(
             "Unsupported prefab hash for item creation",
         ))
+    }
+
+    /// Return all devices created by this manager as `WasmDevice` wrappers
+    pub fn all_devices(&self) -> Vec<WasmDevice> {
+        self.inner
+            .all_devices()
+            .into_iter()
+            .map(|d| WasmDevice { inner: d })
+            .collect()
+    }
+
+    /// Return all items created by this manager as `WasmItem` wrappers
+    pub fn all_items(&self) -> Vec<WasmItem> {
+        self.inner
+            .all_items()
+            .into_iter()
+            .map(|i| WasmItem { inner: Some(i) })
+            .collect()
     }
 
     /// Create a cable network and register it with this simulation manager

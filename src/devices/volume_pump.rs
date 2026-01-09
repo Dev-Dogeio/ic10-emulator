@@ -12,14 +12,12 @@ use crate::{
     networks::AtmosphericNetwork,
     parser::string_to_hash,
     prop_ro, prop_rw_bool, prop_rw_clamped, reserve_global_id,
-    types::{OptShared, Shared, shared},
+    types::{OptShared, OptWeakShared, Shared, shared},
 };
 
 use crate::conversions::fmt_trim;
 use std::{
-    cell::RefCell,
-    fmt::{Debug, Display},
-    sync::OnceLock,
+    cell::RefCell, fmt::{Debug, Display}, sync::OnceLock
 };
 
 /// Volume pump: moves gas between input and output networks
@@ -27,7 +25,7 @@ pub struct VolumePump {
     /// Device name
     name: String,
     /// Connected network
-    network: OptShared<CableNetwork>,
+    network: OptWeakShared<CableNetwork>,
 
     /// The device reference ID
     reference_id: i32,
@@ -125,10 +123,10 @@ impl Device for VolumePump {
     }
 
     fn get_network(&self) -> OptShared<CableNetwork> {
-        self.network.clone()
+        self.network.as_ref().and_then(|w| w.upgrade()).clone()
     }
 
-    fn set_network(&mut self, network: OptShared<CableNetwork>) {
+    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) {
         self.network = network;
     }
 
@@ -136,8 +134,8 @@ impl Device for VolumePump {
         let old_name_hash = self.get_name_hash();
         self.name = name.to_string();
 
-        if let Some(network) = &self.network {
-            network.borrow_mut().update_device_name(
+        if let Some(net_rc) = self.get_network() {
+            net_rc.borrow_mut().update_device_name(
                 self.reference_id,
                 old_name_hash,
                 string_to_hash(name),

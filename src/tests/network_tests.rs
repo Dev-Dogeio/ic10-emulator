@@ -4,7 +4,7 @@ mod tests {
     use crate::devices::property_descriptor::{PropertyDescriptor, PropertyRegistry};
     use crate::error::SimulationError;
     use crate::parser::string_to_hash;
-    use crate::types::{OptShared, shared};
+    use crate::types::{OptShared, OptWeakShared, shared};
     use crate::{BatchMode, Device, LogicType, SimulationResult};
     use crate::{CableNetwork, devices::ICHousing};
     use std::cell::Cell;
@@ -49,7 +49,7 @@ mod tests {
         fn get_network(&self) -> OptShared<CableNetwork> {
             None
         }
-        fn set_network(&mut self, _network: OptShared<CableNetwork>) {}
+        fn set_network(&mut self, _network: OptWeakShared<CableNetwork>) {}
 
         fn rename(&mut self, _name: &str) {}
 

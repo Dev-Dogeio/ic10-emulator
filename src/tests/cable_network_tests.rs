@@ -6,6 +6,7 @@ mod tests {
     use crate::devices::LogicType;
     use crate::devices::property_descriptor::{PropertyDescriptor, PropertyRegistry};
     use crate::networks::{BatchMode, CableNetwork};
+    use crate::types::OptWeakShared;
     use crate::types::{OptShared, shared};
     use std::cell::{Cell, RefCell};
 
@@ -19,7 +20,7 @@ mod tests {
         setting: Cell<f64>,
         horizontal: Cell<f64>,
         vertical: Cell<f64>,
-        network: RefCell<OptShared<CableNetwork>>,
+        network: RefCell<OptWeakShared<CableNetwork>>,
     }
 
     impl MockDevice {
@@ -77,10 +78,13 @@ mod tests {
         }
 
         fn get_network(&self) -> OptShared<CableNetwork> {
-            self.network.borrow().clone()
+            self.network
+                .borrow()
+                .clone()
+                .and_then(|weak_net| weak_net.upgrade())
         }
 
-        fn set_network(&mut self, network: OptShared<CableNetwork>) {
+        fn set_network(&mut self, network: OptWeakShared<CableNetwork>) {
             *self.network.borrow_mut() = network;
         }
 

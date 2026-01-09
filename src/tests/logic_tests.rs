@@ -1210,7 +1210,7 @@ yield
 
     #[test]
     fn test_device_io_self() {
-        let (chip, _, _) = ItemIntegratedCircuit10::new_with_network();
+        let (chip, _, _network) = ItemIntegratedCircuit10::new_with_network();
 
         // Test reading/writing to self (db) - Setting = 12
         let program = r#"
@@ -1260,7 +1260,7 @@ yield
         // 2. Immediate value (e.g., 12)
         // 3. Register containing the value (e.g., r5 where r5=12)
 
-        let (chip, _, _) = ItemIntegratedCircuit10::new_with_network();
+        let (chip, _, _network) = ItemIntegratedCircuit10::new_with_network();
 
         // Test all three variants
         let program = r#"

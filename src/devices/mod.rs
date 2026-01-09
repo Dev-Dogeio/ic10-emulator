@@ -10,7 +10,7 @@ use crate::{
     devices::property_descriptor::{PropertyRegistry, SlotPropertyRegistry, empty_slot_registry},
     error::{SimulationError, SimulationResult},
     items::ItemIntegratedCircuit10,
-    types::{OptShared, Shared},
+    types::{OptShared, OptWeakShared, Shared},
 };
 
 pub mod air_conditioner;
@@ -629,7 +629,7 @@ pub trait Device: Debug {
     }
 
     /// Set the network reference for the device
-    fn set_network(&mut self, network: OptShared<CableNetwork>);
+    fn set_network(&mut self, network: OptWeakShared<CableNetwork>);
 
     /// Read a value from a specific slot
     fn read_slot(&self, _index: usize, _slot_logic_type: LogicSlotType) -> SimulationResult<f64> {

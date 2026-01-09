@@ -15,29 +15,19 @@ use ic10_emulator_lib::{
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("Running Phase Change test...");
-    phase_change_test()?;
-    sleep(Duration::from_secs(1));
+    let tests_to_run = [
+        phase_change_test,
+        phase_change_test_2,
+        elmo_ac_test,
+        ac_device_test,
+        filtration_device_test,
+        ic_program_test,
+    ];
 
-    println!("Running Phase Change test 2...");
-    phase_change_test_2()?;
-    sleep(Duration::from_secs(1));
-
-    println!("Running Elmo AC test...");
-    elmo_ac_test()?;
-    sleep(Duration::from_secs(1));
-
-    println!("Running AC device test...");
-    ac_device_test()?;
-    sleep(Duration::from_secs(1));
-
-    println!("Running Filtration device test...");
-    filtration_device_test()?;
-    sleep(Duration::from_secs(1));
-
-    println!("Running IC program test...");
-    ic_program_test()?;
-    sleep(Duration::from_secs(1));
+    for test in tests_to_run {
+        test()?;
+        sleep(Duration::from_millis(500));
+    }
 
     Ok(())
 }

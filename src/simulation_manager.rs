@@ -26,12 +26,24 @@ use std::fmt::Display;
 pub struct SimulationManager {
     cable_networks: Vec<Shared<CableNetwork>>,
     atmospheric_networks: Vec<Shared<AtmosphericNetwork>>,
+    devices: Vec<Shared<dyn Device>>,
+    items: Vec<Shared<dyn Item>>,
 }
 
 impl SimulationManager {
     /// Create a new `SimulationManager` with default settings
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Return a slice of all devices created by this manager
+    pub fn all_devices(&self) -> Vec<Shared<dyn Device>> {
+        self.devices.clone()
+    }
+
+    /// Return a slice of all items created by this manager
+    pub fn all_items(&self) -> Vec<Shared<dyn Item>> {
+        self.items.clone()
     }
 
     /// Register a cable network to be updated each tick
@@ -73,24 +85,39 @@ impl SimulationManager {
 
         self.cable_networks.clear();
         self.atmospheric_networks.clear();
+
+        // Clear tracked devices/items
+        self.devices.clear();
+        self.items.clear();
     }
 
-    /// Create a new device by prefab hash using the device factory.
+    /// Create a new device by prefab hash using the device factory and track it.
     pub fn create_device(
-        &self,
+        &mut self,
         prefab_hash: i32,
         settings: Option<SimulationDeviceSettings>,
     ) -> Option<Shared<dyn Device>> {
-        device_factory::create_device(prefab_hash, settings)
+        if let Some(d) = device_factory::create_device(prefab_hash, settings) {
+            // Track the created device
+            self.devices.push(d.clone());
+            Some(d)
+        } else {
+            None
+        }
     }
 
-    /// Create a new item by prefab hash using the item factory.
+    /// Create a new item by prefab hash using the item factory and track it.
     pub fn create_item(
-        &self,
+        &mut self,
         prefab_hash: i32,
         settings: Option<SimulationItemSettings>,
     ) -> Option<Shared<dyn Item>> {
-        item_factory::create_item(prefab_hash, settings)
+        if let Some(it) = item_factory::create_item(prefab_hash, settings) {
+            self.items.push(it.clone());
+            Some(it)
+        } else {
+            None
+        }
     }
 
     /// Create a new cable network and register it with this manager.

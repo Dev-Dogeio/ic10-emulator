@@ -60,7 +60,7 @@ impl CableNetwork {
     /// The devices list will remain sorted by reference ID
     pub fn add_device(&mut self, device: Shared<dyn Device>, network_rc: Shared<CableNetwork>) {
         // Set the device's network reference
-        device.borrow_mut().set_network(Some(network_rc));
+        device.borrow_mut().set_network(Some(Rc::downgrade(&network_rc)));
 
         let borrowed = device.borrow();
         let ref_id = borrowed.get_id();
