@@ -1263,10 +1263,22 @@ pub fn get_item_prefab_info(prefab_hash: i32) -> Result<Object, JsValue> {
     if let Some((name, item_type)) = items::get_prefab_metadata(prefab_hash) {
         let obj = Object::new();
         Reflect::set(&obj, &JsValue::from_str("name"), &JsValue::from_str(name)).unwrap();
-        Reflect::set(&obj, &JsValue::from_str("prefab_hash"), &JsValue::from_f64(prefab_hash as f64)).unwrap();
-        Reflect::set(&obj, &JsValue::from_str("item_type"), &JsValue::from_str(item_type.as_str())).unwrap();
+        Reflect::set(
+            &obj,
+            &JsValue::from_str("prefab_hash"),
+            &JsValue::from_f64(prefab_hash as f64),
+        )
+        .unwrap();
+        Reflect::set(
+            &obj,
+            &JsValue::from_str("item_type"),
+            &JsValue::from_str(item_type.as_str()),
+        )
+        .unwrap();
         return Ok(obj);
     }
 
-    Err(JsValue::from_str("Unsupported prefab hash for item prefab info"))
+    Err(JsValue::from_str(
+        "Unsupported prefab hash for item prefab info",
+    ))
 }

@@ -32,8 +32,7 @@ pub use logic_memory::LogicMemory;
 pub use volume_pump::VolumePump;
 
 /// Simulation settings for devices
-#[derive(Clone)]
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct SimulationDeviceSettings {
     /// Number of ticks in a day cycle
     pub ticks_per_day: Option<f64>,
@@ -70,7 +69,6 @@ impl Debug for SimulationDeviceSettings {
         write!(f, "{}", self)
     }
 }
-
 
 /// Slot logic types
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
