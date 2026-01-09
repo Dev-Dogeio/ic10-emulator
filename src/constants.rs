@@ -16,6 +16,12 @@ pub const STACK_POINTER_INDEX: usize = 16;
 /// Return address register index (r17/ra)
 pub const RETURN_ADDRESS_INDEX: usize = 17;
 
+/// Default maximum instructions per tick for ic10 execution
+pub const DEFAULT_MAX_INSTRUCTIONS_PER_TICK: usize = 128;
+
+/// Default number of ticks per day cycle
+pub const DEFAULT_TICKS_PER_DAY: f64 = 2400.0;
+
 /// Built-in IC10 constants
 pub fn get_builtin_constants() -> HashMap<String, f64> {
     let mut constants = HashMap::new();

@@ -184,8 +184,8 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
     pump.borrow_mut()
         .set_atmospheric_network(DeviceAtmosphericNetworkType::Output, Some(input.clone()))?;
 
-    let chip = shared(ItemIntegratedCircuit10::new());
-    ac.borrow_mut().set_chip(chip.clone());
+    let chip = shared(ItemIntegratedCircuit10::new(None));
+    ac.borrow().set_chip(chip.clone());
 
     let network = CableNetwork::new();
 
@@ -333,7 +333,7 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
         let mut f = filtration.borrow_mut();
         // Insert a filter item into slot 0
         let slot = f.get_slot_mut(0).unwrap();
-        let mut filter_item = Filter::new();
+        let mut filter_item = Filter::new(None);
         filter_item.set_gas_type(GasType::Oxygen);
         filter_item.set_size(FilterSize::Small);
         filter_item.set_quantity(100);
@@ -387,10 +387,10 @@ fn ic_program_test() -> Result<(), Box<dyn Error>> {
 
     // Create a network
     let network = CableNetwork::new();
-    let chip = shared(ItemIntegratedCircuit10::new());
+    let chip = shared(ItemIntegratedCircuit10::new(None));
     let housing = ICHousing::new(None);
 
-    housing.borrow_mut().set_chip(chip.clone());
+    housing.borrow().set_chip(chip.clone());
     network
         .borrow_mut()
         .add_device(housing.clone(), network.clone());

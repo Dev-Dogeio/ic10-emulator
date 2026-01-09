@@ -2,61 +2,41 @@
 use std::cell::{Ref, RefMut};
 use std::collections::HashSet;
 
+use crate::atmospherics::GasType;
 use crate::types::OptShared;
-use crate::types::{Shared, shared};
+use crate::types::Shared;
 
 pub mod filter;
 pub mod item;
+pub mod item_factory;
 pub mod item_integrated_circuit_10;
 
 pub use filter::Filter;
 pub use filter::FilterSize;
 pub use item::{Item, ItemType};
+pub use item_factory::{get_prefab_metadata, get_registered_item_prefabs};
 pub use item_integrated_circuit_10::ItemIntegratedCircuit10;
 
+/// Settings used when creating items during simulation. Fields are optional and
+/// when provided will be applied during initialization.
+#[derive(Clone, Debug, Default)]
+pub struct SimulationItemSettings {
+    /// Optional requested ID for the item
+    pub id: Option<i32>,
+    /// Optional quantity to initialize to
+    pub quantity: Option<u32>,
+    /// Optional gas type for items that care about gas
+    pub gas_type: Option<GasType>,
+    /// Optional filter size for filter items
+    pub filter_size: Option<FilterSize>,
+}
+
 /// Create an item by `prefab_hash`, returning `Some` when recognized.
-pub fn create_item(prefab_hash: i32) -> OptShared<dyn Item> {
-    use crate::atmospherics::GasType;
-    use crate::items::FilterSize;
-
-    if prefab_hash == ItemIntegratedCircuit10::PREFAB_HASH {
-        return Some(shared(ItemIntegratedCircuit10::new()));
-    }
-
-    // Filters: enumerate gas types and sizes
-    let gas_types = [
-        GasType::Oxygen,
-        GasType::Nitrogen,
-        GasType::CarbonDioxide,
-        GasType::Volatiles,
-        GasType::Pollutant,
-        GasType::NitrousOxide,
-        GasType::Steam,
-        GasType::Hydrogen,
-        GasType::Water,
-    ];
-
-    let sizes = [
-        FilterSize::Small,
-        FilterSize::Medium,
-        FilterSize::Large,
-        FilterSize::Infinite,
-    ];
-
-    for &g in &gas_types {
-        for &s in &sizes {
-            if Filter::prefab_hash_for(g, s) == prefab_hash {
-                let mut f = Filter::new();
-                f.set_gas_type(g);
-                f.set_size(s);
-                f.set_quantity(100);
-                let filter: Shared<dyn Item> = shared(f);
-                return Some(filter);
-            }
-        }
-    }
-
-    None
+pub fn create_item(
+    prefab_hash: i32,
+    settings: Option<SimulationItemSettings>,
+) -> OptShared<dyn Item> {
+    item_factory::create_item(prefab_hash, settings)
 }
 
 /// A device slot that can hold an item and enforces allowed types

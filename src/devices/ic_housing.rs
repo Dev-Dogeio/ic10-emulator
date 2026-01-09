@@ -1,11 +1,13 @@
 //! IC housing device: hosts IC10 chips and exposes registers/memory.
 
+use crate::constants::DEFAULT_MAX_INSTRUCTIONS_PER_TICK;
 use crate::conversions::fmt_trim;
 use crate::{
     CableNetwork, allocate_global_id,
     constants::STACK_SIZE,
     devices::{
-        ChipSlot, Device, ICHostDevice, ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
+        ChipSlot, Device, ICHostDevice, ICHostDeviceMemoryOverride, LogicType,
+        SimulationDeviceSettings,
         property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::{SimulationError, SimulationResult},
@@ -46,7 +48,7 @@ impl ICHousing {
     pub const PREFAB_HASH: i32 = string_to_hash("StructureCircuitHousing");
 
     /// Create a new `ICHousing`
-    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
         let settings = simulation_settings.unwrap_or_default();
         let reference_id = if let Some(id) = settings.id {
             reserve_global_id(id)
@@ -60,6 +62,10 @@ impl ICHousing {
             Self::display_name_static().to_string()
         };
 
+        let max_instructions_per_tick = settings
+            .max_instructions_per_tick
+            .unwrap_or(DEFAULT_MAX_INSTRUCTIONS_PER_TICK);
+
         let s = shared(Self {
             name,
             network: None,
@@ -67,7 +73,7 @@ impl ICHousing {
             on: RefCell::new(1.0),
             reference_id,
             chip_host: ChipSlot::new(6),
-            max_instructions_per_tick: settings.max_instructions_per_tick,
+            max_instructions_per_tick,
         });
 
         s.borrow()
@@ -224,7 +230,11 @@ impl Device for ICHousing {
         ICHousing::display_name_static()
     }
 
-    fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
+    fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
+        Some(self)
+    }
+
+    fn as_ic_host_device_mut(&mut self) -> Option<&mut dyn ICHostDevice> {
         Some(self)
     }
 }

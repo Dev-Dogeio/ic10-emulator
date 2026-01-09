@@ -24,7 +24,7 @@ mod tests {
     /// Create a chip with optional initial register values
     fn chip() -> ItemIntegratedCircuit10 {
         // For simple chip-only tests we don't need to attach to a housing
-        ItemIntegratedCircuit10::new()
+        ItemIntegratedCircuit10::new(None)
     }
 
     // Test-only helper: construct a chip + housing + network and wire them together.
@@ -36,10 +36,10 @@ mod tests {
         ) {
             let network = CableNetwork::new();
             let housing = ICHousing::new(None);
-            let chip = shared(ItemIntegratedCircuit10::new());
+            let chip = shared(ItemIntegratedCircuit10::new(None));
 
             // Connect chip to housing (this will also attach the chip slot to the chip)
-            housing.borrow_mut().set_chip(chip.clone());
+            housing.borrow().set_chip(chip.clone());
 
             // Connect housing to network (which also adds it as a device)
             network
@@ -1295,8 +1295,8 @@ yield
 
         // Add another IC housing device to the network
         let housing2 = ICHousing::new(None);
-        let chip2 = shared(ItemIntegratedCircuit10::new());
-        housing2.borrow_mut().set_chip(chip2.clone());
+        let chip2 = shared(ItemIntegratedCircuit10::new(None));
+        housing2.borrow().set_chip(chip2.clone());
         let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
@@ -1308,7 +1308,7 @@ yield
         ICHostDevice::set_memory(&*housing2.borrow(), 511, 999.0).unwrap();
 
         // Set housing2 as device on pin 0
-        housing.borrow_mut().set_device_pin(0, Some(device_id));
+        housing.borrow().set_device_pin(0, Some(device_id));
 
         let program = r#"
 # Test get - read from device memory
@@ -1365,8 +1365,8 @@ yield
 
         // Add another IC housing device to the network
         let housing2 = ICHousing::new(None);
-        let chip2 = shared(ItemIntegratedCircuit10::new());
-        housing2.borrow_mut().set_chip(chip2.clone());
+        let chip2 = shared(ItemIntegratedCircuit10::new(None));
+        housing2.borrow().set_chip(chip2.clone());
 
         let device_id = housing2.borrow().get_id();
         network
@@ -1379,7 +1379,7 @@ yield
         ICHostDevice::set_memory(&*housing2.borrow(), 511, 999.0).unwrap();
 
         // Set housing2 as device on pin 0
-        housing.borrow_mut().set_device_pin(0, Some(device_id));
+        housing.borrow().set_device_pin(0, Some(device_id));
 
         let program = r#"
 # Verify memory has values
@@ -1579,7 +1579,7 @@ yield
         {
             let mut f_borrow = filtration.borrow_mut();
             let slot = f_borrow.get_slot_mut(0).unwrap();
-            let mut filter_item = Filter::new();
+            let mut filter_item = Filter::new(None);
             filter_item.set_gas_type(GasType::Oxygen);
             filter_item.set_size(FilterSize::Small);
             filter_item.set_quantity(10);
@@ -1756,16 +1756,16 @@ yield
 
         // Add two IC housing devices to the network
         let housing1 = ICHousing::new(None);
-        let chip1 = shared(ItemIntegratedCircuit10::new());
-        housing1.borrow_mut().set_chip(chip1.clone());
+        let chip1 = shared(ItemIntegratedCircuit10::new(None));
+        housing1.borrow().set_chip(chip1.clone());
         let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing1.clone(), network.clone());
 
         let housing2 = ICHousing::new(None);
-        let chip2 = shared(ItemIntegratedCircuit10::new());
-        housing2.borrow_mut().set_chip(chip2.clone());
+        let chip2 = shared(ItemIntegratedCircuit10::new(None));
+        housing2.borrow().set_chip(chip2.clone());
 
         let device_id2 = housing2.borrow().get_id();
         network
@@ -1856,16 +1856,16 @@ yield
 
         // Add two IC housing devices to the network
         let housing1 = ICHousing::new(None);
-        let chip1 = shared(ItemIntegratedCircuit10::new());
-        housing1.borrow_mut().set_chip(chip1.clone());
+        let chip1 = shared(ItemIntegratedCircuit10::new(None));
+        housing1.borrow().set_chip(chip1.clone());
         let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing1.clone(), network.clone());
 
         let housing2 = ICHousing::new(None);
-        let chip2 = shared(ItemIntegratedCircuit10::new());
-        housing2.borrow_mut().set_chip(chip2.clone());
+        let chip2 = shared(ItemIntegratedCircuit10::new(None));
+        housing2.borrow().set_chip(chip2.clone());
         let device_id2 = housing2.borrow().get_id();
         network
             .borrow_mut()

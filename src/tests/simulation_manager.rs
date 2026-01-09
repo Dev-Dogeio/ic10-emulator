@@ -2,13 +2,13 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        SimulationManager,
+        Filter, SimulationManager,
         devices::{
             AirConditioner, AtmosphericDevice, DaylightSensor, Device,
             DeviceAtmosphericNetworkType, Filtration, ICHostDevice, ICHousing, LogicMemory,
-            SimulationSettings, VolumePump,
+            SimulationDeviceSettings, SlotHostDevice, VolumePump,
         },
-        items::ItemIntegratedCircuit10,
+        items::{FilterSize, ItemIntegratedCircuit10},
         networks::{AtmosphericNetwork, CableNetwork},
         types::shared,
     };
@@ -48,19 +48,19 @@ mod tests {
         cn.borrow_mut().add_device(ds.clone(), cn.clone());
 
         // Insert an IC chip into each IC host device (AirConditioner, Filtration, ICHousing)
-        let chip_ac = shared(ItemIntegratedCircuit10::new());
+        let chip_ac = shared(ItemIntegratedCircuit10::new(None));
         let chip_ac_weak = std::rc::Rc::downgrade(&chip_ac);
-        ac.borrow_mut().set_chip(chip_ac.clone());
+        ac.borrow().set_chip(chip_ac.clone());
         drop(chip_ac);
 
-        let chip_fil = shared(ItemIntegratedCircuit10::new());
+        let chip_fil = shared(ItemIntegratedCircuit10::new(None));
         let chip_fil_weak = std::rc::Rc::downgrade(&chip_fil);
-        fil.borrow_mut().set_chip(chip_fil.clone());
+        fil.borrow().set_chip(chip_fil.clone());
         drop(chip_fil);
 
-        let chip_housing = shared(ItemIntegratedCircuit10::new());
+        let chip_housing = shared(ItemIntegratedCircuit10::new(None));
         let chip_housing_weak = std::rc::Rc::downgrade(&chip_housing);
-        housing.borrow_mut().set_chip(chip_housing.clone());
+        housing.borrow().set_chip(chip_housing.clone());
         drop(chip_housing);
 
         // Create and attach atmospheric networks to atmospheric devices
@@ -199,12 +199,43 @@ mod tests {
     }
 
     #[test]
+    fn test_simulation_manager_device_item_enumeration() {
+        SimulationManager::reset_global();
+
+        let cn = CableNetwork::new();
+
+        // Create Filtration device and register it on the network
+        let fil = Filtration::new(None);
+        cn.borrow_mut().add_device(fil.clone(), cn.clone());
+
+        // Insert an Oxygen Large filter into slot 0
+        let mut f = Filter::new(None);
+        f.set_gas_type(crate::atmospherics::GasType::Oxygen);
+        f.set_size(FilterSize::Large);
+        f.set_quantity(42);
+        fil.borrow_mut().try_insert_item(0, shared(f)).unwrap();
+
+        let out = format!("{}", SimulationManager::global().borrow());
+        assert!(
+            out.contains("Items:"),
+            "Output should include item enumeration: {}",
+            out
+        );
+        assert!(
+            out.contains("Oxygen Filter (Large)"),
+            "Should include filter display name: {}",
+            out
+        );
+        assert!(out.contains("slot 0"), "Should include slot index: {}", out);
+    }
+
+    #[test]
     fn test_simulation_settings_internal_network_used_by_devices() {
         SimulationManager::reset_global();
         let an_internal = AtmosphericNetwork::new(50.0);
-        let settings = SimulationSettings {
-            ticks_per_day: 2400.0,
-            max_instructions_per_tick: 128,
+        let settings = SimulationDeviceSettings {
+            ticks_per_day: Some(2400.0),
+            max_instructions_per_tick: Some(128),
             name: None,
             id: None,
             internal_atmospheric_network: Some(an_internal.clone()),
@@ -223,44 +254,44 @@ mod tests {
 
         // Create distinct settings for each device with explicit ids
         // Use negative IDs to avoid clashes with other tests that allocate global IDs concurrently
-        let ac_settings = SimulationSettings {
-            ticks_per_day: 2400.0,
-            max_instructions_per_tick: 128,
+        let ac_settings = SimulationDeviceSettings {
+            ticks_per_day: Some(2400.0),
+            max_instructions_per_tick: Some(128),
             name: None,
             id: Some(-1100),
             internal_atmospheric_network: None,
         };
-        let fil_settings = SimulationSettings {
-            ticks_per_day: 2400.0,
-            max_instructions_per_tick: 128,
+        let fil_settings = SimulationDeviceSettings {
+            ticks_per_day: Some(2400.0),
+            max_instructions_per_tick: Some(128),
             name: None,
             id: Some(-1101),
             internal_atmospheric_network: None,
         };
-        let pump_settings = SimulationSettings {
-            ticks_per_day: 2400.0,
-            max_instructions_per_tick: 128,
+        let pump_settings = SimulationDeviceSettings {
+            ticks_per_day: Some(2400.0),
+            max_instructions_per_tick: Some(128),
             name: None,
             id: Some(-1102),
             internal_atmospheric_network: None,
         };
-        let housing_settings = SimulationSettings {
-            ticks_per_day: 2400.0,
-            max_instructions_per_tick: 128,
+        let housing_settings = SimulationDeviceSettings {
+            ticks_per_day: Some(2400.0),
+            max_instructions_per_tick: Some(128),
             name: None,
             id: Some(-1103),
             internal_atmospheric_network: None,
         };
-        let ds_settings = SimulationSettings {
-            ticks_per_day: 2400.0,
-            max_instructions_per_tick: 128,
+        let ds_settings = SimulationDeviceSettings {
+            ticks_per_day: Some(2400.0),
+            max_instructions_per_tick: Some(128),
             name: None,
             id: Some(-1104),
             internal_atmospheric_network: None,
         };
-        let lm_settings = SimulationSettings {
-            ticks_per_day: 2400.0,
-            max_instructions_per_tick: 128,
+        let lm_settings = SimulationDeviceSettings {
+            ticks_per_day: Some(2400.0),
+            max_instructions_per_tick: Some(128),
             name: None,
             id: Some(-1105),
             internal_atmospheric_network: None,

@@ -43,7 +43,7 @@ fn filtration_respects_mode() {
     {
         let mut f_borrow = f.borrow_mut();
         let slot = f_borrow.get_slot_mut(0).unwrap();
-        let mut filter_item = Filter::new();
+        let mut filter_item = Filter::new(None);
         filter_item.set_gas_type(GasType::Oxygen);
         filter_item.set_size(FilterSize::Small);
         filter_item.set_quantity(1);
@@ -86,7 +86,7 @@ fn filtration_respects_mode() {
     {
         let mut f2_borrow = f2.borrow_mut();
         let slot = f2_borrow.get_slot_mut(0).unwrap();
-        let mut filter_item = Filter::new();
+        let mut filter_item = Filter::new(None);
         filter_item.set_gas_type(GasType::Oxygen);
         filter_item.set_size(FilterSize::Small);
         filter_item.set_quantity(1);

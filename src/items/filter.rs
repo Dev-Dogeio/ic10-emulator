@@ -1,6 +1,9 @@
 //! Filter item implementation
 
-use crate::{allocate_global_id, atmospherics::GasType, parser::string_to_hash};
+use crate::{
+    allocate_global_id, atmospherics::GasType, items::SimulationItemSettings,
+    parser::string_to_hash, reserve_global_id,
+};
 
 use super::item::{Item, ItemType};
 use std::any::Any;
@@ -24,12 +27,26 @@ pub struct Filter {
 
 impl Filter {
     /// Create a new `Filter` with default values
-    pub fn new() -> Self {
+    pub fn new(settings: Option<SimulationItemSettings>) -> Self {
+        let settings = settings.unwrap_or_default();
+
+        let id = if let Some(requested_id) = settings.id {
+            reserve_global_id(requested_id)
+        } else {
+            allocate_global_id()
+        };
+
+        let quantity = settings.quantity.unwrap_or(100) as f64;
+
+        let gas_type = settings.gas_type.unwrap_or(GasType::CarbonDioxide);
+
+        let size = settings.filter_size.unwrap_or(FilterSize::Small);
+
         Self {
-            id: allocate_global_id(),
-            quantity: 100.0,
-            gas_type: GasType::CarbonDioxide,
-            size: FilterSize::Small,
+            id,
+            quantity,
+            gas_type,
+            size,
         }
     }
 
@@ -83,7 +100,7 @@ impl Filter {
 
 impl Default for Filter {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 

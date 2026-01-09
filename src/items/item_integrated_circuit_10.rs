@@ -4,9 +4,12 @@ use crate::constants::{REGISTER_COUNT, RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX
 use crate::devices::ChipSlot;
 use crate::error::{SimulationError, SimulationResult};
 use crate::instruction::{Instruction, ParsedInstruction};
+use crate::items::SimulationItemSettings;
 use crate::parser::{preprocess, string_to_hash};
 use crate::types::{OptShared, OptWeakShared, Shared};
-use crate::{CableNetwork, Item, ItemType, allocate_global_id, get_builtin_constants};
+use crate::{
+    CableNetwork, Item, ItemType, allocate_global_id, get_builtin_constants, reserve_global_id,
+};
 use crate::{LogicType, logic};
 use std::any::Any;
 use std::cell::RefCell;
@@ -62,7 +65,15 @@ pub enum AliasTarget {
 
 impl ItemIntegratedCircuit10 {
     /// Create a new `ItemIntegratedCircuit10`
-    pub fn new() -> Self {
+    pub fn new(settings: Option<SimulationItemSettings>) -> Self {
+        let settings = settings.unwrap_or_default();
+
+        let id = if let Some(requested_id) = settings.id {
+            reserve_global_id(requested_id)
+        } else {
+            allocate_global_id()
+        };
+
         let mut aliases = HashMap::new();
 
         aliases.insert("sp".to_string(), AliasTarget::Register(STACK_POINTER_INDEX));
@@ -72,7 +83,7 @@ impl ItemIntegratedCircuit10 {
         );
 
         Self {
-            id: allocate_global_id(),
+            id,
             pc: RefCell::new(0),
             program: RefCell::new(Vec::new()),
             aliases: RefCell::new(aliases),
@@ -524,7 +535,7 @@ impl ItemIntegratedCircuit10 {
 
 impl Default for ItemIntegratedCircuit10 {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 

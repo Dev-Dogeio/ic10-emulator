@@ -7,9 +7,11 @@
 //! 1. Process atmospheric network updates
 //! 2. Update all cable networks (which run device updates and IC runners)
 
+use crate::LogicSlotType;
 use crate::LogicType;
 use crate::conversions::fmt_trim;
 use crate::id::reset_global_id_counter;
+use crate::items;
 use crate::networks::{AtmosphericNetwork, CableNetwork};
 use crate::types::{Shared, shared};
 use std::fmt::Display;
@@ -169,6 +171,38 @@ impl Display for SimulationManager {
 
                     if !values.is_empty() {
                         writeln!(f, "        State: {}", values.join(", "))?;
+                    }
+
+                    // Enumerate items if device supports slots
+                    if let Some(slot_host) = device_ref.as_slot_host_device() {
+                        let count = slot_host.slot_count();
+                        let mut items = Vec::new();
+
+                        for slot_idx in 0..count {
+                            // Try to read occupant prefab hash and quantity via slot properties
+                            if let Ok(occupant_hash) =
+                                device_ref.read_slot(slot_idx, LogicSlotType::OccupantHash)
+                            {
+                                let occupant_hash_i = occupant_hash as i32;
+                                if occupant_hash_i != 0 {
+                                    let name = items::get_prefab_metadata(occupant_hash_i)
+                                        .map(|(n, _)| n)
+                                        .unwrap_or("Unknown");
+                                    let qty = device_ref
+                                        .read_slot(slot_idx, LogicSlotType::Quantity)
+                                        .unwrap_or(0.0)
+                                        as u32;
+                                    items.push(format!(
+                                        "slot {}: {} ({} x{})",
+                                        slot_idx, name, occupant_hash_i, qty
+                                    ));
+                                }
+                            }
+                        }
+
+                        if !items.is_empty() {
+                            writeln!(f, "        Items: {}", items.join(", "))?;
+                        }
                     }
                 }
             }

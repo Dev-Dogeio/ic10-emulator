@@ -33,24 +33,25 @@ pub use volume_pump::VolumePump;
 
 /// Simulation settings for devices
 #[derive(Clone)]
-pub struct SimulationSettings {
+#[derive(Default)]
+pub struct SimulationDeviceSettings {
     /// Number of ticks in a day cycle
-    pub ticks_per_day: f64,
+    pub ticks_per_day: Option<f64>,
     /// Max IC10 instructions per tick
-    pub max_instructions_per_tick: usize,
-    /// Optional device name override
+    pub max_instructions_per_tick: Option<usize>,
+    /// Device name override
     pub name: Option<String>,
     /// The device will request this ID and panic if already allocated
     pub id: Option<i32>,
-    /// Optional internal atmospheric network to use for devices that require an internal buffer, ignored otherwise
+    /// Internal atmospheric network to use for devices that require an internal buffer, ignored otherwise
     pub internal_atmospheric_network: OptShared<AtmosphericNetwork>,
 }
 
-impl Display for SimulationSettings {
+impl Display for SimulationDeviceSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "SimulationSettings {{ ticks_per_day: {}, max_instructions_per_tick: {}, name: {:?}, id: {:?}, internal: {} }}",
+            "SimulationDeviceSettings {{ ticks_per_day: {:?}, max_instructions_per_tick: {:?}, name: {:?}, id: {:?}, internal: {} }}",
             self.ticks_per_day,
             self.max_instructions_per_tick,
             self.name,
@@ -64,23 +65,12 @@ impl Display for SimulationSettings {
     }
 }
 
-impl Debug for SimulationSettings {
+impl Debug for SimulationDeviceSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-impl Default for SimulationSettings {
-    fn default() -> Self {
-        Self {
-            ticks_per_day: 2400.0,
-            max_instructions_per_tick: 128,
-            name: None,
-            id: None,
-            internal_atmospheric_network: None,
-        }
-    }
-}
 
 /// Slot logic types
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -689,18 +679,33 @@ pub trait Device: Debug {
         Vec::new()
     }
 
+    /// If the device hosts an IC chip, return a reference to it.
+    fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
+        None
+    }
+
     /// If the device hosts an IC chip, return a mutable reference to it.
-    fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
+    fn as_ic_host_device_mut(&mut self) -> Option<&mut dyn ICHostDevice> {
+        None
+    }
+
+    /// If the device supports item slots, return a reference to it.
+    fn as_slot_host_device(&self) -> Option<&dyn SlotHostDevice> {
         None
     }
 
     /// If the device supports item slots, return a mutable reference to it.
-    fn as_slot_host_device(&mut self) -> Option<&mut dyn SlotHostDevice> {
+    fn as_slot_host_device_mut(&mut self) -> Option<&mut dyn SlotHostDevice> {
+        None
+    }
+
+    /// If the device is an AtmosphericDevice, return a reference to it.
+    fn as_atmospheric_device(&self) -> Option<&dyn AtmosphericDevice> {
         None
     }
 
     /// If the device is an AtmosphericDevice, return a mutable reference to it.
-    fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
+    fn as_atmospheric_device_mut(&mut self) -> Option<&mut dyn AtmosphericDevice> {
         None
     }
 }
@@ -767,7 +772,7 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
     }
 
     /// Insert an IC chip into the host and attach it. Default implementation inserts into the slot and assigns the chip slot to the chip.
-    fn set_chip(&mut self, chip: Shared<ItemIntegratedCircuit10>) {
+    fn set_chip(&self, chip: Shared<ItemIntegratedCircuit10>) {
         self.chip_slot()
             .borrow_mut()
             .set_chip(chip.clone())
@@ -779,7 +784,7 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
     }
 
     /// Set a device pin on the housing's chip slot (d0-dN)
-    fn set_device_pin(&mut self, pin: usize, device_ref_id: Option<i32>) {
+    fn set_device_pin(&self, pin: usize, device_ref_id: Option<i32>) {
         self.chip_slot()
             .borrow_mut()
             .set_device_pin(pin, device_ref_id);

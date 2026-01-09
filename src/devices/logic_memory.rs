@@ -8,7 +8,7 @@ use crate::conversions::fmt_trim;
 use crate::{
     CableNetwork, allocate_global_id,
     devices::{
-        Device, LogicType, SimulationSettings,
+        Device, LogicType, SimulationDeviceSettings,
         property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::SimulationResult,
@@ -36,7 +36,7 @@ impl LogicMemory {
     pub const PREFAB_HASH: i32 = string_to_hash("StructureLogicMemory");
 
     /// Create a new `LogicMemory`
-    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
         let settings = simulation_settings.unwrap_or_default();
         let reference_id = if let Some(id) = settings.id {
             reserve_global_id(id)

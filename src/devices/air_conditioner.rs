@@ -3,9 +3,10 @@
 use crate::{
     CableNetwork, allocate_global_id,
     atmospherics::{CELSIUS_TO_KELVIN, GasType, MatterState, ONE_ATMOSPHERE, calculate_moles},
+    constants::DEFAULT_MAX_INSTRUCTIONS_PER_TICK,
     devices::{
         AtmosphericDevice, ChipSlot, Device, DeviceAtmosphericNetworkType, ICHostDevice,
-        ICHostDeviceMemoryOverride, LogicType, SimulationSettings,
+        ICHostDeviceMemoryOverride, LogicType, SimulationDeviceSettings,
         property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::{SimulationError, SimulationResult},
@@ -86,7 +87,7 @@ impl AirConditioner {
     pub const PREFAB_HASH: i32 = string_to_hash("StructureAirConditioner");
 
     /// Create a new `AirConditioner`. Optionally accepts simulation settings.
-    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
         // Load curves once and share them across instances
         static TEMPERATURE_DELTA_CURVE: OnceLock<Arc<AnimationCurve>> = OnceLock::new();
         static INPUT_AND_WASTE_CURVE: OnceLock<Arc<AnimationCurve>> = OnceLock::new();
@@ -129,6 +130,10 @@ impl AirConditioner {
             Self::display_name_static().to_string()
         };
 
+        let max_instructions_per_tick = settings
+            .max_instructions_per_tick
+            .unwrap_or(DEFAULT_MAX_INSTRUCTIONS_PER_TICK);
+
         let s = shared(Self {
             name,
             network: None,
@@ -136,7 +141,7 @@ impl AirConditioner {
             on: RefCell::new(1.0),
             mode: RefCell::new(0.0),
             reference_id,
-            max_instructions_per_tick: settings.max_instructions_per_tick,
+            max_instructions_per_tick,
             input_network: None,
             output_network: None,
             waste_network: None,
@@ -562,11 +567,19 @@ impl Device for AirConditioner {
         AirConditioner::display_name_static()
     }
 
-    fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
+    fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
         Some(self)
     }
 
-    fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
+    fn as_ic_host_device_mut(&mut self) -> Option<&mut dyn ICHostDevice> {
+        Some(self)
+    }
+
+    fn as_atmospheric_device(&self) -> Option<&dyn AtmosphericDevice> {
+        Some(self)
+    }
+
+    fn as_atmospheric_device_mut(&mut self) -> Option<&mut dyn AtmosphericDevice> {
         Some(self)
     }
 }

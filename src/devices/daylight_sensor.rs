@@ -4,11 +4,12 @@ use std::fmt::{Debug, Display};
 use std::sync::OnceLock;
 use std::{cell::RefCell, f64};
 
+use crate::constants::DEFAULT_TICKS_PER_DAY;
 use crate::conversions::fmt_trim;
 use crate::{
     CableNetwork, allocate_global_id,
     devices::{
-        Device, LogicType, SimulationSettings,
+        Device, LogicType, SimulationDeviceSettings,
         property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::SimulationResult,
@@ -44,7 +45,7 @@ impl DaylightSensor {
     pub const PREFAB_HASH: i32 = string_to_hash("StructureDaylightSensor");
 
     /// Create a new `DaylightSensor`
-    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
         let settings = simulation_settings.unwrap_or_default();
         let reference_id = if let Some(id) = settings.id {
             reserve_global_id(id)
@@ -58,6 +59,8 @@ impl DaylightSensor {
             Self::display_name_static().to_string()
         };
 
+        let ticks_per_day = settings.ticks_per_day.unwrap_or(DEFAULT_TICKS_PER_DAY);
+
         shared(Self {
             name,
             network: None,
@@ -65,7 +68,7 @@ impl DaylightSensor {
             on: RefCell::new(1.0),
             horizontal: RefCell::new(0.0),
             vertical: RefCell::new(0.0),
-            ticks_per_day: settings.ticks_per_day,
+            ticks_per_day,
         })
     }
 

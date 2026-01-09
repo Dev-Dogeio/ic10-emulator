@@ -5,7 +5,7 @@ mod tests {
 
     use crate::{
         animation_curve::AnimationCurve,
-        devices::{AirConditioner, SimulationSettings},
+        devices::{AirConditioner, SimulationDeviceSettings},
     };
 
     #[test]
@@ -43,8 +43,8 @@ mod tests {
 
     #[test]
     fn curves_are_shared() {
-        let a = AirConditioner::new(Some(SimulationSettings::default()));
-        let b = AirConditioner::new(Some(SimulationSettings::default()));
+        let a = AirConditioner::new(Some(SimulationDeviceSettings::default()));
+        let b = AirConditioner::new(Some(SimulationDeviceSettings::default()));
 
         // Compare the arc pointers for curve equality
         let p1 = Arc::as_ptr(&a.borrow().get_temperature_delta_curve());

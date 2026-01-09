@@ -6,10 +6,10 @@ use crate::atmospherics::{GasMixture, GasType, MatterState};
 use crate::devices::LogicSlotType;
 use crate::devices::LogicType;
 use crate::devices::device_factory::create_device;
-use crate::devices::{Device, SimulationSettings};
+use crate::devices::{Device, SimulationDeviceSettings};
 use crate::devices::{DeviceAtmosphericNetworkType, device_factory};
 use crate::items::item::Item;
-use crate::items::{ItemIntegratedCircuit10, create_item};
+use crate::items::{self, ItemIntegratedCircuit10};
 use crate::networks::BatchMode;
 use crate::types::{OptShared, Shared, shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager};
@@ -573,7 +573,7 @@ impl WasmDevice {
             .ok_or_else(|| JsValue::from_str("Invalid DeviceAtmosphericNetworkType value"))?;
 
         let mut dev = self.inner.borrow_mut();
-        if let Some(atm) = dev.as_atmospheric_device() {
+        if let Some(atm) = dev.as_atmospheric_device_mut() {
             atm.set_atmospheric_network(conn, Some(network.inner.clone()))
                 .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
             Ok(())
@@ -640,7 +640,7 @@ impl WasmDevice {
         // Limit the borrow of the device while inserting
         let result = {
             let mut dev = self.inner.borrow_mut();
-            if let Some(slot_host) = dev.as_slot_host_device() {
+            if let Some(slot_host) = dev.as_slot_host_device_mut() {
                 slot_host.try_insert_item(index, shared_item)
             } else {
                 // Device doesn't support slots; return the shared item as Err so we can hand it back to JS
@@ -661,7 +661,7 @@ impl WasmDevice {
         // Limit the borrow of the device
         let opt_item = {
             let mut dev = self.inner.borrow_mut();
-            if let Some(slot_host) = dev.as_slot_host_device() {
+            if let Some(slot_host) = dev.as_slot_host_device_mut() {
                 slot_host.remove_item(index)
             } else {
                 return Err(JsValue::from_str("Device does not support slots"));
@@ -678,7 +678,7 @@ impl WasmDevice {
     /// Install an IC chip into this device (if supported).
     /// Accepts a `WasmICChip` instance which wraps a `Shared<ItemIntegratedCircuit10>`.
     pub fn set_chip(&self, chip: &WasmICChip) -> Result<(), JsValue> {
-        let mut dev = self.inner.borrow_mut();
+        let dev = self.inner.borrow();
         if let Some(host) = dev.as_ic_host_device() {
             host.set_chip(chip.inner.clone());
             Ok(())
@@ -782,7 +782,7 @@ impl WasmICChip {
     #[wasm_bindgen(constructor)]
     pub fn new() -> WasmICChip {
         WasmICChip {
-            inner: shared(ItemIntegratedCircuit10::new()),
+            inner: shared(ItemIntegratedCircuit10::new(None)),
         }
     }
 
@@ -1120,10 +1120,10 @@ impl WasmSimulationManager {
         id: Option<i32>,
         name: Option<String>,
         internal_atmospheric_network: Option<WasmAtmosphericNetwork>,
-        ticks_per_day: f64,
-        max_instructions_per_tick: usize,
+        ticks_per_day: Option<f64>,
+        max_instructions_per_tick: Option<usize>,
     ) -> Result<WasmDevice, JsValue> {
-        let settings = SimulationSettings {
+        let settings = SimulationDeviceSettings {
             id,
             name,
             internal_atmospheric_network: internal_atmospheric_network.map(|n| n.inner.clone()),
@@ -1142,7 +1142,7 @@ impl WasmSimulationManager {
     /// Create an item by `prefab_hash` and return a `WasmItem` wrapper (not registered).
     /// Supports IC10 and filter prefabs by probing known variants.
     pub fn create_item(prefab_hash: i32) -> Result<WasmItem, JsValue> {
-        if let Some(item) = create_item(prefab_hash) {
+        if let Some(item) = items::create_item(prefab_hash, None) {
             return Ok(WasmItem { inner: Some(item) });
         }
 
@@ -1249,4 +1249,24 @@ pub fn get_prefab_info(prefab_hash: i32) -> Result<Object, JsValue> {
     } else {
         Err(JsValue::from_str("Unknown prefab hash"))
     }
+}
+
+/// Return all registered item prefab hashes
+#[wasm_bindgen]
+pub fn get_registered_item_prefabs() -> Vec<i32> {
+    items::get_registered_item_prefabs()
+}
+
+/// Get item prefab metadata: returns an object with { name, prefab_hash, item_type }
+#[wasm_bindgen]
+pub fn get_item_prefab_info(prefab_hash: i32) -> Result<Object, JsValue> {
+    if let Some((name, item_type)) = items::get_prefab_metadata(prefab_hash) {
+        let obj = Object::new();
+        Reflect::set(&obj, &JsValue::from_str("name"), &JsValue::from_str(name)).unwrap();
+        Reflect::set(&obj, &JsValue::from_str("prefab_hash"), &JsValue::from_f64(prefab_hash as f64)).unwrap();
+        Reflect::set(&obj, &JsValue::from_str("item_type"), &JsValue::from_str(item_type.as_str())).unwrap();
+        return Ok(obj);
+    }
+
+    Err(JsValue::from_str("Unsupported prefab hash for item prefab info"))
 }

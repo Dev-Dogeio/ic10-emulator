@@ -4,7 +4,8 @@ use crate::{
     CableNetwork, allocate_global_id,
     atmospherics::MatterState,
     devices::{
-        AtmosphericDevice, Device, DeviceAtmosphericNetworkType, LogicType, SimulationSettings,
+        AtmosphericDevice, Device, DeviceAtmosphericNetworkType, LogicType,
+        SimulationDeviceSettings,
         property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::{SimulationError, SimulationResult},
@@ -47,7 +48,7 @@ impl VolumePump {
     pub const PREFAB_HASH: i32 = string_to_hash("StructureVolumePump");
 
     /// Create a new `VolumePump`. Optionally accepts simulation settings.
-    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
         let settings = simulation_settings.unwrap_or_default();
 
         // Use specific ID if provided, otherwise allocate new one
@@ -220,7 +221,11 @@ impl Device for VolumePump {
         VolumePump::display_name_static()
     }
 
-    fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
+    fn as_atmospheric_device(&self) -> Option<&dyn AtmosphericDevice> {
+        Some(self)
+    }
+
+    fn as_atmospheric_device_mut(&mut self) -> Option<&mut dyn AtmosphericDevice> {
         Some(self)
     }
 }

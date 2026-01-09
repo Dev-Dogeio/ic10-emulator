@@ -9,10 +9,11 @@ use std::{
 use crate::{
     CableNetwork, Filter, Item, ItemType, LogicSlotType, Slot, allocate_global_id,
     atmospherics::{GasType, MAX_PRESSURE_GAS_PIPE, MatterState, PIPE_VOLUME, calculate_moles},
+    constants::DEFAULT_MAX_INSTRUCTIONS_PER_TICK,
     conversions::lerp,
     devices::{
         AtmosphericDevice, ChipSlot, Device, DeviceAtmosphericNetworkType, ICHostDevice,
-        ICHostDeviceMemoryOverride, LogicType, SimulationSettings, SlotHostDevice,
+        ICHostDeviceMemoryOverride, LogicType, SimulationDeviceSettings, SlotHostDevice,
         property_descriptor::{
             PropertyDescriptor, PropertyRegistry, SlotPropertyDescriptor, SlotPropertyRegistry,
         },
@@ -69,7 +70,7 @@ impl Filtration {
     pub const PREFAB_HASH: i32 = string_to_hash("StructureFiltration");
 
     /// Create a new `Filtration`. Optionally accepts simulation settings.
-    pub fn new(simulation_settings: Option<SimulationSettings>) -> Shared<Self> {
+    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
         let settings = simulation_settings.unwrap_or_default();
         let reference_id = if let Some(id) = settings.id {
             reserve_global_id(id)
@@ -83,13 +84,17 @@ impl Filtration {
             Self::display_name_static().to_string()
         };
 
+        let max_instructions_per_tick = settings
+            .max_instructions_per_tick
+            .unwrap_or(DEFAULT_MAX_INSTRUCTIONS_PER_TICK);
+
         let s = shared(Self {
             name,
             network: None,
             on: RefCell::new(1.0),
             mode: RefCell::new(0.0),
             reference_id,
-            max_instructions_per_tick: settings.max_instructions_per_tick,
+            max_instructions_per_tick,
             input_network: None,
             waste_network: None,
             filtered_network: None,
@@ -577,15 +582,27 @@ impl Device for Filtration {
         Filtration::display_name_static()
     }
 
-    fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
+    fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
         Some(self)
     }
 
-    fn as_slot_host_device(&mut self) -> Option<&mut dyn SlotHostDevice> {
+    fn as_ic_host_device_mut(&mut self) -> Option<&mut dyn ICHostDevice> {
         Some(self)
     }
 
-    fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
+    fn as_slot_host_device(&self) -> Option<&dyn SlotHostDevice> {
+        Some(self)
+    }
+
+    fn as_slot_host_device_mut(&mut self) -> Option<&mut dyn SlotHostDevice> {
+        Some(self)
+    }
+
+    fn as_atmospheric_device(&self) -> Option<&dyn AtmosphericDevice> {
+        Some(self)
+    }
+
+    fn as_atmospheric_device_mut(&mut self) -> Option<&mut dyn AtmosphericDevice> {
         Some(self)
     }
 }
