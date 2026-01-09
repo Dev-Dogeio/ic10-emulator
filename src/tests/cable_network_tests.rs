@@ -749,10 +749,10 @@ mod tests {
 
     #[test]
     fn test_batch_mode_to_value() {
-        assert_eq!(BatchMode::Average.to_value(), 0.0);
-        assert_eq!(BatchMode::Sum.to_value(), 1.0);
-        assert_eq!(BatchMode::Minimum.to_value(), 2.0);
-        assert_eq!(BatchMode::Maximum.to_value(), 3.0);
+        assert_eq!((BatchMode::Average as i32) as f64, 0.0);
+        assert_eq!((BatchMode::Sum as i32) as f64, 1.0);
+        assert_eq!((BatchMode::Minimum as i32) as f64, 2.0);
+        assert_eq!((BatchMode::Maximum as i32) as f64, 3.0);
     }
 
     #[test]

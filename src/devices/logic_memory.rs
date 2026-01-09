@@ -70,14 +70,15 @@ impl LogicMemory {
     /// Get the property registry for this device type
     #[rustfmt::skip]
     pub fn properties() -> &'static PropertyRegistry<Self> {
+        use LogicType::*;
         static REGISTRY: OnceLock<PropertyRegistry<LogicMemory>> = OnceLock::new();
 
         REGISTRY.get_or_init(|| {
             const DESCRIPTORS: &[PropertyDescriptor<LogicMemory>] = &[
-                prop_ro!(LogicType::ReferenceId, |device, _| Ok(device.reference_id as f64)),
-                prop_ro!(LogicType::PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
-                prop_ro!(LogicType::NameHash, |device, _| Ok(device.get_name_hash() as f64)),
-                prop_rw_clamped!(LogicType::Setting, setting, -f64::INFINITY, f64::INFINITY),
+                prop_ro!(ReferenceId, |device, _| Ok(device.reference_id as f64)),
+                prop_ro!(PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
+                prop_ro!(NameHash, |device, _| Ok(device.get_name_hash() as f64)),
+                prop_rw_clamped!(Setting, setting, -f64::INFINITY, f64::INFINITY),
             ];
 
             PropertyRegistry::new(DESCRIPTORS)

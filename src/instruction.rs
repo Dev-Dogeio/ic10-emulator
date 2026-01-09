@@ -744,7 +744,7 @@ fn parse_operand(token: &str) -> Operand {
 fn parse_logic_type_operand(token: &str) -> Operand {
     // Check if this token matches a LogicType name
     if let Some(logic_type) = LogicType::from_name(token) {
-        return Operand::Immediate(logic_type.to_value());
+        return Operand::Immediate((logic_type as i32) as f64);
     }
     parse_operand(token)
 }
@@ -753,7 +753,7 @@ fn parse_logic_type_operand(token: &str) -> Operand {
 fn parse_slot_logic_operand(token: &str) -> Operand {
     // Check if this token matches a LogicSlotType name
     if let Some(slot_type) = LogicSlotType::from_name(token) {
-        return Operand::Immediate(slot_type.to_value());
+        return Operand::Immediate((slot_type as i32) as f64);
     }
     parse_operand(token)
 }
@@ -762,7 +762,7 @@ fn parse_slot_logic_operand(token: &str) -> Operand {
 fn parse_batch_mode_operand(token: &str) -> Operand {
     // Check if this token matches a BatchMode name
     if let Some(batch_mode) = BatchMode::from_name(token) {
-        return Operand::Immediate(batch_mode.to_value());
+        return Operand::Immediate((batch_mode as i32) as f64);
     }
     parse_operand(token)
 }

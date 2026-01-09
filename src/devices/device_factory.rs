@@ -1,7 +1,7 @@
 //! Device factory registry for device creation
 
 use crate::{
-    LogicType,
+    LogicSlotType, LogicType,
     devices::{Device, SimulationSettings},
     types::Shared,
 };
@@ -11,9 +11,18 @@ use std::sync::Mutex;
 /// Factory function type for creating devices
 pub type DeviceFactoryFn = fn(Option<SimulationSettings>) -> Shared<dyn Device>;
 
-/// Alias for device property metadata: a vector of tuples describing a `LogicType` and
-/// whether that logic type is (readable, writable) for the device.
-pub type DeviceProps = Vec<(LogicType, bool, bool)>;
+/// Device metadata describing logic properties and slot properties for a prefab.
+///
+/// `properties` is a vector of tuples describing a `LogicType` and whether that
+/// logic type is (readable, writable) for the device.
+///
+/// `slot_properties` is a vector of tuples describing a `LogicSlotType` and whether
+/// that slot property is readable (slot properties are currently read-only).
+pub struct DeviceProps {
+    pub properties: Vec<(LogicType, bool, bool)>,
+    /// slot_properties: (slot_logic_type, readable, slot_indices)
+    pub slot_properties: Vec<(LogicSlotType, bool, Vec<usize>)>,
+}
 
 /// Function type that returns device metadata: `(display_name, DeviceProps)`.
 pub type DeviceMetaFn = fn() -> (&'static str, DeviceProps);
@@ -145,12 +154,12 @@ macro_rules! register_device {
 }
 
 /// Produce `(display_name, DeviceProps)` for a device type `T` using its static
-/// `properties()` and `display_name_static()` methods.
+/// `properties()`, `slot_properties()` and `display_name_static()` methods.
 fn meta_from_type<T>() -> (&'static str, DeviceProps)
 where
-    T: crate::devices::Device + 'static,
+    T: Device + 'static,
 {
-    let props = T::properties()
+    let props: Vec<(LogicType, bool, bool)> = T::properties()
         .supported_types()
         .into_iter()
         .map(|lt| {
@@ -161,7 +170,21 @@ where
             )
         })
         .collect();
-    (T::display_name_static(), props)
+
+    // Collect slot property descriptors including the per-slot indices
+    let slot_props: Vec<(LogicSlotType, bool, Vec<usize>)> = T::slot_properties()
+        .descriptors()
+        .iter()
+        .map(|d| (d.logic_type, d.readable, d.slots.to_vec()))
+        .collect();
+
+    (
+        T::display_name_static(),
+        DeviceProps {
+            properties: props,
+            slot_properties: slot_props,
+        },
+    )
 }
 
 /// Initialize the device factory and register all devices.

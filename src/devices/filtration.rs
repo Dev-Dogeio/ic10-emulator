@@ -13,12 +13,14 @@ use crate::{
     devices::{
         AtmosphericDevice, ChipSlot, Device, DeviceAtmosphericNetworkType, ICHostDevice,
         ICHostDeviceMemoryOverride, LogicType, SimulationSettings, SlotHostDevice,
-        property_descriptor::{PropertyDescriptor, PropertyRegistry},
+        property_descriptor::{
+            PropertyDescriptor, PropertyRegistry, SlotPropertyDescriptor, SlotPropertyRegistry,
+        },
     },
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
     parser::string_to_hash,
-    prop_ro, prop_rw_bool, reserve_global_id,
+    prop_ro, prop_rw_bool, prop_slot_ro, reserve_global_id,
     types::{OptShared, Shared, shared},
 };
 
@@ -225,6 +227,72 @@ impl Filtration {
         })
     }
 
+    /// Get the slot property registry for this device type
+    pub fn slot_properties() -> &'static SlotPropertyRegistry<Filtration> {
+        use LogicSlotType::*;
+        static SLOT_REGISTRY: OnceLock<SlotPropertyRegistry<Filtration>> = OnceLock::new();
+
+        SLOT_REGISTRY.get_or_init(|| {
+            const DESCRIPTORS: &[SlotPropertyDescriptor<Filtration>] = &[
+                prop_slot_ro!(Occupied, &[0, 1], |device: &Filtration, idx, _| Ok(
+                    if device.get_slot(idx).unwrap().is_empty() {
+                        0.0
+                    } else {
+                        1.0
+                    }
+                )),
+                prop_slot_ro!(OccupantHash, &[0, 1], |device: &Filtration, idx, _| {
+                    let item = device.get_slot(idx).unwrap().get_item();
+                    if let Some(i) = item {
+                        Ok(i.borrow().get_prefab_hash() as f64)
+                    } else {
+                        Ok(0.0)
+                    }
+                }),
+                prop_slot_ro!(Quantity, &[0, 1], |device: &Filtration, idx, _| {
+                    let item = device.get_slot(idx).unwrap().get_item();
+                    if let Some(i) = item {
+                        Ok(i.borrow().quantity() as f64)
+                    } else {
+                        Ok(0.0)
+                    }
+                }),
+                prop_slot_ro!(MaxQuantity, &[0, 1], |device: &Filtration, idx, _| {
+                    let item = device.get_slot(idx).unwrap().get_item();
+                    if let Some(i) = item {
+                        Ok(i.borrow().max_quantity() as f64)
+                    } else {
+                        Ok(0.0)
+                    }
+                }),
+                prop_slot_ro!(FilterType, &[0, 1], |device: &Filtration, idx, _| {
+                    let item_opt = device.get_slot(idx).unwrap().get_item();
+                    if let Some(item) = item_opt {
+                        let item_ref = item.borrow();
+                        if item_ref.item_type() == ItemType::Filter
+                            && let Some(filter_item) = item_ref.as_any().downcast_ref::<Filter>()
+                        {
+                            return Ok(filter_item.gas_type() as u32 as f64);
+                        }
+                    }
+                    Ok(0.0)
+                }),
+                prop_slot_ro!(ReferenceId, &[0, 1], |device: &Filtration, idx, _| {
+                    let item = device.get_slot(idx).unwrap().get_item();
+                    if let Some(i) = item {
+                        Ok(i.borrow().get_id() as f64)
+                    } else {
+                        Ok(0.0)
+                    }
+                }),
+                prop_slot_ro!(FreeSlots, &[0, 1], |_device: &Filtration, _idx, _| Ok(0.0)),
+                prop_slot_ro!(TotalSlots, &[0, 1], |_device: &Filtration, _idx, _| Ok(0.0)),
+            ];
+
+            SlotPropertyRegistry::new(DESCRIPTORS)
+        })
+    }
+
     // Helper methods to get atmospheric networks
     fn require_network(
         &self,
@@ -361,7 +429,12 @@ impl Device for Filtration {
         Self::properties().supported_types()
     }
 
+    fn supported_slot_types(&self) -> Vec<LogicSlotType> {
+        Self::slot_properties().supported_types()
+    }
+
     fn read_slot(&self, index: usize, slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
+        // Validate index first to preserve previous error semantics
         if index >= self.slots.len() {
             return Err(SimulationError::RuntimeError {
                 message: format!("Slot index out of range: {index}"),
@@ -369,53 +442,10 @@ impl Device for Filtration {
             });
         }
 
-        let slot = &self.slots[index];
-
-        match slot_logic_type {
-            LogicSlotType::Occupied => Ok(if slot.is_empty() { 0.0 } else { 1.0 }),
-            LogicSlotType::OccupantHash => {
-                if let Some(item) = slot.get_item() {
-                    Ok(item.borrow().get_prefab_hash() as f64)
-                } else {
-                    Ok(0.0)
-                }
-            }
-            LogicSlotType::Quantity => {
-                if let Some(item) = slot.get_item() {
-                    Ok(item.borrow().quantity() as f64)
-                } else {
-                    Ok(0.0)
-                }
-            }
-            LogicSlotType::MaxQuantity => {
-                if let Some(item) = slot.get_item() {
-                    Ok(item.borrow().max_quantity() as f64)
-                } else {
-                    Ok(0.0)
-                }
-            }
-            LogicSlotType::FilterType => {
-                if let Some(item) = slot.get_item() {
-                    let item_ref = item.borrow();
-                    if item_ref.item_type() == ItemType::Filter
-                        && let Some(filter_item) = item_ref.as_any().downcast_ref::<Filter>()
-                    {
-                        return Ok(filter_item.gas_type() as u32 as f64);
-                    }
-                }
-
-                Ok(0.0)
-            }
-            LogicSlotType::ReferenceId => {
-                if let Some(item) = slot.get_item() {
-                    Ok(item.borrow().get_id() as f64)
-                } else {
-                    Ok(0.0)
-                }
-            }
-            LogicSlotType::FreeSlots => Ok(0.0),
-            LogicSlotType::TotalSlots => Ok(0.0),
-            _ => Err(SimulationError::RuntimeError {
+        // Use a slot property registry keyed by `LogicSlotType` to handle reads
+        match Self::slot_properties().read(self, index, slot_logic_type) {
+            Ok(v) => Ok(v),
+            Err(_) => Err(SimulationError::RuntimeError {
                 message: format!(
                     "Filtration does not support reading slot logic type {slot_logic_type:?}"
                 ),
@@ -537,6 +567,10 @@ impl Device for Filtration {
 
     fn properties() -> &'static PropertyRegistry<Self> {
         Filtration::properties()
+    }
+
+    fn slot_properties() -> &'static SlotPropertyRegistry<Self> {
+        Filtration::slot_properties()
     }
 
     fn display_name_static() -> &'static str {

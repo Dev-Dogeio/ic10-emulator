@@ -389,16 +389,6 @@ impl BatchMode {
         }
     }
 
-    /// Convert batch mode to its numeric value
-    pub fn to_value(self) -> f64 {
-        match self {
-            BatchMode::Average => 0.0,
-            BatchMode::Sum => 1.0,
-            BatchMode::Minimum => 2.0,
-            BatchMode::Maximum => 3.0,
-        }
-    }
-
     /// Parse BatchMode from a string name
     pub fn from_name(name: &str) -> Option<Self> {
         match name {

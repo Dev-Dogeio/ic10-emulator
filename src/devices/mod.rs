@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     AtmosphericNetwork, CableNetwork, Item,
-    devices::property_descriptor::PropertyRegistry,
+    devices::property_descriptor::{PropertyRegistry, SlotPropertyRegistry, empty_slot_registry},
     error::{SimulationError, SimulationResult},
     items::ItemIntegratedCircuit10,
     types::{OptShared, Shared},
@@ -159,44 +159,6 @@ impl LogicSlotType {
             31 => Some(LogicSlotType::FreeSlots),
             32 => Some(LogicSlotType::TotalSlots),
             _ => None,
-        }
-    }
-
-    pub fn to_value(self) -> f64 {
-        match self {
-            LogicSlotType::None => 0.0,
-            LogicSlotType::Occupied => 1.0,
-            LogicSlotType::OccupantHash => 2.0,
-            LogicSlotType::Quantity => 3.0,
-            LogicSlotType::Damage => 4.0,
-            LogicSlotType::Efficiency => 5.0,
-            LogicSlotType::Health => 6.0,
-            LogicSlotType::Growth => 7.0,
-            LogicSlotType::Pressure => 8.0,
-            LogicSlotType::Temperature => 9.0,
-            LogicSlotType::Charge => 10.0,
-            LogicSlotType::ChargeRatio => 11.0,
-            LogicSlotType::Class => 12.0,
-            LogicSlotType::PressureWaste => 13.0,
-            LogicSlotType::PressureAir => 14.0,
-            LogicSlotType::MaxQuantity => 15.0,
-            LogicSlotType::Mature => 16.0,
-            LogicSlotType::PrefabHash => 17.0,
-            LogicSlotType::Seeding => 18.0,
-            LogicSlotType::LineNumber => 19.0,
-            LogicSlotType::Volume => 20.0,
-            LogicSlotType::Open => 21.0,
-            LogicSlotType::On => 22.0,
-            LogicSlotType::Lock => 23.0,
-            LogicSlotType::SortingClass => 24.0,
-            LogicSlotType::FilterType => 25.0,
-            LogicSlotType::ReferenceId => 26.0,
-            LogicSlotType::HarvestedHash => 27.0,
-            LogicSlotType::Mode => 28.0,
-            LogicSlotType::MaturityRatio => 29.0,
-            LogicSlotType::SeedingRatio => 30.0,
-            LogicSlotType::FreeSlots => 31.0,
-            LogicSlotType::TotalSlots => 32.0,
         }
     }
 
@@ -451,110 +413,6 @@ impl LogicType {
         }
     }
 
-    /// Convert LogicType to its numeric value
-    pub fn to_value(self) -> f64 {
-        use LogicType::*;
-        match self {
-            Mode => 3.0,
-            Setting => 12.0,
-            Horizontal => 20.0,
-            Vertical => 21.0,
-            Ratio => 24.0,
-            On => 28.0,
-            PrefabHash => 84.0,
-
-            // Atmospheric Input 1
-            PressureInput => 106.0,
-            TemperatureInput => 107.0,
-            TotalMolesInput => 115.0,
-            CombustionInput => 146.0,
-            RatioOxygenInput => 108.0,
-            RatioCarbonDioxideInput => 109.0,
-            RatioNitrogenInput => 110.0,
-            RatioPollutantInput => 111.0,
-            RatioVolatilesInput => 112.0,
-            RatioWaterInput => 113.0,
-            RatioNitrousOxideInput => 114.0,
-            RatioLiquidNitrogenInput => 178.0,
-            RatioLiquidOxygenInput => 184.0,
-            RatioLiquidVolatilesInput => 189.0,
-            RatioSteamInput => 194.0,
-            RatioLiquidCarbonDioxideInput => 200.0,
-            RatioLiquidPollutantInput => 205.0,
-            RatioLiquidNitrousOxideInput => 210.0,
-
-            // Atmospheric Input 2
-            PressureInput2 => 116.0,
-            TemperatureInput2 => 117.0,
-            TotalMolesInput2 => 125.0,
-            CombustionInput2 => 147.0,
-            RatioOxygenInput2 => 118.0,
-            RatioCarbonDioxideInput2 => 119.0,
-            RatioNitrogenInput2 => 120.0,
-            RatioPollutantInput2 => 121.0,
-            RatioVolatilesInput2 => 122.0,
-            RatioWaterInput2 => 123.0,
-            RatioNitrousOxideInput2 => 124.0,
-            RatioLiquidNitrogenInput2 => 179.0,
-            RatioLiquidOxygenInput2 => 185.0,
-            RatioLiquidVolatilesInput2 => 190.0,
-            RatioSteamInput2 => 195.0,
-            RatioLiquidCarbonDioxideInput2 => 201.0,
-            RatioLiquidPollutantInput2 => 206.0,
-            RatioLiquidNitrousOxideInput2 => 211.0,
-
-            // Atmospheric Output 1
-            PressureOutput => 126.0,
-            TemperatureOutput => 127.0,
-            TotalMolesOutput => 135.0,
-            CombustionOutput => 148.0,
-            RatioOxygenOutput => 128.0,
-            RatioCarbonDioxideOutput => 129.0,
-            RatioNitrogenOutput => 130.0,
-            RatioPollutantOutput => 131.0,
-            RatioVolatilesOutput => 132.0,
-            RatioWaterOutput => 133.0,
-            RatioNitrousOxideOutput => 134.0,
-            RatioLiquidNitrogenOutput => 180.0,
-            RatioLiquidOxygenOutput => 186.0,
-            RatioLiquidVolatilesOutput => 191.0,
-            RatioSteamOutput => 196.0,
-            RatioLiquidCarbonDioxideOutput => 202.0,
-            RatioLiquidPollutantOutput => 207.0,
-            RatioLiquidNitrousOxideOutput => 212.0,
-
-            // Atmospheric Output 2
-            PressureOutput2 => 136.0,
-            TemperatureOutput2 => 137.0,
-            TotalMolesOutput2 => 145.0,
-            CombustionOutput2 => 149.0,
-            RatioOxygenOutput2 => 138.0,
-            RatioCarbonDioxideOutput2 => 139.0,
-            RatioNitrogenOutput2 => 140.0,
-            RatioPollutantOutput2 => 141.0,
-            RatioVolatilesOutput2 => 142.0,
-            RatioWaterOutput2 => 143.0,
-            RatioNitrousOxideOutput2 => 144.0,
-            RatioLiquidNitrogenOutput2 => 181.0,
-            RatioLiquidOxygenOutput2 => 187.0,
-            RatioLiquidVolatilesOutput2 => 192.0,
-            RatioSteamOutput2 => 197.0,
-            RatioLiquidCarbonDioxideOutput2 => 203.0,
-            RatioLiquidPollutantOutput2 => 208.0,
-            RatioLiquidNitrousOxideOutput2 => 213.0,
-
-            // AirConditioner
-            OperationalTemperatureEfficiency => 150.0,
-            TemperatureDifferentialEfficiency => 151.0,
-            PressureEfficiency => 152.0,
-
-            LineNumber => 173.0,
-            ReferenceId => 217.0,
-            NameHash => 268.0,
-            StackSize => 280.0,
-        }
-    }
-
     /// Parse LogicType from a string name
     pub fn from_name(name: &str) -> Option<Self> {
         use LogicType::*;
@@ -745,6 +603,14 @@ pub trait Device: Debug {
     where
         Self: Sized;
 
+    /// Static access to the slot property registry for this device type.
+    fn slot_properties() -> &'static SlotPropertyRegistry<Self>
+    where
+        Self: Sized,
+    {
+        empty_slot_registry::<Self>()
+    }
+
     /// Human-readable static display name for the prefab.
     fn display_name_static() -> &'static str
     where
@@ -813,6 +679,16 @@ pub trait Device: Debug {
         Ok(())
     }
 
+    /// Get the list of supported `LogicType` values for this device.
+    fn supported_types(&self) -> Vec<LogicType> {
+        Vec::new()
+    }
+
+    /// Get the list of supported `LogicSlotType` values for this device.
+    fn supported_slot_types(&self) -> Vec<LogicSlotType> {
+        Vec::new()
+    }
+
     /// If the device hosts an IC chip, return a mutable reference to it.
     fn as_ic_host_device(&mut self) -> Option<&mut dyn ICHostDevice> {
         None
@@ -826,11 +702,6 @@ pub trait Device: Debug {
     /// If the device is an AtmosphericDevice, return a mutable reference to it.
     fn as_atmospheric_device(&mut self) -> Option<&mut dyn AtmosphericDevice> {
         None
-    }
-
-    /// Get the list of supported `LogicType` values for this device.
-    fn supported_types(&self) -> Vec<LogicType> {
-        Vec::new()
     }
 }
 

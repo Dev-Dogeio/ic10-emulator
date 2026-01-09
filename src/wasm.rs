@@ -516,7 +516,17 @@ impl WasmDevice {
             .borrow()
             .supported_types()
             .into_iter()
-            .map(|lt| lt.to_value())
+            .map(|lt| (lt as i32) as f64)
+            .collect()
+    }
+
+    /// Return supported slot logic types for this device as numeric values
+    pub fn supported_slot_types(&self) -> Vec<f64> {
+        self.inner
+            .borrow()
+            .supported_slot_types()
+            .into_iter()
+            .map(|lt| (lt as i32) as f64)
             .collect()
     }
 
@@ -1148,52 +1158,94 @@ pub fn get_registered_device_prefabs() -> Vec<i32> {
     device_factory::get_registered_device_prefabs()
 }
 
-/// Get property metadata for a prefab: returns an array of objects { device_name, prefab_hash, logic_name, readable, writable }
+/// Get comprehensive prefab info for a prefab: returns an object
+/// {
+///   device_name,
+///   prefab_hash,
+///   properties: [{ logic, logic_name, readable, writable }],
+///   slot_properties: [{ slot_logic, slot_logic_name, readable, slot_ids }],
+/// }
 #[wasm_bindgen]
-pub fn get_prefab_properties(prefab_hash: i32) -> Result<Array, JsValue> {
+pub fn get_prefab_info(prefab_hash: i32) -> Result<Object, JsValue> {
     if let Some((device_name, props)) = device_factory::get_prefab_metadata(prefab_hash) {
-        let arr = Array::new();
-        for (lt, readable, writable) in props {
-            let obj = Object::new();
+        let obj = Object::new();
+        Reflect::set(
+            &obj,
+            &JsValue::from_str("device_name"),
+            &JsValue::from_str(device_name),
+        )
+        .unwrap();
+        Reflect::set(
+            &obj,
+            &JsValue::from_str("prefab_hash"),
+            &JsValue::from_f64(prefab_hash as f64),
+        )
+        .unwrap();
+
+        // properties
+        let props_arr = Array::new();
+        for (lt, readable, writable) in props.properties {
+            let p = Object::new();
             Reflect::set(
-                &obj,
-                &JsValue::from_str("device_name"),
-                &JsValue::from_str(device_name),
-            )
-            .unwrap();
-            Reflect::set(
-                &obj,
-                &JsValue::from_str("prefab_hash"),
-                &JsValue::from_f64(prefab_hash as f64),
-            )
-            .unwrap();
-            Reflect::set(
-                &obj,
+                &p,
                 &JsValue::from_str("logic"),
-                &JsValue::from_f64(lt.to_value()),
+                &JsValue::from_f64((lt as i32) as f64),
             )
             .unwrap();
             Reflect::set(
-                &obj,
+                &p,
                 &JsValue::from_str("logic_name"),
                 &JsValue::from_str(&format!("{:?}", lt)),
             )
             .unwrap();
             Reflect::set(
-                &obj,
+                &p,
                 &JsValue::from_str("readable"),
                 &JsValue::from_bool(readable),
             )
             .unwrap();
             Reflect::set(
-                &obj,
+                &p,
                 &JsValue::from_str("writable"),
                 &JsValue::from_bool(writable),
             )
             .unwrap();
-            arr.push(&JsValue::from(obj));
+            props_arr.push(&JsValue::from(p));
         }
-        Ok(arr)
+        Reflect::set(&obj, &JsValue::from_str("properties"), &props_arr).unwrap();
+
+        // slot_properties
+        let slot_props_arr = Array::new();
+        for (lt, readable, slot_ids) in props.slot_properties {
+            let sp = Object::new();
+            Reflect::set(
+                &sp,
+                &JsValue::from_str("slot_logic"),
+                &JsValue::from_f64((lt as i32) as f64),
+            )
+            .unwrap();
+            Reflect::set(
+                &sp,
+                &JsValue::from_str("slot_logic_name"),
+                &JsValue::from_str(&format!("{:?}", lt)),
+            )
+            .unwrap();
+            Reflect::set(
+                &sp,
+                &JsValue::from_str("readable"),
+                &JsValue::from_bool(readable),
+            )
+            .unwrap();
+            let slot_arr = Array::new();
+            for s in slot_ids {
+                slot_arr.push(&JsValue::from_f64(s as f64));
+            }
+            Reflect::set(&sp, &JsValue::from_str("slot_ids"), &slot_arr).unwrap();
+            slot_props_arr.push(&JsValue::from(sp));
+        }
+        Reflect::set(&obj, &JsValue::from_str("slot_properties"), &slot_props_arr).unwrap();
+
+        Ok(obj)
     } else {
         Err(JsValue::from_str("Unknown prefab hash"))
     }

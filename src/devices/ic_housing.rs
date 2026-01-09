@@ -90,18 +90,19 @@ impl ICHousing {
     /// Get the property registry for this device type
     #[rustfmt::skip]
     pub fn properties() -> &'static PropertyRegistry<Self> {
+        use LogicType::*;
         static REGISTRY: OnceLock<PropertyRegistry<ICHousing>> = OnceLock::new();
 
         REGISTRY.get_or_init(|| {
             const DESCRIPTORS: &[PropertyDescriptor<ICHousing>] = &[
-                prop_ro!(LogicType::ReferenceId, |device, _| Ok(device.reference_id as f64)),
-                prop_ro!(LogicType::PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
-                prop_ro!(LogicType::NameHash, |device, _| Ok(device.get_name_hash() as f64)),
-                prop_rw_clamped!(LogicType::Setting, setting, -f64::INFINITY, f64::INFINITY),
-                prop_rw_bool!(LogicType::On, on),
-                prop_ro!(LogicType::StackSize, |_, _| Ok(STACK_SIZE as f64)),
+                prop_ro!(ReferenceId, |device, _| Ok(device.reference_id as f64)),
+                prop_ro!(PrefabHash, |device, _| Ok(device.get_prefab_hash() as f64)),
+                prop_ro!(NameHash, |device, _| Ok(device.get_name_hash() as f64)),
+                prop_rw_clamped!(Setting, setting, -f64::INFINITY, f64::INFINITY),
+                prop_rw_bool!(On, on),
+                prop_ro!(StackSize, |_, _| Ok(STACK_SIZE as f64)),
                 PropertyDescriptor::read_write(
-                    LogicType::LineNumber,
+                    LineNumber,
                     |device, _| {
                         if let Some(chip) = device.chip_slot().borrow().get_chip() {
                             Ok(chip.get_pc() as f64)

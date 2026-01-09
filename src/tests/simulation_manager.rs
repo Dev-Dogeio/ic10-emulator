@@ -222,46 +222,47 @@ mod tests {
         SimulationManager::reset_global();
 
         // Create distinct settings for each device with explicit ids
+        // Use negative IDs to avoid clashes with other tests that allocate global IDs concurrently
         let ac_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
             name: None,
-            id: Some(1100),
+            id: Some(-1100),
             internal_atmospheric_network: None,
         };
         let fil_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
             name: None,
-            id: Some(1101),
+            id: Some(-1101),
             internal_atmospheric_network: None,
         };
         let pump_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
             name: None,
-            id: Some(1102),
+            id: Some(-1102),
             internal_atmospheric_network: None,
         };
         let housing_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
             name: None,
-            id: Some(1103),
+            id: Some(-1103),
             internal_atmospheric_network: None,
         };
         let ds_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
             name: None,
-            id: Some(1104),
+            id: Some(-1104),
             internal_atmospheric_network: None,
         };
         let lm_settings = SimulationSettings {
             ticks_per_day: 2400.0,
             max_instructions_per_tick: 128,
             name: None,
-            id: Some(1105),
+            id: Some(-1105),
             internal_atmospheric_network: None,
         };
 
@@ -272,11 +273,11 @@ mod tests {
         let ds = DaylightSensor::new(Some(ds_settings));
         let lm = LogicMemory::new(Some(lm_settings));
 
-        assert_eq!(ac.borrow().get_id(), 1100);
-        assert_eq!(fil.borrow().get_id(), 1101);
-        assert_eq!(pump.borrow().get_id(), 1102);
-        assert_eq!(housing.borrow().get_id(), 1103);
-        assert_eq!(ds.borrow().get_id(), 1104);
-        assert_eq!(lm.borrow().get_id(), 1105);
+        assert_eq!(ac.borrow().get_id(), -1100);
+        assert_eq!(fil.borrow().get_id(), -1101);
+        assert_eq!(pump.borrow().get_id(), -1102);
+        assert_eq!(housing.borrow().get_id(), -1103);
+        assert_eq!(ds.borrow().get_id(), -1104);
+        assert_eq!(lm.borrow().get_id(), -1105);
     }
 }
