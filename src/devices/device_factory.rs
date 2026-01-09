@@ -25,6 +25,12 @@ pub struct DeviceProps {
     pub slot_properties: Vec<(LogicSlotType, bool, Vec<usize>)>,
     /// atmospheric_connections: (connection_type)
     pub atmospheric_connections: Vec<DeviceAtmosphericNetworkType>,
+    /// Whether this prefab type hosts an IC chip
+    pub is_ic_host: bool,
+    /// Whether this prefab type supports item slots
+    pub is_slot_host: bool,
+    /// Whether this prefab type exposes atmospheric connections
+    pub is_atmospheric_device: bool,
 }
 
 /// Function type that returns device metadata: `(display_name, DeviceProps)`.
@@ -187,6 +193,9 @@ where
             properties: props,
             slot_properties: slot_props,
             atmospheric_connections: T::required_atmospheric_connections(),
+            is_ic_host: T::is_ic_host(),
+            is_slot_host: !T::slot_properties().descriptors().is_empty(),
+            is_atmospheric_device: !T::required_atmospheric_connections().is_empty(),
         },
     )
 }

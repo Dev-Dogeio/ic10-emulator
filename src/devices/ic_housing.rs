@@ -238,6 +238,10 @@ impl Device for ICHousing {
     fn as_ic_host_device_mut(&mut self) -> Option<&mut dyn ICHostDevice> {
         Some(self)
     }
+
+    fn is_ic_host() -> bool {
+        true
+    }
 }
 
 /// `ICHostDevice` helpers for `ICHousing` (chip slot and memory access).

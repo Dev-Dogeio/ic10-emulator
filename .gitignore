@@ -1,5 +1,4 @@
 target
-app/pkg
 .vscode
 Cargo.lock
 docs

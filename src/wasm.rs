@@ -21,7 +21,7 @@ const TS_APPEND_CONTENT: &'static str = r#"
 export interface DevicePrefabProperty { logic: number; logic_name: string; readable: boolean; writable: boolean; }
 export interface DeviceSlotProperty { slot_logic: number; slot_logic_name: string; readable: boolean; slot_ids: number[]; }
 export interface AtmoConnection { name: string; }
-export interface DevicePrefabInfo { device_name: string; prefab_hash: number; properties: DevicePrefabProperty[]; slot_properties: DeviceSlotProperty[]; atmospheric_connections: AtmoConnection[]; }
+export interface DevicePrefabInfo { device_name: string; prefab_hash: number; is_atmospheric_device: boolean; is_ic_host: boolean; is_slot_host: boolean; properties: DevicePrefabProperty[]; slot_properties: DeviceSlotProperty[]; atmospheric_connections: AtmoConnection[]; }
 export interface ItemPrefabInfo { name: string; prefab_hash: number; item_type: string; }
 
 export function get_device_prefab_info(prefab_hash: number): DevicePrefabInfo;
@@ -1317,6 +1317,9 @@ struct AtmoConnection {
 struct PrefabInfo {
     device_name: String,
     prefab_hash: i32,
+    is_atmospheric_device: bool,
+    is_ic_host: bool,
+    is_slot_host: bool,
     properties: Vec<PrefabProperty>,
     slot_properties: Vec<SlotProperty>,
     atmospheric_connections: Vec<AtmoConnection>,
@@ -1358,6 +1361,9 @@ pub fn get_device_prefab_info(prefab_hash: i32) -> Result<JsValue, JsValue> {
         let info = PrefabInfo {
             device_name: device_name.to_string(),
             prefab_hash,
+            is_atmospheric_device: props.is_atmospheric_device,
+            is_ic_host: props.is_ic_host,
+            is_slot_host: props.is_slot_host,
             properties,
             slot_properties,
             atmospheric_connections,

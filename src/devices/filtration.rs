@@ -610,6 +610,10 @@ impl Device for Filtration {
     fn as_atmospheric_device_mut(&mut self) -> Option<&mut dyn AtmosphericDevice> {
         Some(self)
     }
+
+    fn is_ic_host() -> bool {
+        true
+    }
 }
 
 impl ICHostDevice for Filtration {

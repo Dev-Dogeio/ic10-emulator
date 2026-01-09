@@ -686,6 +686,15 @@ pub trait Device: Debug {
         Vec::new()
     }
 
+    /// Whether this device type hosts an IC chip. Default is `false`; IC host devices should override
+    /// this method in their `impl Device for ...` block to return `true`.
+    fn is_ic_host() -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
     /// If the device hosts an IC chip, return a reference to it.
     fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
         None

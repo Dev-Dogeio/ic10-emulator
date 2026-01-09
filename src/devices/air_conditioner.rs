@@ -587,6 +587,10 @@ impl Device for AirConditioner {
     fn as_atmospheric_device_mut(&mut self) -> Option<&mut dyn AtmosphericDevice> {
         Some(self)
     }
+
+    fn is_ic_host() -> bool {
+        true
+    }
 }
 
 /// `ICHostDevice` helpers for `AirConditioner` (chip hosting and memory access helpers).
