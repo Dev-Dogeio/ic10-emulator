@@ -12,9 +12,23 @@ use crate::items::{self, FilterSize, ItemIntegratedCircuit10, SimulationItemSett
 use crate::networks::BatchMode;
 use crate::types::{OptShared, Shared, shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager, parser};
-use js_sys::Reflect;
-use js_sys::{Array, Object};
+use serde::Serialize;
+use serde_wasm_bindgen::to_value;
 use std::rc::Rc;
+
+#[wasm_bindgen(typescript_custom_section)]
+const TS_APPEND_CONTENT: &'static str = r#"
+export interface DevicePrefabProperty { logic: number; logic_name: string; readable: boolean; writable: boolean; }
+export interface DeviceSlotProperty { slot_logic: number; slot_logic_name: string; readable: boolean; slot_ids: number[]; }
+export interface AtmoConnection { name: string; }
+export interface DevicePrefabInfo { device_name: string; prefab_hash: number; properties: DevicePrefabProperty[]; slot_properties: DeviceSlotProperty[]; atmospheric_connections: AtmoConnection[]; }
+export interface ItemPrefabInfo { name: string; prefab_hash: number; item_type: string; }
+
+export function get_device_prefab_info(prefab_hash: number): DevicePrefabInfo;
+export function get_item_prefab_info(prefab_hash: number): ItemPrefabInfo;
+
+export interface WasmDevice { read_batch(logic_types: LogicType[]): Array<number | null>; }
+"#;
 
 #[wasm_bindgen]
 /// WASM wrapper around `CableNetwork`
@@ -530,16 +544,13 @@ impl WasmDevice {
     }
 
     /// Read a batch of logic types and return an array of values (null for failures)
-    pub fn read_batch(&self, logic_types: Vec<LogicType>) -> Result<Array, JsValue> {
-        let arr = Array::new();
+    pub fn read_batch(&self, logic_types: Vec<LogicType>) -> Result<JsValue, JsValue> {
         let device = self.inner.borrow();
-        for lt in logic_types {
-            match device.read(lt) {
-                Ok(val) => arr.push(&JsValue::from_f64(val)),
-                Err(_) => arr.push(&JsValue::NULL),
-            };
-        }
-        Ok(arr)
+        let vec: Vec<Option<f64>> = logic_types
+            .into_iter()
+            .map(|lt| device.read(lt).ok())
+            .collect();
+        to_value(&vec).map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
     }
 
     /// Add this device to a cable network
@@ -1219,6 +1230,22 @@ impl WasmSimulationManager {
             .collect()
     }
 
+    /// Get a device tracked by this manager by reference ID
+    pub fn get_device(&self, ref_id: i32) -> Result<WasmDevice, JsValue> {
+        match self.inner.get_device(ref_id) {
+            Some(d) => Ok(WasmDevice { inner: d }),
+            None => Err(JsValue::from_str("Device not found")),
+        }
+    }
+
+    /// Get an item tracked by this manager by reference ID
+    pub fn get_item(&self, ref_id: i32) -> Result<WasmItem, JsValue> {
+        match self.inner.get_item(ref_id) {
+            Some(it) => Ok(WasmItem { inner: Some(it) }),
+            None => Err(JsValue::from_str("Item not found")),
+        }
+    }
+
     /// Create a cable network and register it with this simulation manager
     pub fn create_cable_network(&mut self) -> WasmCableNetwork {
         let net = self.inner.create_cable_network();
@@ -1241,6 +1268,22 @@ impl WasmSimulationManager {
         self.inner
             .register_atmospheric_network(network.inner.clone());
     }
+
+    /// Get a cable network by index
+    pub fn get_cable_network(&self, idx: usize) -> Result<WasmCableNetwork, JsValue> {
+        match self.inner.get_cable_network(idx) {
+            Some(n) => Ok(WasmCableNetwork { inner: n }),
+            None => Err(JsValue::from_str("Cable network not found")),
+        }
+    }
+
+    /// Get an atmospheric network by index
+    pub fn get_atmospheric_network(&self, idx: usize) -> Result<WasmAtmosphericNetwork, JsValue> {
+        match self.inner.get_atmospheric_network(idx) {
+            Some(n) => Ok(WasmAtmosphericNetwork { inner: n }),
+            None => Err(JsValue::from_str("Atmospheric network not found")),
+        }
+    }
 }
 
 /// Return a list of registered device prefab hashes
@@ -1249,113 +1292,78 @@ pub fn get_registered_device_prefabs() -> Vec<i32> {
     device_factory::get_registered_device_prefabs()
 }
 
-/// Get comprehensive prefab info for a prefab: returns an object
-/// {
-///   device_name,
-///   prefab_hash,
-///   properties: [{ logic, logic_name, readable, writable }],
-///   slot_properties: [{ slot_logic, slot_logic_name, readable, slot_ids }],
-///   atmospheric_connections: [{ name }]
-/// }
+#[derive(Serialize)]
+struct PrefabProperty {
+    logic: i32,
+    logic_name: String,
+    readable: bool,
+    writable: bool,
+}
+
+#[derive(Serialize)]
+struct SlotProperty {
+    slot_logic: i32,
+    slot_logic_name: String,
+    readable: bool,
+    slot_ids: Vec<i32>,
+}
+
+#[derive(Serialize)]
+struct AtmoConnection {
+    name: String,
+}
+
+#[derive(Serialize)]
+struct PrefabInfo {
+    device_name: String,
+    prefab_hash: i32,
+    properties: Vec<PrefabProperty>,
+    slot_properties: Vec<SlotProperty>,
+    atmospheric_connections: Vec<AtmoConnection>,
+}
+
 #[wasm_bindgen]
-pub fn get_prefab_info(prefab_hash: i32) -> Result<Object, JsValue> {
+pub fn get_device_prefab_info(prefab_hash: i32) -> Result<JsValue, JsValue> {
     if let Some((device_name, props)) = device_factory::get_prefab_metadata(prefab_hash) {
-        let obj = Object::new();
-        Reflect::set(
-            &obj,
-            &JsValue::from_str("device_name"),
-            &JsValue::from_str(device_name),
-        )
-        .unwrap();
-        Reflect::set(
-            &obj,
-            &JsValue::from_str("prefab_hash"),
-            &JsValue::from_f64(prefab_hash as f64),
-        )
-        .unwrap();
+        let properties: Vec<PrefabProperty> = props
+            .properties
+            .into_iter()
+            .map(|(lt, readable, writable)| PrefabProperty {
+                logic: lt as i32,
+                logic_name: format!("{:?}", lt),
+                readable,
+                writable,
+            })
+            .collect();
 
-        // properties
-        let props_arr = Array::new();
-        for (lt, readable, writable) in props.properties {
-            let p = Object::new();
-            Reflect::set(
-                &p,
-                &JsValue::from_str("logic"),
-                &JsValue::from_f64((lt as i32) as f64),
-            )
-            .unwrap();
-            Reflect::set(
-                &p,
-                &JsValue::from_str("logic_name"),
-                &JsValue::from_str(&format!("{:?}", lt)),
-            )
-            .unwrap();
-            Reflect::set(
-                &p,
-                &JsValue::from_str("readable"),
-                &JsValue::from_bool(readable),
-            )
-            .unwrap();
-            Reflect::set(
-                &p,
-                &JsValue::from_str("writable"),
-                &JsValue::from_bool(writable),
-            )
-            .unwrap();
-            props_arr.push(&JsValue::from(p));
-        }
-        Reflect::set(&obj, &JsValue::from_str("properties"), &props_arr).unwrap();
+        let slot_properties: Vec<SlotProperty> = props
+            .slot_properties
+            .into_iter()
+            .map(|(lt, readable, slot_ids)| SlotProperty {
+                slot_logic: lt as i32,
+                slot_logic_name: format!("{:?}", lt),
+                readable,
+                slot_ids: slot_ids.into_iter().map(|s| s as i32).collect(),
+            })
+            .collect();
 
-        // slot_properties
-        let slot_props_arr = Array::new();
-        for (lt, readable, slot_ids) in props.slot_properties {
-            let sp = Object::new();
-            Reflect::set(
-                &sp,
-                &JsValue::from_str("slot_logic"),
-                &JsValue::from_f64((lt as i32) as f64),
-            )
-            .unwrap();
-            Reflect::set(
-                &sp,
-                &JsValue::from_str("slot_logic_name"),
-                &JsValue::from_str(&format!("{:?}", lt)),
-            )
-            .unwrap();
-            Reflect::set(
-                &sp,
-                &JsValue::from_str("readable"),
-                &JsValue::from_bool(readable),
-            )
-            .unwrap();
-            let slot_arr = Array::new();
-            for s in slot_ids {
-                slot_arr.push(&JsValue::from_f64(s as f64));
-            }
-            Reflect::set(&sp, &JsValue::from_str("slot_ids"), &slot_arr).unwrap();
-            slot_props_arr.push(&JsValue::from(sp));
-        }
-        Reflect::set(&obj, &JsValue::from_str("slot_properties"), &slot_props_arr).unwrap();
+        let atmospheric_connections: Vec<AtmoConnection> = props
+            .atmospheric_connections
+            .into_iter()
+            .map(|c| AtmoConnection {
+                name: format!("{:?}", c),
+            })
+            .collect();
 
-        let atmo_conn_arr = Array::new();
-        for c in props.atmospheric_connections {
-            let conn = Object::new();
-            Reflect::set(
-                &conn,
-                &JsValue::from_str("name"),
-                &JsValue::from_str(&format!("{:?}", c)),
-            )
-            .unwrap();
-            atmo_conn_arr.push(&JsValue::from(conn));
-        }
-        Reflect::set(
-            &obj,
-            &JsValue::from_str("atmospheric_connections"),
-            &atmo_conn_arr,
-        )
-        .unwrap();
+        let info = PrefabInfo {
+            device_name: device_name.to_string(),
+            prefab_hash,
+            properties,
+            slot_properties,
+            atmospheric_connections,
+        };
 
-        Ok(obj)
+        to_value(&info).map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
     } else {
         Err(JsValue::from_str("Unknown prefab hash"))
     }
@@ -1367,28 +1375,26 @@ pub fn get_registered_item_prefabs() -> Vec<i32> {
     items::get_registered_item_prefabs()
 }
 
-/// Get item prefab metadata: returns an object with { name, prefab_hash, item_type }
-#[wasm_bindgen]
-pub fn get_item_prefab_info(prefab_hash: i32) -> Result<Object, JsValue> {
-    if let Some((name, item_type)) = items::get_prefab_metadata(prefab_hash) {
-        let obj = Object::new();
-        Reflect::set(&obj, &JsValue::from_str("name"), &JsValue::from_str(name)).unwrap();
-        Reflect::set(
-            &obj,
-            &JsValue::from_str("prefab_hash"),
-            &JsValue::from_f64(prefab_hash as f64),
-        )
-        .unwrap();
-        Reflect::set(
-            &obj,
-            &JsValue::from_str("item_type"),
-            &JsValue::from_str(item_type.as_str()),
-        )
-        .unwrap();
-        return Ok(obj);
-    }
+#[derive(Serialize)]
+struct ItemPrefabInfo {
+    name: String,
+    prefab_hash: i32,
+    item_type: String,
+}
 
-    Err(JsValue::from_str(
-        "Unsupported prefab hash for item prefab info",
-    ))
+/// Get item prefab metadata: returns a typed object with { name, prefab_hash, item_type }
+#[wasm_bindgen]
+pub fn get_item_prefab_info(prefab_hash: i32) -> Result<JsValue, JsValue> {
+    if let Some((name, item_type)) = items::get_prefab_metadata(prefab_hash) {
+        let info = ItemPrefabInfo {
+            name: name.to_string(),
+            prefab_hash,
+            item_type: item_type.as_str().to_string(),
+        };
+        to_value(&info).map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+    } else {
+        Err(JsValue::from_str(
+            "Unsupported prefab hash for item prefab info",
+        ))
+    }
 }

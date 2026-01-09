@@ -19,6 +19,7 @@ use crate::items::item_factory;
 use crate::items::{self, Item, SimulationItemSettings};
 use crate::networks::{AtmosphericNetwork, CableNetwork};
 use crate::types::Shared;
+use std::collections::BTreeMap;
 use std::fmt::Display;
 
 /// Central manager for running the simulation
@@ -26,8 +27,8 @@ use std::fmt::Display;
 pub struct SimulationManager {
     cable_networks: Vec<Shared<CableNetwork>>,
     atmospheric_networks: Vec<Shared<AtmosphericNetwork>>,
-    devices: Vec<Shared<dyn Device>>,
-    items: Vec<Shared<dyn Item>>,
+    devices: BTreeMap<i32, Shared<dyn Device>>,
+    items: BTreeMap<i32, Shared<dyn Item>>,
 }
 
 impl SimulationManager {
@@ -38,12 +39,12 @@ impl SimulationManager {
 
     /// Return a slice of all devices created by this manager
     pub fn all_devices(&self) -> Vec<Shared<dyn Device>> {
-        self.devices.clone()
+        self.devices.values().cloned().collect()
     }
 
     /// Return a slice of all items created by this manager
     pub fn all_items(&self) -> Vec<Shared<dyn Item>> {
-        self.items.clone()
+        self.items.values().cloned().collect()
     }
 
     /// Register a cable network to be updated each tick
@@ -99,7 +100,7 @@ impl SimulationManager {
     ) -> Option<Shared<dyn Device>> {
         if let Some(d) = device_factory::create_device(prefab_hash, settings) {
             // Track the created device
-            self.devices.push(d.clone());
+            self.devices.insert(d.borrow().get_id(), d.clone());
             Some(d)
         } else {
             None
@@ -113,11 +114,31 @@ impl SimulationManager {
         settings: Option<SimulationItemSettings>,
     ) -> Option<Shared<dyn Item>> {
         if let Some(it) = item_factory::create_item(prefab_hash, settings) {
-            self.items.push(it.clone());
+            self.items.insert(it.borrow().get_id(), it.clone());
             Some(it)
         } else {
             None
         }
+    }
+
+    /// Get a device tracked by this manager by reference ID
+    pub fn get_device(&self, ref_id: i32) -> Option<Shared<dyn Device>> {
+        self.devices.get(&ref_id).cloned()
+    }
+
+    /// Get an item tracked by this manager by reference ID
+    pub fn get_item(&self, ref_id: i32) -> Option<Shared<dyn Item>> {
+        self.items.get(&ref_id).cloned()
+    }
+
+    /// Get a cable network registered with this manager by index
+    pub fn get_cable_network(&self, idx: usize) -> Option<Shared<CableNetwork>> {
+        self.cable_networks.get(idx).cloned()
+    }
+
+    /// Get an atmospheric network registered with this manager by index
+    pub fn get_atmospheric_network(&self, idx: usize) -> Option<Shared<AtmosphericNetwork>> {
+        self.atmospheric_networks.get(idx).cloned()
     }
 
     /// Create a new cable network and register it with this manager.
