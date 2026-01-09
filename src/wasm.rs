@@ -7,8 +7,8 @@ use crate::devices::LogicSlotType;
 use crate::devices::LogicType;
 use crate::devices::{Device, SimulationDeviceSettings};
 use crate::devices::{DeviceAtmosphericNetworkType, device_factory};
-use crate::items::item::Item;
-use crate::items::{self, FilterSize, ItemIntegratedCircuit10, SimulationItemSettings};
+use crate::items::{self, ItemIntegratedCircuit10};
+use crate::items::{FilterSize, SimulationItemSettings, item::Item};
 use crate::networks::BatchMode;
 use crate::types::{OptShared, Shared, shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager, parser};
@@ -20,7 +20,7 @@ use std::rc::Rc;
 const TS_APPEND_CONTENT: &'static str = r#"
 export interface DevicePrefabProperty { logic: number; logic_name: string; readable: boolean; writable: boolean; }
 export interface DeviceSlotProperty { slot_logic: number; slot_logic_name: string; readable: boolean; slot_ids: number[]; }
-export interface AtmoConnection { name: string; }
+export interface AtmoConnection { name: string; connection_type: number; }
 export interface DevicePrefabInfo { device_name: string; prefab_hash: number; is_atmospheric_device: boolean; is_ic_host: boolean; is_slot_host: boolean; properties: DevicePrefabProperty[]; slot_properties: DeviceSlotProperty[]; atmospheric_connections: AtmoConnection[]; }
 export interface ItemPrefabInfo { name: string; prefab_hash: number; item_type: string; }
 
@@ -28,6 +28,9 @@ export function get_device_prefab_info(prefab_hash: number): DevicePrefabInfo;
 export function get_item_prefab_info(prefab_hash: number): ItemPrefabInfo;
 
 export interface WasmDevice { read_batch(logic_types: LogicType[]): Array<number | null>; }
+
+export interface WasmGasTypeInfo { value: number; name: string; symbol: string; isLiquid: boolean; }
+export function get_all_gas_types(): WasmGasTypeInfo[];
 "#;
 
 #[wasm_bindgen]
@@ -594,6 +597,46 @@ impl WasmDevice {
         }
     }
 
+    /// Clear/unset an atmospheric network on this device for the given connection
+    pub fn clear_atmospheric_network(&self, connection: f64) -> Result<(), JsValue> {
+        let conn = DeviceAtmosphericNetworkType::from_value(connection as i32)
+            .ok_or_else(|| JsValue::from_str("Invalid DeviceAtmosphericNetworkType value"))?;
+
+        let mut dev = self.inner.borrow_mut();
+        if let Some(atm) = dev.as_atmospheric_device_mut() {
+            atm.set_atmospheric_network(conn, None)
+                .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
+            Ok(())
+        } else {
+            Err(JsValue::from_str(
+                "Device does not support atmospheric network connections",
+            ))
+        }
+    }
+
+    /// Get the atmospheric network for a connection on this device (if any)
+    pub fn get_atmospheric_network(
+        &self,
+        connection: f64,
+    ) -> Result<Option<WasmAtmosphericNetwork>, JsValue> {
+        let conn = DeviceAtmosphericNetworkType::from_value(connection as i32)
+            .ok_or_else(|| JsValue::from_str("Invalid DeviceAtmosphericNetworkType value"))?;
+
+        let dev = self.inner.borrow();
+        if let Some(atm_dev) = dev.as_atmospheric_device() {
+            let net_opt = atm_dev.get_atmospheric_network(conn);
+            if let Some(net) = net_opt {
+                Ok(Some(WasmAtmosphericNetwork { inner: net }))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Err(JsValue::from_str(
+                "Device does not support atmospheric network connections",
+            ))
+        }
+    }
+
     /// Run the device's run() method (execute chips if supported)
     pub fn run(&self) -> Result<(), JsValue> {
         self.inner
@@ -694,6 +737,54 @@ impl WasmDevice {
             Ok(())
         } else {
             Err(JsValue::from_str("Device does not support IC installation"))
+        }
+    }
+
+    /// Convenience runtime checks for host capabilities exposed to JS
+    /// Return true if this device implements ICHostDevice
+    pub fn supports_ic_host(&self) -> bool {
+        self.inner.borrow().as_ic_host_device().is_some()
+    }
+
+    /// Return true if this device implements SlotHostDevice (supports item slots)
+    pub fn supports_slot_host(&self) -> bool {
+        self.inner.borrow().as_slot_host_device().is_some()
+    }
+
+    /// Return true if this device implements AtmosphericDevice (supports atmospheric connections)
+    pub fn supports_atmospheric_device(&self) -> bool {
+        self.inner.borrow().as_atmospheric_device().is_some()
+    }
+
+    /// Get a device pin reference ID (d0-d5) from this IC host device
+    pub fn get_device_pin(&self, pin: usize) -> Option<i32> {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device() {
+            host.get_device_pin(pin)
+        } else {
+            None
+        }
+    }
+
+    /// Set a device pin reference ID (d0-d5) on this IC host device
+    pub fn set_device_pin(&self, pin: usize, device_ref_id: Option<i32>) -> Result<(), JsValue> {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device() {
+            host.set_device_pin(pin, device_ref_id);
+            Ok(())
+        } else {
+            Err(JsValue::from_str("Device does not support IC hosting"))
+        }
+    }
+
+    /// Get the number of device pins available on this IC host device
+    pub fn get_device_pin_count(&self) -> usize {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device() {
+            let slot = host.chip_slot();
+            slot.borrow().device_pin_count()
+        } else {
+            0
         }
     }
 }
@@ -840,6 +931,13 @@ impl WasmICChip {
         self.inner
             .borrow()
             .write_stack(index, value)
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+    }
+
+    pub fn get_register(&self, index: usize) -> Result<f64, JsValue> {
+        self.inner
+            .borrow()
+            .get_register(index)
             .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 
@@ -1277,12 +1375,30 @@ impl WasmSimulationManager {
         }
     }
 
+    /// Get all cable networks
+    pub fn all_cable_networks(&self) -> Vec<WasmCableNetwork> {
+        self.inner
+            .all_cable_networks()
+            .into_iter()
+            .map(|n| WasmCableNetwork { inner: n })
+            .collect()
+    }
+
     /// Get an atmospheric network by index
     pub fn get_atmospheric_network(&self, idx: usize) -> Result<WasmAtmosphericNetwork, JsValue> {
         match self.inner.get_atmospheric_network(idx) {
             Some(n) => Ok(WasmAtmosphericNetwork { inner: n }),
             None => Err(JsValue::from_str("Atmospheric network not found")),
         }
+    }
+
+    /// Get all atmospheric networks
+    pub fn all_atmospheric_networks(&self) -> Vec<WasmAtmosphericNetwork> {
+        self.inner
+            .all_atmospheric_networks()
+            .into_iter()
+            .map(|n| WasmAtmosphericNetwork { inner: n })
+            .collect()
     }
 }
 
@@ -1311,6 +1427,7 @@ struct SlotProperty {
 #[derive(Serialize)]
 struct AtmoConnection {
     name: String,
+    connection_type: i32,
 }
 
 #[derive(Serialize)]
@@ -1355,6 +1472,7 @@ pub fn get_device_prefab_info(prefab_hash: i32) -> Result<JsValue, JsValue> {
             .into_iter()
             .map(|c| AtmoConnection {
                 name: format!("{:?}", c),
+                connection_type: c as i32,
             })
             .collect();
 
@@ -1403,4 +1521,28 @@ pub fn get_item_prefab_info(prefab_hash: i32) -> Result<JsValue, JsValue> {
             "Unsupported prefab hash for item prefab info",
         ))
     }
+}
+
+#[derive(Serialize)]
+struct WasmGasTypeInfo {
+    value: u32,
+    name: String,
+    symbol: String,
+    #[serde(rename = "isLiquid")]
+    is_liquid: bool,
+}
+
+/// Return all gas type values and their display names as an array of objects
+#[wasm_bindgen]
+pub fn get_all_gas_types() -> Result<JsValue, JsValue> {
+    let vec: Vec<WasmGasTypeInfo> = GasType::all()
+        .map(|gas| WasmGasTypeInfo {
+            value: gas as u32,
+            name: gas.display_name().to_string(),
+            symbol: gas.symbol().to_string(),
+            is_liquid: gas.matter_state() == MatterState::Liquid,
+        })
+        .collect();
+
+    to_value(&vec).map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
 }

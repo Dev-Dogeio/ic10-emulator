@@ -816,6 +816,18 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
         self.chip_slot().borrow().get_last_executed_instructions()
     }
 
+    /// Get a register value from the hosted chip (if present).
+    fn get_register(&self, index: usize) -> SimulationResult<f64> {
+        if let Some(chip) = self.chip_slot().borrow().get_chip() {
+            return chip.get_register(index);
+        }
+
+        Err(SimulationError::RuntimeError {
+            message: "No chip installed".to_string(),
+            line: 0,
+        })
+    }
+
     /// Execute hosted chip code using the host's instruction limit.
     fn run(&self) -> SimulationResult<()> {
         self.chip_slot()

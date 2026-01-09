@@ -131,6 +131,11 @@ impl SimulationManager {
         self.items.get(&ref_id).cloned()
     }
 
+    /// Get all cable networks registered with this manager
+    pub fn all_cable_networks(&self) -> Vec<Shared<CableNetwork>> {
+        self.cable_networks.clone()
+    }
+
     /// Get a cable network registered with this manager by index
     pub fn get_cable_network(&self, idx: usize) -> Option<Shared<CableNetwork>> {
         self.cable_networks.get(idx).cloned()
@@ -139,6 +144,11 @@ impl SimulationManager {
     /// Get an atmospheric network registered with this manager by index
     pub fn get_atmospheric_network(&self, idx: usize) -> Option<Shared<AtmosphericNetwork>> {
         self.atmospheric_networks.get(idx).cloned()
+    }
+
+    /// Get all atmospheric networks registered with this manager
+    pub fn all_atmospheric_networks(&self) -> Vec<Shared<AtmosphericNetwork>> {
+        self.atmospheric_networks.clone()
     }
 
     /// Create a new cable network and register it with this manager.

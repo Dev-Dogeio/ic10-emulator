@@ -89,6 +89,11 @@ impl ChipSlot {
         }
     }
 
+    /// Get the number of device pins available
+    pub fn device_pin_count(&self) -> usize {
+        self.device_pins.len()
+    }
+
     /// Run the hosted chip up to `max_instructions_per_tick`
     pub fn run(&self, max_instructions_per_tick: usize) -> SimulationResult<()> {
         if let Some(chip) = self.get_chip() {

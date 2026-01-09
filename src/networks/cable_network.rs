@@ -35,7 +35,86 @@ pub struct CableNetwork {
 
 impl Display for CableNetwork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CableNetwork {{ devices: {} }}", self.devices.len())
+        write!(f, "CableNetwork {{ device_count: {}", self.devices.len())?;
+        write!(f, ", devices: [")?;
+        let mut first = true;
+        for device in self.devices.values() {
+            if !first {
+                write!(f, ", ")?;
+            }
+            first = false;
+
+            // Borrow device immutably and extract basic fields
+            let borrowed = device.borrow();
+            let id = borrowed.get_id();
+            let name = borrowed.get_name();
+            let prefab = borrowed.get_prefab_hash();
+            let name_hash = borrowed.get_name_hash();
+
+            // Gather atmospheric network summaries (if device supports them)
+            let mut atmo_info: Vec<String> = Vec::new();
+            if let Some(atm_dev) = borrowed.as_atmospheric_device() {
+                use crate::devices::DeviceAtmosphericNetworkType::*;
+                let candidates = [Input, Input2, Output, Output2, Internal];
+                for &conn in &candidates {
+                    let net_opt = atm_dev.get_atmospheric_network(conn);
+                    if let Some(net) = net_opt {
+                        // Summarize network: volume, pressure, temperature, total_moles
+                        let vol = net.borrow().total_volume();
+                        let pres = net.borrow().pressure();
+                        let temp = net.borrow().temperature();
+                        let moles = net.borrow().total_moles();
+                        atmo_info.push(format!(
+                            "{:?}: vol={} pres={} temp={} moles={}",
+                            conn, vol, pres, temp, moles
+                        ));
+                    }
+                }
+            }
+
+            // Gather IC host info if present
+            let mut ic_info: Option<String> = None;
+            if let Some(ic_host) = borrowed.as_ic_host_device() {
+                let ichost_id = ic_host.ichost_get_id();
+                let slot = ic_host.chip_slot();
+                let slot_ref = slot.borrow();
+                let mounted = slot_ref.get_chip().is_some();
+                let last = slot_ref.get_last_executed_instructions();
+                let pins = (0..slot_ref.device_pin_count())
+                    .map(|p| {
+                        slot_ref
+                            .get_device_pin(p)
+                            .map(|i| i.to_string())
+                            .unwrap_or_else(|| "-".to_string())
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",");
+                ic_info = Some(format!(
+                    "ichost: id={} mounted={} last_inst={} pins=[{}]",
+                    ichost_id, mounted, last, pins
+                ));
+            }
+
+            write!(
+                f,
+                "{{id: {}, name: \"{}\", prefab: {}, name_hash: {}, {}{} }}",
+                id,
+                name,
+                prefab,
+                name_hash,
+                if atmo_info.is_empty() {
+                    String::new()
+                } else {
+                    format!(", atmo: [{}]", atmo_info.join(", "))
+                },
+                if let Some(ic) = ic_info {
+                    format!(", {}", ic)
+                } else {
+                    String::new()
+                }
+            )?;
+        }
+        write!(f, "] }}")
     }
 }
 
