@@ -2,7 +2,7 @@
 
 use crate::{
     LogicSlotType, LogicType,
-    devices::{Device, SimulationDeviceSettings, DeviceAtmosphericNetworkType},
+    devices::{Device, DeviceAtmosphericNetworkType, SimulationDeviceSettings},
     types::Shared,
 };
 use std::collections::HashMap;

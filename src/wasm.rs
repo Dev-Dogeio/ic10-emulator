@@ -12,7 +12,7 @@ use crate::items::item::Item;
 use crate::items::{self, FilterSize, ItemIntegratedCircuit10, SimulationItemSettings};
 use crate::networks::BatchMode;
 use crate::types::{OptShared, Shared, shared};
-use crate::{AtmosphericNetwork, CableNetwork, SimulationManager};
+use crate::{AtmosphericNetwork, CableNetwork, SimulationManager, parser};
 use js_sys::Reflect;
 use js_sys::{Array, Object};
 use std::rc::Rc;
@@ -922,6 +922,11 @@ impl WasmAtmosphericNetwork {
         removed.quantity()
     }
 
+    /// Get the moles (quantity) for a gas type
+    pub fn get_moles(&self, gas: GasType) -> f64 {
+        self.inner.borrow().get_moles(gas)
+    }
+
     pub fn process_phase_changes(&self) -> u32 {
         self.inner.borrow_mut().process_phase_changes()
     }
@@ -1058,12 +1063,49 @@ impl WasmAtmosphericNetwork {
             .transfer_ratio_to(b.mixture_mut(), ratio, state)
     }
 }
+
+#[wasm_bindgen]
+pub fn pack_ascii6(text: &str) -> Option<i64> {
+    parser::pack_ascii6(text)
+}
+
+#[wasm_bindgen]
+pub fn string_to_hash(text: &str) -> i32 {
+    parser::string_to_hash(text)
+}
+
+#[wasm_bindgen]
+pub fn gas_type_symbol(g: GasType) -> String {
+    g.symbol().to_string()
+}
+
+#[wasm_bindgen]
+pub fn gas_type_display_name(g: GasType) -> String {
+    g.display_name().to_string()
+}
+
+#[wasm_bindgen]
+pub fn gas_type_all_gases() -> Vec<GasType> {
+    GasType::all_gases().collect()
+}
+
+#[wasm_bindgen]
+pub fn gas_type_all_liquids() -> Vec<GasType> {
+    GasType::all_liquids().collect()
+}
+
+#[wasm_bindgen]
+pub fn gas_type_all() -> Vec<GasType> {
+    GasType::all().collect()
+}
+
 #[wasm_bindgen]
 pub struct WasmSimulationManager {
     inner: SimulationManager,
 }
 
 #[wasm_bindgen]
+#[allow(clippy::new_without_default)]
 impl WasmSimulationManager {
     #[wasm_bindgen(constructor)]
     pub fn new() -> WasmSimulationManager {
@@ -1147,7 +1189,6 @@ impl WasmSimulationManager {
             quantity,
             gas_type,
             filter_size,
-            ..Default::default()
         };
 
         if let Some(item) = items::create_item(prefab_hash, Some(settings)) {
@@ -1157,6 +1198,29 @@ impl WasmSimulationManager {
         Err(JsValue::from_str(
             "Unsupported prefab hash for item creation",
         ))
+    }
+
+    /// Create a cable network and register it with this simulation manager
+    pub fn create_cable_network(&mut self) -> WasmCableNetwork {
+        let net = self.inner.create_cable_network();
+        WasmCableNetwork { inner: net }
+    }
+
+    /// Create an atmospheric network and register it with this simulation manager
+    pub fn create_atmospheric_network(&mut self, volume: f64) -> WasmAtmosphericNetwork {
+        let net = self.inner.create_atmospheric_network(volume);
+        WasmAtmosphericNetwork { inner: net }
+    }
+
+    /// Register an existing cable network with this simulation manager
+    pub fn register_cable_network(&mut self, network: &WasmCableNetwork) {
+        self.inner.register_cable_network(network.inner.clone());
+    }
+
+    /// Register an existing atmospheric network with this simulation manager
+    pub fn register_atmospheric_network(&mut self, network: &WasmAtmosphericNetwork) {
+        self.inner
+            .register_atmospheric_network(network.inner.clone());
     }
 }
 

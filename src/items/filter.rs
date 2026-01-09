@@ -1,10 +1,10 @@
 //! Filter item implementation
 
+use super::item::{Item, ItemType};
 use crate::{
     allocate_global_id, atmospherics::GasType, items::SimulationItemSettings,
     parser::string_to_hash, reserve_global_id,
 };
-use super::item::{Item, ItemType};
 use std::any::Any;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
