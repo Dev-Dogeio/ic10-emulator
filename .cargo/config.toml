@@ -1,5 +1,2 @@
 [alias]
-# Generic xtask runner: `cargo xtask <args>`
-xtask = "run --manifest-path xtask/Cargo.toml --release --"
-# Build wasm target: `cargo xtask build-wasm`
-wasm = "run --manifest-path xtask/Cargo.toml --release -- build-wasm"
+wasm = "run -p xtask --release build-wasm --"

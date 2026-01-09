@@ -41,7 +41,7 @@ Prerequisites:
 Usage:
 
 -   `cargo xtask build-wasm [--release]`
--   The generated js bindings will be placed into the `pkg/` directory.
+-   The generated js bindings will be placed into the `app/pkg/` directory.
 
 ### Running the example
 

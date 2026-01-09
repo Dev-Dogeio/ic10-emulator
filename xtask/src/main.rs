@@ -21,7 +21,7 @@ fn main() -> Result<()> {
 
 fn print_help() {
     eprintln!(
-        "xtask commands:\n  build-wasm [--release]   Build wasm target and run wasm-bindgen into ./pkg"
+        "xtask commands:\n  build-wasm [--release]   Build wasm target and run wasm-bindgen into ./app/pkg"
     );
 }
 
@@ -68,17 +68,22 @@ fn build_wasm(args: Vec<String>) -> Result<()> {
 
     // Locate wasm file
     let profile = if release { "release" } else { "debug" };
-    let wasm_path = PathBuf::from("target")
+    let wasm_path = repo_root
+        .join("target")
         .join("wasm32-unknown-unknown")
         .join(profile)
         .join("ic10_emulator_lib.wasm");
 
     if !wasm_path.exists() {
-        bail!("expected wasm file not found: {}", wasm_path.display());
+        bail!(
+            "expected wasm file not found: {} (looked in repo root {})",
+            wasm_path.display(),
+            repo_root.display()
+        );
     }
 
-    // Ensure pkg directory exists and is empty-ish
-    let pkg_dir = PathBuf::from("pkg");
+    // Ensure pkg directory exists and is empty-ish (relative to repo root)
+    let pkg_dir = repo_root.join("app").join("pkg");
     if !pkg_dir.exists() {
         fs::create_dir_all(&pkg_dir).context("failed to create pkg dir")?;
     }
