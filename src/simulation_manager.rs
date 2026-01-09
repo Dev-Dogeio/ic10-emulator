@@ -1,7 +1,10 @@
-//! Simulation manager - central manager for cable and atmospheric networks
+//! Simulation manager - central manager for the simulation
 //!
-//! The SimulationManager holds references to all registered cable and
-//! atmospheric networks and runs them in a deterministic order each tick.
+//! The SimulationManager:
+//! - Creates devices (by prefab hash + settings)
+//! - Creates items (by prefab hash + settings)
+//! - Creates atmospheric and cable networks
+//! - Runs simulation ticks in deterministic order
 //!
 //! Update order implemented here:
 //! 1. Process atmospheric network updates
@@ -10,15 +13,13 @@
 use crate::LogicSlotType;
 use crate::LogicType;
 use crate::conversions::fmt_trim;
-use crate::id::reset_global_id_counter;
-use crate::items;
+use crate::devices::device_factory;
+use crate::devices::{Device, SimulationDeviceSettings};
+use crate::items::item_factory;
+use crate::items::{self, Item, SimulationItemSettings};
 use crate::networks::{AtmosphericNetwork, CableNetwork};
-use crate::types::{Shared, shared};
+use crate::types::Shared;
 use std::fmt::Display;
-
-thread_local! {
-    static GLOBAL_SIM_MANAGER: Shared<SimulationManager> = shared(SimulationManager::new());
-}
 
 /// Central manager for running the simulation
 #[derive(Default, Clone, Debug)]
@@ -33,55 +34,18 @@ impl SimulationManager {
         Self::default()
     }
 
-    /// Get the global `SimulationManager` instance
-    pub fn global() -> Shared<SimulationManager> {
-        GLOBAL_SIM_MANAGER.with(|g| g.clone())
-    }
-
-    /// Register an atmospheric network globally
-    pub fn register_atmospheric_network_global(network: Shared<AtmosphericNetwork>) {
-        GLOBAL_SIM_MANAGER.with(|g| g.borrow_mut().register_atmospheric_network(network));
-    }
-
-    /// Register a cable network globally
-    pub fn register_cable_network_global(network: Shared<CableNetwork>) {
-        GLOBAL_SIM_MANAGER.with(|g| g.borrow_mut().register_cable_network(network));
-    }
-
-    /// Run a global tick and return number of atmospheric phase changes.
-    pub fn update_global(tick: u64) -> u32 {
-        GLOBAL_SIM_MANAGER.with(|g| g.borrow().update(tick))
-    }
-
-    /// Reset the global simulation manager and global IDs (for tests).
-    pub fn reset_global() {
-        GLOBAL_SIM_MANAGER.with(|g| g.borrow_mut().reset());
-        // Also reset the global ID counter
-        reset_global_id_counter();
-    }
-
-    /// Get the count of registered cable networks on the global manager
-    pub fn cable_network_count_global() -> usize {
-        GLOBAL_SIM_MANAGER.with(|g| g.borrow().cable_networks.len())
-    }
-
-    /// Get the count of registered atmospheric networks on the global manager
-    pub fn atmospheric_network_count_global() -> usize {
-        GLOBAL_SIM_MANAGER.with(|g| g.borrow().atmospheric_networks.len())
-    }
-
     /// Register a cable network to be updated each tick
-    fn register_cable_network(&mut self, network: Shared<CableNetwork>) {
+    pub fn register_cable_network(&mut self, network: Shared<CableNetwork>) {
         self.cable_networks.push(network);
     }
 
     /// Register an atmospheric network to be processed each tick
-    fn register_atmospheric_network(&mut self, network: Shared<AtmosphericNetwork>) {
+    pub fn register_atmospheric_network(&mut self, network: Shared<AtmosphericNetwork>) {
         self.atmospheric_networks.push(network);
     }
 
     /// Perform a simulation tick in the correct order and return the total number of phase changes.
-    fn update(&self, tick: u64) -> u32 {
+    pub fn update(&self, tick: u64) -> u32 {
         // 1) Process atmospheric updates
         let mut total_changes: u32 = 0;
         for net in &self.atmospheric_networks {
@@ -97,7 +61,7 @@ impl SimulationManager {
     }
 
     /// Reset internal manager state by removing devices and clearing networks.
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         // Remove all devices from cable networks
         for net in &self.cable_networks {
             let mut net_mut = net.borrow_mut();
@@ -109,6 +73,38 @@ impl SimulationManager {
 
         self.cable_networks.clear();
         self.atmospheric_networks.clear();
+    }
+
+    /// Create a new device by prefab hash using the device factory.
+    pub fn create_device(
+        &self,
+        prefab_hash: i32,
+        settings: Option<SimulationDeviceSettings>,
+    ) -> Option<Shared<dyn Device>> {
+        device_factory::create_device(prefab_hash, settings)
+    }
+
+    /// Create a new item by prefab hash using the item factory.
+    pub fn create_item(
+        &self,
+        prefab_hash: i32,
+        settings: Option<SimulationItemSettings>,
+    ) -> Option<Shared<dyn Item>> {
+        item_factory::create_item(prefab_hash, settings)
+    }
+
+    /// Create a new cable network and register it with this manager.
+    pub fn create_cable_network(&mut self) -> Shared<CableNetwork> {
+        let network = CableNetwork::new();
+        self.register_cable_network(network.clone());
+        network
+    }
+
+    /// Create a new atmospheric network and register it with this manager.
+    pub fn create_atmospheric_network(&mut self, volume: f64) -> Shared<AtmosphericNetwork> {
+        let network = AtmosphericNetwork::new(volume);
+        self.register_atmospheric_network(network.clone());
+        network
     }
 }
 

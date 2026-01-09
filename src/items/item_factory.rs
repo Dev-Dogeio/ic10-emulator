@@ -154,7 +154,6 @@ fn initialize_item_factory() {
             Volatiles,
             Pollutant,
             NitrousOxide,
-            Steam,
             Water,
             // Hydrogen: Does not support filters
         ];
@@ -164,11 +163,13 @@ fn initialize_item_factory() {
         for &g in &gas_types {
             for &s in &sizes {
                 let prefab = Filter::prefab_hash_for(g, s);
-                // Each prefab creates a pre-configured filter
                 register_item_factory(
                     prefab,
                     Box::new(move |settings: Option<SimulationItemSettings>| {
-                        shared(Filter::new(settings))
+                        let mut settings = settings.unwrap_or_default();
+                        settings.gas_type = Some(g);
+                        settings.filter_size = Some(s);
+                        shared(Filter::new(Some(settings)))
                     }),
                 );
 

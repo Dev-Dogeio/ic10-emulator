@@ -9,7 +9,7 @@ use crate::devices::device_factory::create_device;
 use crate::devices::{Device, SimulationDeviceSettings};
 use crate::devices::{DeviceAtmosphericNetworkType, device_factory};
 use crate::items::item::Item;
-use crate::items::{self, ItemIntegratedCircuit10};
+use crate::items::{self, FilterSize, ItemIntegratedCircuit10, SimulationItemSettings};
 use crate::networks::BatchMode;
 use crate::types::{OptShared, Shared, shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager};
@@ -907,18 +907,6 @@ impl WasmAtmosphericNetwork {
         self.inner.borrow().total_volume()
     }
 
-    pub fn device_count(&self) -> usize {
-        self.inner.borrow().device_count()
-    }
-
-    pub fn has_device(&self, device_id: usize) -> bool {
-        self.inner.borrow().has_device(device_id)
-    }
-
-    pub fn device_ids(&self) -> Vec<usize> {
-        self.inner.borrow().device_ids()
-    }
-
     pub fn add_mixture(&self, other: &WasmGasMixture) {
         self.inner.borrow_mut().add_mixture(&other.inner);
     }
@@ -948,12 +936,6 @@ impl WasmAtmosphericNetwork {
 
     pub fn is_empty(&self) -> bool {
         self.inner.borrow().is_empty()
-    }
-
-    pub fn merge_network(&self, other: &mut WasmAtmosphericNetwork) -> Vec<usize> {
-        self.inner
-            .borrow_mut()
-            .merge_network(&mut other.inner.borrow_mut())
     }
 
     pub fn equalize_with(&self, other: &mut WasmAtmosphericNetwork) {
@@ -1077,30 +1059,31 @@ impl WasmAtmosphericNetwork {
     }
 }
 #[wasm_bindgen]
-pub struct WasmSimulationManager;
+pub struct WasmSimulationManager {
+    inner: SimulationManager,
+}
 
 #[wasm_bindgen]
 impl WasmSimulationManager {
-    pub fn reset() {
-        SimulationManager::reset_global();
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmSimulationManager {
+        WasmSimulationManager {
+            inner: SimulationManager::new(),
+        }
     }
 
-    pub fn update(ticks: u64) -> u32 {
-        SimulationManager::update_global(ticks)
+    pub fn reset(&mut self) {
+        self.inner.reset();
     }
 
-    pub fn cable_network_count() -> usize {
-        SimulationManager::cable_network_count_global()
-    }
-
-    pub fn atmospheric_network_count() -> usize {
-        SimulationManager::atmospheric_network_count_global()
+    pub fn update(&self, ticks: u64) -> u32 {
+        self.inner.update(ticks)
     }
 
     /// Get a string representation
     #[wasm_bindgen(js_name = toString)]
-    pub fn to_string_js() -> String {
-        format!("{}", SimulationManager::global().borrow())
+    pub fn to_string_js(&self) -> String {
+        format!("{}", self.inner)
     }
 
     /// Create a device by prefab hash and register it in the global device map.
@@ -1143,6 +1126,31 @@ impl WasmSimulationManager {
     /// Supports IC10 and filter prefabs by probing known variants.
     pub fn create_item(prefab_hash: i32) -> Result<WasmItem, JsValue> {
         if let Some(item) = items::create_item(prefab_hash, None) {
+            return Ok(WasmItem { inner: Some(item) });
+        }
+
+        Err(JsValue::from_str(
+            "Unsupported prefab hash for item creation",
+        ))
+    }
+
+    /// Create an item with explicit simulation settings
+    pub fn create_item_with_settings(
+        prefab_hash: i32,
+        id: Option<i32>,
+        quantity: Option<u32>,
+        gas_type: Option<GasType>,
+        filter_size: Option<FilterSize>,
+    ) -> Result<WasmItem, JsValue> {
+        let settings = SimulationItemSettings {
+            id,
+            quantity,
+            gas_type,
+            filter_size,
+            ..Default::default()
+        };
+
+        if let Some(item) = items::create_item(prefab_hash, Some(settings)) {
             return Ok(WasmItem { inner: Some(item) });
         }
 

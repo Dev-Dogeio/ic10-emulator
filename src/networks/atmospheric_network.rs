@@ -1,36 +1,18 @@
-//! Atmospheric Network - manages connected atmospheric devices
-//!
-//! An atmospheric network connects devices that handle atmospheric gases.
-//!
-//! The network maintains a shared gas mixture that all connected devices
-//! can access. Devices can add or remove gas from the network, and the
-//! network automatically equalizes pressure and temperature across all
-//! connected devices.
+//! Atmospheric Network - manages a shared gas mixture that can be accessed by multiple devices.
 
-use crate::SimulationManager;
 use crate::atmospherics::{GasMixture, GasType, MatterState, Mole};
 use crate::types::{Shared, shared};
-use std::collections::HashSet;
 use std::fmt::{Debug, Display};
 
-/// Identifier for devices on the atmospheric network
-pub type DeviceId = usize;
-
 /// An atmospheric network that manages a shared gas mixture.
-///
-/// The network maintains a gas mixture that devices can directly interact with.
-/// Devices added to a network are tracked for enumeration purposes.
 #[derive(Clone)]
 pub struct AtmosphericNetwork {
     /// The shared gas mixture for this network
     mixture: GasMixture,
-
-    /// Set of device IDs connected to this network (for enumeration only)
-    devices: HashSet<DeviceId>,
 }
 
 impl AtmosphericNetwork {
-    /// Create a new atmospheric network with specified volume and register it with the global SimulationManager.
+    /// Create a new atmospheric network with specified volume.
     /// Panics if volume is 0 or negative
     pub fn new(volume: f64) -> Shared<AtmosphericNetwork> {
         assert!(
@@ -38,14 +20,9 @@ impl AtmosphericNetwork {
             "Atmospheric networks must have positive volume"
         );
 
-        let s = shared(AtmosphericNetwork {
+        shared(AtmosphericNetwork {
             mixture: GasMixture::new(volume),
-            devices: HashSet::new(),
-        });
-
-        SimulationManager::register_atmospheric_network_global(s.clone());
-
-        s
+        })
     }
 
     /// Get immutable reference to the network's gas mixture
@@ -71,36 +48,6 @@ impl AtmosphericNetwork {
             "Atmospheric networks must have positive volume"
         );
         self.mixture.set_volume(volume);
-    }
-
-    /// Get the number of devices connected to this network
-    pub fn device_count(&self) -> usize {
-        self.devices.len()
-    }
-
-    /// Check if a device is connected to this network
-    pub fn has_device(&self, device_id: DeviceId) -> bool {
-        self.devices.contains(&device_id)
-    }
-
-    /// Get all device IDs connected to this network
-    pub fn device_ids(&self) -> Vec<DeviceId> {
-        self.devices.iter().copied().collect()
-    }
-
-    /// Add a device to the network
-    /// The device will be stored in the device set
-    /// Returns true if the device was added, false if it was already present
-    #[allow(dead_code)]
-    pub(crate) fn add_device(&mut self, device_id: DeviceId) -> bool {
-        self.devices.insert(device_id)
-    }
-
-    /// Remove a device from the network
-    /// Returns true if the device was present and removed
-    #[allow(dead_code)]
-    pub(crate) fn remove_device(&mut self, device_id: DeviceId) -> bool {
-        self.devices.remove(&device_id)
     }
 
     /// Add gas to the network
@@ -183,28 +130,6 @@ impl AtmosphericNetwork {
     /// Clear all gas from the network
     pub fn clear(&mut self) {
         self.mixture.clear();
-    }
-
-    /// Merge another atmospheric network into this one
-    /// The other network will be emptied and its devices will be transferred
-    /// Returns the list of devices that were transferred
-    pub fn merge_network(&mut self, other: &mut AtmosphericNetwork) -> Vec<DeviceId> {
-        // Collect devices to transfer
-        let transferred_devices: Vec<DeviceId> = other.devices.iter().copied().collect();
-
-        // Transfer all devices
-        for &device_id in &transferred_devices {
-            self.devices.insert(device_id);
-        }
-
-        // Merge gas mixtures
-        self.mixture.merge(&other.mixture);
-
-        // Clear the other network
-        other.devices.clear();
-        other.mixture.clear();
-
-        transferred_devices
     }
 
     /// Equalize with another atmospheric network

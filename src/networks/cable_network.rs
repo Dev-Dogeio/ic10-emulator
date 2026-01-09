@@ -1,9 +1,9 @@
 //! Cable network for connecting devices and managing lookups
 
+use crate::SimulationError;
 use crate::devices::{Device, LogicType};
 use crate::error::SimulationResult;
 use crate::types::{OptShared, Shared, shared};
-use crate::{SimulationError, SimulationManager};
 use std::cell::{Ref, RefMut};
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
@@ -46,17 +46,13 @@ impl Debug for CableNetwork {
 }
 
 impl CableNetwork {
-    /// Create a new cable network and register it with the global SimulationManager.
+    /// Create a new cable network
     pub fn new() -> Shared<CableNetwork> {
-        let s = shared(CableNetwork {
+        shared(CableNetwork {
             devices: BTreeMap::new(),
             prefab_index: BTreeMap::new(),
             name_index: BTreeMap::new(),
-        });
-
-        SimulationManager::register_cable_network_global(s.clone());
-
-        s
+        })
     }
 
     /// Add a device to the network and set up the bidirectional connection

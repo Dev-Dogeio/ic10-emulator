@@ -3,14 +3,13 @@
 use std::{error::Error, thread::sleep, time::Duration};
 
 use ic10_emulator_lib::{
-    CableNetwork, Device, Item, ItemIntegratedCircuit10, LogicType, SimulationManager,
+    Device, Item, ItemIntegratedCircuit10, LogicType, SimulationManager,
     atmospherics::{GasType, celsius_to_kelvin},
     devices::{
         AirConditioner, AtmosphericDevice, DeviceAtmosphericNetworkType, Filtration, ICHostDevice,
         ICHousing, VolumePump,
     },
     items::{Filter, FilterSize},
-    networks::AtmosphericNetwork,
     parser::{preprocess, string_to_hash},
     types::{Shared, shared},
 };
@@ -20,37 +19,37 @@ fn main() -> Result<(), Box<dyn Error>> {
     phase_change_test()?;
     sleep(Duration::from_secs(1));
 
-    // println!("Running Phase Change test 2...");
-    // phase_change_test_2()?;
-    // sleep(Duration::from_secs(1));
+    println!("Running Phase Change test 2...");
+    phase_change_test_2()?;
+    sleep(Duration::from_secs(1));
 
-    // println!("Running Elmo AC test...");
-    // elmo_ac_test()?;
-    // sleep(Duration::from_secs(1));
+    println!("Running Elmo AC test...");
+    elmo_ac_test()?;
+    sleep(Duration::from_secs(1));
 
-    // println!("Running AC device test...");
-    // ac_device_test()?;
-    // sleep(Duration::from_secs(1));
+    println!("Running AC device test...");
+    ac_device_test()?;
+    sleep(Duration::from_secs(1));
 
-    // println!("Running Filtration device test...");
-    // filtration_device_test()?;
-    // sleep(Duration::from_secs(1));
+    println!("Running Filtration device test...");
+    filtration_device_test()?;
+    sleep(Duration::from_secs(1));
 
-    // println!("Running IC program test...");
-    // ic_program_test()?;
-    // sleep(Duration::from_secs(1));
+    println!("Running IC program test...");
+    ic_program_test()?;
+    sleep(Duration::from_secs(1));
 
     Ok(())
 }
 #[allow(dead_code)]
 /// Atmospheric phase change test
 fn phase_change_test() -> Result<(), Box<dyn Error>> {
-    SimulationManager::reset_global();
+    let mut manager = SimulationManager::new();
 
-    let cable_network = CableNetwork::new();
+    let cable_network = manager.create_cable_network();
 
-    let input_network = AtmosphericNetwork::new(10.0);
-    let output_network = AtmosphericNetwork::new(10.0);
+    let input_network = manager.create_atmospheric_network(10.0);
+    let output_network = manager.create_atmospheric_network(10.0);
 
     let pump = VolumePump::new(None);
     cable_network
@@ -77,7 +76,7 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
     const MAX_TICKS: u64 = 15;
 
     loop {
-        let changes = SimulationManager::update_global(ticks);
+        let changes = manager.update(ticks);
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n Input: {}\nOutput: {}",
@@ -103,9 +102,9 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
 #[allow(dead_code)]
 /// Atmospheric phase change test
 fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
-    SimulationManager::reset_global();
+    let mut manager = SimulationManager::new();
 
-    let network = AtmosphericNetwork::new(10.0);
+    let network = manager.create_atmospheric_network(10.0);
 
     network
         .borrow_mut()
@@ -117,7 +116,7 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
     const MAX_TICKS: u64 = 1000;
 
     loop {
-        let changes = SimulationManager::update_global(ticks);
+        let changes = manager.update(ticks);
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n{}",
@@ -139,7 +138,7 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
     network.borrow_mut().set_volume(20.0);
 
     loop {
-        let changes = SimulationManager::update_global(ticks);
+        let changes = manager.update(ticks);
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n{}",
@@ -163,12 +162,11 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
 
 #[allow(dead_code)]
 fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
-    // Elmo AC Setup test
-    SimulationManager::reset_global();
+    let mut manager = SimulationManager::new();
 
-    let tank = AtmosphericNetwork::new(780.0); // Gas tank / pump input / ac waste
-    let input = AtmosphericNetwork::new(10.0); // AC input
-    let vent = AtmosphericNetwork::new(1130.0); // AC hot gas output
+    let tank = manager.create_atmospheric_network(780.0); // Gas tank / pump input / ac waste
+    let input = manager.create_atmospheric_network(10.0); // AC input
+    let vent = manager.create_atmospheric_network(1130.0); // AC hot gas output
 
     let ac = AirConditioner::new(None);
     ac.borrow_mut()
@@ -187,7 +185,7 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
     let chip = shared(ItemIntegratedCircuit10::new(None));
     ac.borrow().set_chip(chip.clone());
 
-    let network = CableNetwork::new();
+    let network = manager.create_cable_network();
 
     network.borrow_mut().add_device(ac.clone(), network.clone());
     network
@@ -248,7 +246,7 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
     while ticks < 2 || ac.borrow().read(LogicType::Mode)? == 1.0 {
         // Time the simulation
         let _start = std::time::Instant::now();
-        SimulationManager::update_global(ticks);
+        manager.update(ticks);
         let duration = _start.elapsed();
 
         println!(
@@ -271,10 +269,10 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
 #[allow(dead_code)]
 fn ac_device_test() -> Result<(), Box<dyn Error>> {
     // AC device test
-    SimulationManager::reset_global();
+    let mut manager = SimulationManager::new();
 
-    let input = AtmosphericNetwork::new(120.0);
-    let waste = AtmosphericNetwork::new(60.0);
+    let input = manager.create_atmospheric_network(120.0);
+    let waste = manager.create_atmospheric_network(60.0);
 
     let airconditioner = AirConditioner::new(None);
     {
@@ -303,7 +301,7 @@ fn ac_device_test() -> Result<(), Box<dyn Error>> {
     let mut ticks = 1;
 
     while ticks <= 38 {
-        SimulationManager::update_global(ticks);
+        manager.update(ticks);
 
         println!(
             "\nAfter tick #{ticks}:\n Input: {}\n Output: {}\n Waste: {}",
@@ -320,13 +318,13 @@ fn ac_device_test() -> Result<(), Box<dyn Error>> {
 #[allow(dead_code)]
 fn filtration_device_test() -> Result<(), Box<dyn Error>> {
     // Filtration device test
-    SimulationManager::reset_global();
+    let mut manager = SimulationManager::new();
 
-    let network = CableNetwork::new();
+    let network = manager.create_cable_network();
 
-    let input = AtmosphericNetwork::new(10.0);
-    let filtered = AtmosphericNetwork::new(20.0);
-    let waste = AtmosphericNetwork::new(10.0);
+    let input = manager.create_atmospheric_network(10.0);
+    let filtered = manager.create_atmospheric_network(20.0);
+    let waste = manager.create_atmospheric_network(10.0);
 
     let filtration = Filtration::new(None);
     {
@@ -366,7 +364,7 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
 
     while !input.borrow().is_empty() {
         // Run the filtration until input network is empty
-        SimulationManager::update_global(ticks);
+        manager.update(ticks);
 
         println!(
             "\nAfter filtration #{ticks}:\n Input: {}\n Filtered: {}\n Waste: {}",
@@ -383,10 +381,10 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
 #[allow(dead_code)]
 fn ic_program_test() -> Result<(), Box<dyn Error>> {
     // IC program test
-    SimulationManager::reset_global();
+    let mut manager = SimulationManager::new();
 
     // Create a network
-    let network = CableNetwork::new();
+    let network = manager.create_cable_network();
     let chip = shared(ItemIntegratedCircuit10::new(None));
     let housing = ICHousing::new(None);
 
@@ -469,7 +467,7 @@ s db Setting STR("DONE")"#.to_string();
 
     // Run the simulation until the script is done
     while !(chip.borrow().is_halted() || housing.borrow().read(LogicType::On)? == 0.0) {
-        SimulationManager::update_global(ticks);
+        manager.update(ticks);
         let steps = housing.borrow().get_last_executed_instructions();
 
         println!("Tick {} ({} steps)", ticks, steps);

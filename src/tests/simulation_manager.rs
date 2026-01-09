@@ -16,9 +16,10 @@ mod tests {
     #[test]
     fn test_reset_drops_devices_and_networks() {
         // Start from a clean state
-        SimulationManager::reset_global();
+        let mut manager = SimulationManager::new();
 
         let cn = CableNetwork::new();
+        manager.register_cable_network(cn.clone());
 
         // Create one of each device
         let ac = AirConditioner::new(None);
@@ -152,7 +153,7 @@ mod tests {
         drop(cn);
 
         // Reset everything
-        SimulationManager::reset_global();
+        manager.reset();
 
         // All devices and networks should be fully dropped
         assert!(
@@ -200,9 +201,10 @@ mod tests {
 
     #[test]
     fn test_simulation_manager_device_item_enumeration() {
-        SimulationManager::reset_global();
+        let mut manager = SimulationManager::new();
 
         let cn = CableNetwork::new();
+        manager.register_cable_network(cn.clone());
 
         // Create Filtration device and register it on the network
         let fil = Filtration::new(None);
@@ -215,7 +217,7 @@ mod tests {
         f.set_quantity(42);
         fil.borrow_mut().try_insert_item(0, shared(f)).unwrap();
 
-        let out = format!("{}", SimulationManager::global().borrow());
+        let out = format!("{}", manager);
         assert!(
             out.contains("Items:"),
             "Output should include item enumeration: {}",
@@ -231,7 +233,6 @@ mod tests {
 
     #[test]
     fn test_simulation_settings_internal_network_used_by_devices() {
-        SimulationManager::reset_global();
         let an_internal = AtmosphericNetwork::new(50.0);
         let settings = SimulationDeviceSettings {
             ticks_per_day: Some(2400.0),
@@ -250,8 +251,6 @@ mod tests {
 
     #[test]
     fn test_simulation_settings_id_used_by_all_devices() {
-        SimulationManager::reset_global();
-
         // Create distinct settings for each device with explicit ids
         // Use negative IDs to avoid clashes with other tests that allocate global IDs concurrently
         let ac_settings = SimulationDeviceSettings {
