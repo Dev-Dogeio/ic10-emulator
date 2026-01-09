@@ -567,6 +567,11 @@ impl Device for AirConditioner {
         AirConditioner::display_name_static()
     }
 
+    fn required_atmospheric_connections() -> Vec<DeviceAtmosphericNetworkType> {
+        use DeviceAtmosphericNetworkType::*;
+        return vec![Input, Output, Output2];
+    }
+
     fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
         Some(self)
     }

@@ -1164,6 +1164,7 @@ pub fn get_registered_device_prefabs() -> Vec<i32> {
 ///   prefab_hash,
 ///   properties: [{ logic, logic_name, readable, writable }],
 ///   slot_properties: [{ slot_logic, slot_logic_name, readable, slot_ids }],
+///   atmospheric_connections: [{ name }]
 /// }
 #[wasm_bindgen]
 pub fn get_prefab_info(prefab_hash: i32) -> Result<Object, JsValue> {
@@ -1244,6 +1245,24 @@ pub fn get_prefab_info(prefab_hash: i32) -> Result<Object, JsValue> {
             slot_props_arr.push(&JsValue::from(sp));
         }
         Reflect::set(&obj, &JsValue::from_str("slot_properties"), &slot_props_arr).unwrap();
+
+        let atmo_conn_arr = Array::new();
+        for c in props.atmospheric_connections {
+            let conn = Object::new();
+            Reflect::set(
+                &conn,
+                &JsValue::from_str("name"),
+                &JsValue::from_str(&format!("{:?}", c)),
+            )
+            .unwrap();
+            atmo_conn_arr.push(&JsValue::from(conn));
+        }
+        Reflect::set(
+            &obj,
+            &JsValue::from_str("atmospheric_connections"),
+            &atmo_conn_arr,
+        )
+        .unwrap();
 
         Ok(obj)
     } else {

@@ -221,6 +221,11 @@ impl Device for VolumePump {
         VolumePump::display_name_static()
     }
 
+    fn required_atmospheric_connections() -> Vec<DeviceAtmosphericNetworkType> {
+        use DeviceAtmosphericNetworkType::*;
+        vec![Input, Output]
+    }
+
     fn as_atmospheric_device(&self) -> Option<&dyn AtmosphericDevice> {
         Some(self)
     }

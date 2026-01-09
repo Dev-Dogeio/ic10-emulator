@@ -677,6 +677,15 @@ pub trait Device: Debug {
         Vec::new()
     }
 
+    /// Return a list of atmospheric connection types that this device supports or requires.
+    /// Default implementation returns an empty vec indicating no atmospheric connections are used.
+    fn required_atmospheric_connections() -> Vec<DeviceAtmosphericNetworkType>
+    where
+        Self: Sized,
+    {
+        Vec::new()
+    }
+
     /// If the device hosts an IC chip, return a reference to it.
     fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
         None

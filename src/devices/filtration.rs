@@ -582,6 +582,11 @@ impl Device for Filtration {
         Filtration::display_name_static()
     }
 
+    fn required_atmospheric_connections() -> Vec<DeviceAtmosphericNetworkType> {
+        use crate::devices::DeviceAtmosphericNetworkType::*;
+        vec![Input, Output, Output2]
+    }
+
     fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
         Some(self)
     }

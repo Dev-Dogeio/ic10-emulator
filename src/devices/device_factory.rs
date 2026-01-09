@@ -2,7 +2,7 @@
 
 use crate::{
     LogicSlotType, LogicType,
-    devices::{Device, SimulationDeviceSettings},
+    devices::{Device, SimulationDeviceSettings, DeviceAtmosphericNetworkType},
     types::Shared,
 };
 use std::collections::HashMap;
@@ -19,9 +19,12 @@ pub type DeviceFactoryFn = fn(Option<SimulationDeviceSettings>) -> Shared<dyn De
 /// `slot_properties` is a vector of tuples describing a `LogicSlotType` and whether
 /// that slot property is readable (slot properties are currently read-only).
 pub struct DeviceProps {
+    /// slot_properties: (logic_type, readable, writable)
     pub properties: Vec<(LogicType, bool, bool)>,
     /// slot_properties: (slot_logic_type, readable, slot_indices)
     pub slot_properties: Vec<(LogicSlotType, bool, Vec<usize>)>,
+    /// atmospheric_connections: (connection_type)
+    pub atmospheric_connections: Vec<DeviceAtmosphericNetworkType>,
 }
 
 /// Function type that returns device metadata: `(display_name, DeviceProps)`.
@@ -183,6 +186,7 @@ where
         DeviceProps {
             properties: props,
             slot_properties: slot_props,
+            atmospheric_connections: T::required_atmospheric_connections(),
         },
     )
 }
