@@ -1,7 +1,9 @@
 //! Filtration device: separates specified gases from an input mixture.
 
 use std::{
-    cell::RefCell, fmt::{Debug, Display}, sync::OnceLock
+    cell::RefCell,
+    fmt::{Debug, Display},
+    sync::OnceLock,
 };
 
 use crate::{

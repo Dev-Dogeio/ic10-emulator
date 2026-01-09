@@ -17,7 +17,9 @@ use crate::{
 
 use crate::conversions::fmt_trim;
 use std::{
-    cell::RefCell, fmt::{Debug, Display}, sync::OnceLock
+    cell::RefCell,
+    fmt::{Debug, Display},
+    sync::OnceLock,
 };
 
 /// Volume pump: moves gas between input and output networks
