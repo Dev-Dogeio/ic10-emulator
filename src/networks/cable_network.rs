@@ -50,7 +50,16 @@ impl CableNetwork {
 
 impl Display for CableNetwork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CableNetwork {{ device_count: {}", self.devices.len())?;
+        let id_str = match self.id {
+            Some(id) => id.to_string(),
+            None => "None".to_string(),
+        };
+        write!(
+            f,
+            "CableNetwork {{ id: {}, device_count: {}",
+            id_str,
+            self.devices.len()
+        )?;
         write!(f, ", devices: [")?;
         let mut first = true;
         for device in self.devices.values() {
@@ -70,19 +79,12 @@ impl Display for CableNetwork {
             let mut atmo_info: Vec<String> = Vec::new();
             if let Some(atm_dev) = borrowed.as_atmospheric_device() {
                 use crate::devices::DeviceAtmosphericNetworkType::*;
-                let candidates = [Input, Input2, Output, Output2, Internal];
+                let candidates = [Internal, Input, Input2, Output, Output2];
                 for &conn in &candidates {
                     let net_opt = atm_dev.get_atmospheric_network(conn);
                     if let Some(net) = net_opt {
-                        // Summarize network: volume, pressure, temperature, total_moles
-                        let vol = net.borrow().total_volume();
-                        let pres = net.borrow().pressure();
-                        let temp = net.borrow().temperature();
-                        let moles = net.borrow().total_moles();
-                        atmo_info.push(format!(
-                            "{:?}: vol={} pres={} temp={} moles={}",
-                            conn, vol, pres, temp, moles
-                        ));
+                        let id = net.borrow().get_id();
+                        atmo_info.push(format!("{:?}: id={:?}", conn, id));
                     }
                 }
             }
@@ -165,14 +167,20 @@ impl CableNetwork {
         let name_hash = borrowed.get_name_hash();
         drop(borrowed);
 
-        // Add to main device map
         if self.devices.contains_key(&ref_id) {
+            // Check if device is the same
+            let existing = self.devices.get(&ref_id).unwrap();
+            if Rc::ptr_eq(&existing, &device) {
+                // Same device already present, no action needed
+                return;
+            }
             panic!(
-                "Device with reference ID {} already exists on the network",
+                "Different device with reference ID {} already exists on the network",
                 ref_id
             );
         }
 
+        // Add to main device map
         self.devices.insert(ref_id, Rc::clone(&device));
 
         // Add to prefab index and insert in sorted order

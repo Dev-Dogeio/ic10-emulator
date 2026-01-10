@@ -2,6 +2,13 @@
 
 use wasm_bindgen::prelude::*;
 
+// Initialize a panic hook when running in WASM so panics surface in the browser console
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(start)]
+pub fn wasm_start() {
+    console_error_panic_hook::set_once();
+}
+
 use crate::atmospherics::{GasMixture, GasType, MatterState};
 use crate::devices::LogicSlotType;
 use crate::devices::LogicType;
@@ -67,8 +74,8 @@ impl WasmCableNetwork {
     }
 
     /// Get the manager-assigned ID for this network
-    pub fn id(&self) -> Option<i32> {
-        self.inner.borrow().get_id()
+    pub fn id(&self) -> i32 {
+        self.inner.borrow().get_id().unwrap()
     }
 
     /// Return all devices in this cable network as `WasmDevice` wrappers
@@ -989,8 +996,8 @@ impl WasmAtmosphericNetwork {
     pub fn add_mixture(&self, other: &WasmGasMixture) {
         self.inner.borrow_mut().add_mixture(&other.inner);
     }
-    pub fn id(&self) -> Option<i32> {
-        self.inner.borrow().get_id()
+    pub fn id(&self) -> i32 {
+        self.inner.borrow().get_id().unwrap()
     }
 
     pub fn remove_moles(&self, moles: f64, state_value: u32) -> WasmGasMixture {
@@ -1330,14 +1337,6 @@ impl WasmSimulationManager {
         WasmAtmosphericNetwork { inner: net }
     }
 
-    /// Get a cable network by index
-    pub fn get_cable_network(&self, idx: usize) -> Result<WasmCableNetwork, JsValue> {
-        match self.inner.get_cable_network(idx) {
-            Some(n) => Ok(WasmCableNetwork { inner: n }),
-            None => Err(JsValue::from_str("Cable network not found")),
-        }
-    }
-
     /// Get all cable networks
     pub fn all_cable_networks(&self) -> Vec<WasmCableNetwork> {
         self.inner
@@ -1352,14 +1351,6 @@ impl WasmSimulationManager {
         match self.inner.get_cable_network_by_id(id) {
             Some(n) => Ok(WasmCableNetwork { inner: n }),
             None => Err(JsValue::from_str("Cable network not found")),
-        }
-    }
-
-    /// Get an atmospheric network by index
-    pub fn get_atmospheric_network(&self, idx: usize) -> Result<WasmAtmosphericNetwork, JsValue> {
-        match self.inner.get_atmospheric_network(idx) {
-            Some(n) => Ok(WasmAtmosphericNetwork { inner: n }),
-            None => Err(JsValue::from_str("Atmospheric network not found")),
         }
     }
 

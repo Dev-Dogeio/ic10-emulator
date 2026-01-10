@@ -556,7 +556,7 @@ impl Device for AirConditioner {
 
     fn required_atmospheric_connections() -> Vec<DeviceAtmosphericNetworkType> {
         use DeviceAtmosphericNetworkType::*;
-        vec![Input, Output, Output2]
+        vec![Internal, Input, Output, Output2]
     }
 
     fn as_ic_host_device(&self) -> Option<&dyn ICHostDevice> {
