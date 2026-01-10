@@ -175,9 +175,6 @@ export function createAtmosphericNetwork(
     const network = _simulationManager.create_atmospheric_network(volume);
     _atmosphericNetworkCounter++;
 
-    // TODO: Temporary
-    network.add_gas(GasType.Oxygen, 50000, 295.15);
-
     const networkData: NetworkNodeData = {
         id: `atmo-${_atmosphericNetworkCounter}`,
         type: 'atmospheric',
@@ -297,7 +294,7 @@ export function debugSimulation(): void {
                 console.log(
                     ` - Device id=${deviceId} name=${deviceName} prefab_hash=${prefabHash} connections=[${conns.join(
                         ', '
-                    )}]`
+                    )}] has_chip=${d.has_chip()}`
                 );
             } catch (e) {
                 console.log(' - Device (failed to read properties)', e);
@@ -495,6 +492,13 @@ export function syncFromWasm(): void {
 
         rebuildConnectionsFromWasm();
         debugSimulation();
+
+        try {
+            // current_tick is exported on the WASM manager and is the single source of truth
+            _tickCounter = Number(_simulationManager.current_tick());
+        } catch (_) {
+            // ignore failures reading tick counter from WASM
+        }
     } catch (e) {
         console.warn('Failed to sync from WASM:', e);
     }
@@ -755,4 +759,78 @@ export function getNetworkConnections(networkId: string): Connection[] {
 
 export function getDeviceConnections(deviceId: number): Connection[] {
     return _connections.filter((c) => c.deviceId === deviceId);
+}
+
+export function stepTicks(ticks: number) {
+    if (!_simulationManager) return null;
+    try {
+        for (let i = 0; i < ticks; i++) {
+            _simulationManager.update();
+            syncFromWasm();
+        }
+        return _tickCounter;
+    } catch (e) {
+        console.error('Failed to step simulation:', e);
+        return null;
+    }
+}
+
+export function getTickCount(): number {
+    return _tickCounter;
+}
+
+// Tick counter and auto-step management
+let _tickCounter: number = $state(0);
+
+// Auto-step management: allows starting/stopping a periodic stepping at a specified ticks-per-second rate (1..64)
+let _autoStepTimer: number | null = $state(null);
+let _autoStepRate: number = $state(1);
+let _autoRunning: boolean = $state(false);
+
+export function startAutoStep(rate: number): boolean {
+    if (!_simulationManager) return false;
+    if (rate < 1) rate = 1;
+    if (rate > 64) rate = 64;
+
+    // Clear existing timer if any
+    if (_autoStepTimer !== null) {
+        try {
+            clearInterval(_autoStepTimer);
+        } catch (e) {
+            // ignore
+        }
+        _autoStepTimer = null;
+    }
+
+    _autoStepRate = Math.round(rate);
+    _autoRunning = true;
+
+    // Interval such that we advance 1 tick per interval and hit approximately `rate` ticks per second.
+    const intervalMs = Math.max(10, Math.round(1000 / _autoStepRate));
+
+    _autoStepTimer = window.setInterval(() => {
+        stepTicks(1);
+    }, intervalMs);
+
+    return true;
+}
+
+export function stopAutoStep(): void {
+    if (_autoStepTimer !== null) {
+        try {
+            clearInterval(_autoStepTimer);
+        } catch (e) {
+            // ignore
+        }
+        _autoStepTimer = null;
+    }
+    _autoRunning = false;
+}
+
+export function isAutoStepping(): boolean {
+    return _autoRunning;
+}
+
+export function getAutoStepRate(): number {
+    return _autoStepRate;
 }

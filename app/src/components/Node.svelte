@@ -10,8 +10,10 @@
     export let selected: boolean = false;
     export let nodeClass: string = '';
 
-    export let onMove: ((id: any, x: number, y: number) => void) | undefined;
-    export let onSelect: ((id: any) => void) | undefined;
+    export let onMove: ((id: any, x: number, y: number) => void) | undefined = undefined;
+    export let onSelect: ((id: any) => void) | undefined = undefined;
+    export let onInspect: ((id: any) => void) | undefined = undefined;
+    export let onClick: ((id: any) => void) | undefined = undefined;
 
     let root: HTMLElement | null = null;
 
@@ -122,6 +124,13 @@
         visualDy = 0;
     }
 
+    function handleDoubleClick(e: MouseEvent) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (onInspect) onInspect(id);
+        if (onClick) onClick(id);
+    }
+
     onDestroy(() => {
         if (rafId != null) cancelAnimationFrame(rafId);
     });
@@ -135,6 +144,7 @@
     class:dragging={isDragging}
     class:selected
     onpointerdown={handlePointerDown}
+    ondblclick={handleDoubleClick}
     {...$$restProps}
 >
     <slot />

@@ -99,7 +99,7 @@ impl Filtration {
                 }
                 s
             },
-            chip_host: ChipSlot::new(6),
+            chip_host: ChipSlot::new(2),
         });
 
         // Attach the shared ChipSlot back to the chip so it can query network/device pins

@@ -118,7 +118,7 @@
     {selected}
     {onMove}
     {onSelect}
-    onClick={onInspect}
+    {onInspect}
     nodeClass={`network-node ${data.type === 'cable' ? 'cable' : 'atmospheric'}`}
 >
     <!-- Left connector -->
@@ -126,7 +126,7 @@
         id={`network-${data.id}-left`}
         type={networkConnectorType}
         side="left"
-        label={data.type === 'cable' ? 'Cable Connection' : 'Atmo Connection'}
+        label={data.type === 'cable' ? 'Network' : 'Atmo'}
         offsetY={0}
         compatible={isCompatible()}
         connecting={connectingType !== null}
@@ -139,7 +139,7 @@
         id={`network-${data.id}-right`}
         type={networkConnectorType}
         side="right"
-        label={data.type === 'cable' ? 'Cable Connection' : 'Atmo Connection'}
+        label={data.type === 'cable' ? 'Network' : 'Atmo'}
         offsetY={0}
         compatible={isCompatible()}
         connecting={connectingType !== null}
@@ -186,11 +186,11 @@
         border: 2px solid var(--network-color);
         border-radius: 12px;
         padding: 11px 16px;
-        width: min(220px, 100%);
-        height: min(140px, 100%);
-        max-width: 220px;
-        max-height: 140px;
-        margin: auto;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        margin: 0;
         box-sizing: border-box;
         min-width: 0;
         min-height: 0;
@@ -259,7 +259,7 @@
     }
 
     .network-info {
-        font-size: 11px;
+        font-size: 9px;
         color: rgba(255, 255, 255, 0.6);
         font-family: 'JetBrains Mono', monospace;
     }

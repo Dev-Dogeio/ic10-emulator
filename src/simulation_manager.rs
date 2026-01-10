@@ -10,6 +10,7 @@
 //! 1. Process atmospheric network updates
 //! 2. Update all cable networks (which run device updates and IC runners)
 
+use crate::ItemIntegratedCircuit10;
 use crate::LogicSlotType;
 use crate::LogicType;
 use crate::conversions::fmt_trim;
@@ -20,6 +21,7 @@ use crate::items::item_factory;
 use crate::items::{self, Item, SimulationItemSettings};
 use crate::networks::{AtmosphericNetwork, CableNetwork};
 use crate::types::Shared;
+use crate::types::shared;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Display;
 
@@ -40,6 +42,9 @@ pub struct SimulationManager {
     // Device/Item ID management
     next_id: i32,
     allocated_ids: HashSet<i32>,
+    
+    // Simulation tick counter
+    pub ticks: u64,
 }
 
 impl SimulationManager {
@@ -81,7 +86,7 @@ impl SimulationManager {
     }
 
     /// Perform a simulation tick in the correct order and return the total number of phase changes.
-    pub fn update(&self, tick: u64) -> u32 {
+    pub fn update(&mut self) -> u32 {
         // 1) Process atmospheric updates
         let mut total_changes: u32 = 0;
         for net in self.atmospheric_networks.values() {
@@ -90,8 +95,10 @@ impl SimulationManager {
 
         // 2) Update all cable networks (which run device updates and IC runners)
         for net in self.cable_networks.values() {
-            net.borrow().update(tick);
+            net.borrow().update(self.ticks);
         }
+
+        self.ticks += 1;
 
         total_changes
     }
@@ -192,6 +199,16 @@ impl SimulationManager {
         settings.id = Some(id);
 
         item_factory::create_item(prefab_hash, settings)
+    }
+
+    /// Create an IC10 chip item via this `SimulationManager`.
+    pub fn create_chip(&mut self) -> Shared<ItemIntegratedCircuit10> {
+        let settings = SimulationItemSettings {
+            id: Some(self.allocate_next_id()),
+            ..Default::default()
+        };
+
+        shared(ItemIntegratedCircuit10::new(settings))
     }
 
     /// Remove a device tracked by this manager by reference ID

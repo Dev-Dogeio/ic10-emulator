@@ -1,6 +1,10 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { DeviceAtmosphericNetworkType } from '../pkg/ic10_emulator';
+    import {
+        DeviceAtmosphericNetworkType,
+        type WasmAtmosphericNetwork,
+        type WasmCableNetwork,
+    } from '../pkg/ic10_emulator';
 
     import Grid from './components/Grid.svelte';
     import DeviceList from './components/DeviceList.svelte';
@@ -9,6 +13,11 @@
     import ContextMenu, { type MenuItem } from './components/ContextMenu.svelte';
     import ConfigPopup, { type ConfigField } from './components/ConfigPopup.svelte';
     import ConnectionLine from './components/ConnectionLine.svelte';
+    import InspectorWindow from './components/InspectorWindow.svelte';
+    import DeviceInspector from './components/DeviceInspector.svelte';
+    import AtmosphericNetworkInspector from './components/AtmosphericNetworkInspector.svelte';
+    import CableNetworkInspector from './components/CableNetworkInspector.svelte';
+    import SimulationControls from './components/SimulationControls.svelte';
     import type { ConnectorSide } from './components/Connector.svelte';
 
     import {
@@ -30,11 +39,14 @@
         type ConnectorType,
     } from './stores/simulationState.svelte';
 
-    const NODE_W = 215;
+    import { getInspectorState, openInspector } from './stores/inspectorState.svelte';
+
+    const NODE_W = 210;
     const NODE_H = 95;
 
     // Get reactive state
     const simState = getSimulationState();
+    const inspectorState = getInspectorState();
 
     let gridOffsetX = $state(0);
     let gridOffsetY = $state(0);
@@ -262,6 +274,35 @@
 
     function handleNetworkMove(networkId: string, x: number, y: number) {
         updateNetworkPosition(networkId, x, y);
+    }
+
+    function handleDeviceInspect(deviceId: number) {
+        // Open inspector window for this device
+        // Position near the device but offset so it doesn't cover it
+        const device = simState.gridDevices.find((d) => d.id === deviceId);
+        if (device && gridContainer) {
+            const rect = gridContainer.getBoundingClientRect();
+            const screenX =
+                rect.left + gridOffsetX + device.x * gridScale + NODE_W * gridScale + 20;
+            const screenY = rect.top + gridOffsetY + device.y * gridScale;
+            openInspector('device', deviceId, screenX, screenY);
+        } else {
+            openInspector('device', deviceId, 150, 100);
+        }
+    }
+
+    function handleNetworkInspect(networkId: string) {
+        // Open inspector window for this network
+        const network = simState.gridNetworks.find((n) => n.id === networkId);
+        if (network && gridContainer) {
+            const rect = gridContainer.getBoundingClientRect();
+            const screenX =
+                rect.left + gridOffsetX + network.x * gridScale + NODE_W * gridScale + 20;
+            const screenY = rect.top + gridOffsetY + network.y * gridScale;
+            openInspector('network', networkId, screenX, screenY);
+        } else {
+            openInspector('network', networkId, 150, 100);
+        }
     }
 
     function handleGridClick(e: MouseEvent) {
@@ -654,6 +695,7 @@
                             connectingType={pendingConnection?.connectorType ?? null}
                             onMove={handleNetworkMove}
                             onSelect={handleNetworkSelect}
+                            onInspect={handleNetworkInspect}
                             onStartConnect={handleNetworkStartConnect}
                             onEndConnect={handleNetworkEndConnect}
                         />
@@ -681,6 +723,7 @@
                             connectingType={pendingConnection?.connectorType ?? null}
                             onMove={handleDeviceMove}
                             onSelect={handleDeviceSelect}
+                            onInspect={handleDeviceInspect}
                             onStartConnect={handleDeviceStartConnect}
                             onEndConnect={handleDeviceEndConnect}
                         />
@@ -705,6 +748,60 @@
             onConfirm={handleConfigPopupConfirm}
             onCancel={handleConfigPopupCancel}
         />
+
+        <!-- Inspector Windows -->
+        {#each inspectorState.windows as inspectorWindow (inspectorWindow.id)}
+            {#if inspectorWindow.type === 'device'}
+                {@const gridDevice = simState.gridDevices.find(
+                    (d) => d.id === inspectorWindow.targetId
+                )}
+                {#if gridDevice}
+                    <InspectorWindow
+                        window={inspectorWindow}
+                        title={gridDevice.device.name()}
+                        icon="🖥️"
+                    >
+                        <DeviceInspector
+                            window={inspectorWindow}
+                            device={gridDevice.device}
+                            prefabInfo={gridDevice.prefabInfo}
+                        />
+                    </InspectorWindow>
+                {/if}
+            {:else if inspectorWindow.type === 'network'}
+                {@const gridNetwork = simState.gridNetworks.find(
+                    (n) => n.id === inspectorWindow.targetId
+                )}
+                {#if gridNetwork && gridNetwork.data.type === 'atmospheric'}
+                    <InspectorWindow
+                        window={inspectorWindow}
+                        title={gridNetwork.data.name}
+                        icon="💨"
+                    >
+                        <AtmosphericNetworkInspector
+                            window={inspectorWindow}
+                            network={gridNetwork.data.network as WasmAtmosphericNetwork}
+                            networkName={gridNetwork.data.name}
+                        />
+                    </InspectorWindow>
+                {:else if gridNetwork && gridNetwork.data.type === 'cable'}
+                    <InspectorWindow
+                        window={inspectorWindow}
+                        title={gridNetwork.data.name}
+                        icon="🔌"
+                    >
+                        <CableNetworkInspector
+                            window={inspectorWindow}
+                            network={gridNetwork.data.network as WasmCableNetwork}
+                            networkName={gridNetwork.data.name}
+                        />
+                    </InspectorWindow>
+                {/if}
+            {/if}
+        {/each}
+
+            <SimulationControls />
+
     {/if}
 </div>
 

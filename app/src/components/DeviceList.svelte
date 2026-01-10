@@ -82,7 +82,7 @@
                                 {#if prefab.is_slot_host}
                                     <span class="badge slot">SLOT</span>
                                 {/if}
-                                {#if !(prefab.is_ic_host || prefab.is_atmospheric_device || prefab.is_slot_host)}
+                                {#if prefab.properties && prefab.properties.length > 0}
                                     <span class="badge logic">LOGIC</span>
                                 {/if}
                             </div>
@@ -98,7 +98,7 @@
     .device-list {
         display: flex;
         flex-direction: column;
-        width: 280px;
+        width: 310px;
         height: 100%;
         background: #16162a;
         border-right: 1px solid rgba(255, 255, 255, 0.1);

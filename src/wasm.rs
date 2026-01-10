@@ -656,6 +656,22 @@ impl WasmDevice {
             .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 
+    /// Set the IC10 program source on an installed chip (loads into the chip).
+    /// Returns Err if device does not support IC hosting or if no chip is installed or if parsing fails.
+    pub fn set_code(&self, source: &str) -> Result<(), JsValue> {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device() {
+            if let Some(mut chip) = host.chip_slot().borrow().get_chip_mut() {
+                chip.load_program(source)
+                    .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+            } else {
+                Err(JsValue::from_str("No chip installed"))
+            }
+        } else {
+            Err(JsValue::from_str("Device does not support IC hosting"))
+        }
+    }
+
     /// Insert an item into a slot on this device. The item is consumed on success.
     /// Accepts a `WasmItem` which owns the shared `Item` instance.
     ///
@@ -767,6 +783,16 @@ impl WasmDevice {
             slot.borrow().device_pin_count()
         } else {
             0
+        }
+    }
+
+    /// Check whether this IC host device currently has a chip installed
+    pub fn has_chip(&self) -> bool {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device() {
+            host.chip_slot().borrow().get_chip().is_some()
+        } else {
+            false
         }
     }
 }
@@ -1190,8 +1216,8 @@ impl WasmSimulationManager {
         self.inner.reset();
     }
 
-    pub fn update(&self, ticks: u64) -> u32 {
-        self.inner.update(ticks)
+    pub fn update(&mut self) -> u32 {
+        self.inner.update()
     }
 
     /// Get a string representation
@@ -1274,6 +1300,12 @@ impl WasmSimulationManager {
         ))
     }
 
+    /// Create an IC10 chip item via this `SimulationManager`.
+    pub fn create_chip(&mut self) -> WasmICChip {
+        let chip = self.inner.create_chip();
+        WasmICChip { inner: chip }
+    }
+
     /// Return all devices created by this manager as `WasmDevice` wrappers
     pub fn all_devices(&self) -> Vec<WasmDevice> {
         self.inner
@@ -1353,6 +1385,11 @@ impl WasmSimulationManager {
             .into_iter()
             .map(|n| WasmAtmosphericNetwork { inner: n })
             .collect()
+    }
+
+    /// Get the current simulation tick
+    pub fn current_tick(&self) -> u64 {
+        self.inner.ticks
     }
 }
 

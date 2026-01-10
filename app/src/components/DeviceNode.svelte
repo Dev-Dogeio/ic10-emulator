@@ -19,6 +19,7 @@
         connectingType?: ConnectorType | null;
         onMove?: (deviceId: number, x: number, y: number) => void;
         onSelect?: (deviceId: number) => void;
+        onInspect?: (deviceId: number) => void;
         onStartConnect?: (
             deviceId: number,
             connectorId: string,
@@ -46,6 +47,7 @@
         connectingType = null,
         onMove,
         onSelect,
+        onInspect,
         onStartConnect,
         onEndConnect,
     }: Props = $props();
@@ -60,18 +62,6 @@
         if (prefabInfo.is_atmospheric_device) return '💨';
         return '📊';
     }
-
-    let hasAnyTag = $derived(() => {
-        return (
-            prefabInfo.is_ic_host ||
-            prefabInfo.is_slot_host ||
-            prefabInfo.is_atmospheric_device ||
-            (prefabInfo.atmospheric_connections &&
-                prefabInfo.atmospheric_connections.some(
-                    (c) => c.connection_type === DeviceAtmosphericNetworkType.Internal
-                ))
-        );
-    });
 
     let hasAtmoInput = $derived(
         prefabInfo.atmospheric_connections.some(
@@ -134,7 +124,8 @@
     {selected}
     {onMove}
     {onSelect}
-    nodeClass={`device-node ${prefabInfo.is_ic_host ? 'ic' : ''} ${prefabInfo.is_atmospheric_device ? 'atmo' : ''} ${prefabInfo.is_slot_host ? 'slot' : ''} ${!hasAnyTag() ? 'logic' : ''}`}
+    {onInspect}
+    nodeClass={`device-node ${prefabInfo.is_ic_host ? 'ic' : ''} ${prefabInfo.is_atmospheric_device ? 'atmo' : ''} ${prefabInfo.is_slot_host ? 'slot' : ''} ${prefabInfo.properties && prefabInfo.properties.length > 0 ? 'logic' : ''}`}
 >
     <!-- Cable network connector -->
     <Connector
@@ -225,7 +216,7 @@
         {#if prefabInfo.is_slot_host}
             <span class="mini-badge slot">SLOT</span>
         {/if}
-        {#if !hasAnyTag()}
+        {#if prefabInfo.properties && prefabInfo.properties.length > 0}
             <span class="mini-badge logic">LOGIC</span>
         {/if}
     </div>
@@ -258,11 +249,11 @@
         border: 1px solid var(--device-color, rgba(255, 255, 255, 0.12));
         border-radius: 10px;
         padding: 13px 12px 10px 12px;
-        width: min(220px, 100%);
-        height: min(140px, 100%);
-        max-width: 220px;
-        max-height: 140px;
-        margin: auto;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        margin: 0;
         box-sizing: border-box;
         min-width: 0;
         min-height: 0;
