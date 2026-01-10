@@ -199,8 +199,9 @@ impl SimulationManager {
     pub fn remove_device(&mut self, ref_id: i32) -> Option<Shared<dyn Device>> {
         let device = self.devices.get(&ref_id)?;
 
-        if let Some(cable_net) = device.borrow().get_network() {
-            cable_net.borrow_mut().remove_device(ref_id).unwrap();
+        let network = device.borrow().get_network();
+        if let Some(net) = network {
+            net.borrow_mut().remove_device(ref_id).unwrap();
         }
 
         if let Some(atmo_device) = device.borrow().as_atmospheric_device()
