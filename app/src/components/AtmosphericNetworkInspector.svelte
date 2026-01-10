@@ -711,6 +711,8 @@
 
     .form-row.double label {
         flex: 1;
+        min-width: 120px;
+        max-width: 260px;
     }
 
     .form-row label {
@@ -729,6 +731,12 @@
         background: #252542;
         color: #fff;
         font-size: 12px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .form-row.double input {
+        max-width: 220px;
     }
 
     .form-row select:focus,

@@ -50,7 +50,7 @@ export function openInspector(
     const existing = _inspectorWindows.find((w) => w.type === type && w.targetId === targetId);
 
     const defaultWidth = type === 'device' ? 380 : 340;
-    const defaultHeight = type === 'device' ? 450 : 380;
+    const defaultHeight = type === 'device' ? 450 : 460;
 
     const spawnPos = _clampPosition(initialX, initialY, defaultWidth, defaultHeight);
 
