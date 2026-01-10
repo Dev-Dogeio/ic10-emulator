@@ -1608,6 +1608,20 @@ yield
     }
 
     #[test]
+    fn test_ichousing_line_number_write_resumes_chip() {
+        let (chip, housing, _network) = ItemIntegratedCircuit10::new_with_network();
+
+        // Halt the chip and ensure it's halted
+        chip.borrow().halt();
+        assert!(chip.borrow().is_halted());
+
+        // Writing line number should resume the chip
+        housing.borrow().write(LogicType::LineNumber, 7.0).unwrap();
+        assert!(!chip.borrow().is_halted());
+        assert_eq!(chip.borrow().get_pc(), 7);
+    }
+
+    #[test]
     fn test_ichousing_line_number_write_no_chip_errors() {
         let housing = ICHousing::new(SimulationDeviceSettings {
             id: Some(1),

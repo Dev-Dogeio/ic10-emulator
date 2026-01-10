@@ -120,6 +120,7 @@ impl ICHousing {
                         let pc = value as usize;
                         if let Some(chip) = device.chip_slot().borrow().get_chip() {
                             chip.set_pc(pc);
+                            chip.resume();
                             Ok(())
                         } else {
                             Err(SimulationError::RuntimeError {

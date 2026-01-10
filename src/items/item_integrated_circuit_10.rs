@@ -440,6 +440,11 @@ impl ItemIntegratedCircuit10 {
         *self.halted.borrow_mut() = true;
     }
 
+    /// Resume the chip
+    pub fn resume(&self) {
+        *self.halted.borrow_mut() = false;
+    }
+
     /// Get sleep ticks
     pub fn get_sleep_ticks(&self) -> u64 {
         *self.sleep_ticks.borrow()
