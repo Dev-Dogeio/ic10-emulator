@@ -4,6 +4,8 @@
         type DevicePrefabInfo,
         LogicType,
         LogicSlotType,
+        get_registered_item_prefabs,
+        get_item_prefab_info,
     } from '../../pkg/ic10_emulator';
     import { type InspectorWindow, setActiveTab } from '../stores/inspectorState.svelte';
     import { getSimulationState, syncFromWasm } from '../stores/simulationState.svelte';
@@ -132,6 +134,7 @@
         index: number;
         occupied: boolean;
         itemHash: number;
+        itemName: string;
         quantity: number;
         maxQuantity: number;
     }
@@ -147,10 +150,21 @@
                 const quantity = device.read_slot(i, LogicSlotType.Quantity);
                 const maxQuantity = device.read_slot(i, LogicSlotType.MaxQuantity);
 
+                let itemName = '';
+                if (itemHash && itemHash !== 0) {
+                    try {
+                        const info = get_item_prefab_info(itemHash);
+                        itemName = info.name;
+                    } catch {
+                        itemName = `#${itemHash}`;
+                    }
+                }
+
                 slots.push({
                     index: i,
                     occupied,
                     itemHash,
+                    itemName,
                     quantity,
                     maxQuantity,
                 });
@@ -178,6 +192,66 @@
             slotInfoList = getSlotInfo();
         } catch (e) {
             console.error('Failed to remove item from slot:', e);
+        }
+    }
+
+    // Registered item prefabs for insertion menu
+    let registeredItems = $derived(() => {
+        try {
+            const arr = get_registered_item_prefabs();
+            const list: { name: string; prefab_hash: number; item_type: string }[] = [];
+            for (let i = 0; i < arr.length; i++) {
+                try {
+                    const info = get_item_prefab_info(arr[i]);
+                    list.push({
+                        name: info.name,
+                        prefab_hash: info.prefab_hash,
+                        item_type: info.item_type,
+                    });
+                } catch {
+                    // skip invalid entries
+                }
+            }
+            return list;
+        } catch {
+            return [];
+        }
+    });
+
+    // Insert menu state
+    let insertIndexOpen = $state<number | null>(null);
+    let selectedItemHash = $state<number | null>(null);
+
+    function openInsertMenu(index: number) {
+        insertIndexOpen = index;
+        const items = registeredItems();
+        selectedItemHash = items.length > 0 ? items[0].prefab_hash : null;
+    }
+
+    function closeInsertMenu() {
+        insertIndexOpen = null;
+        selectedItemHash = null;
+    }
+
+    function insertItemIntoSlot(index: number) {
+        try {
+            const manager = simState.simulationManager;
+            if (!manager) return;
+            if (selectedItemHash == null) return;
+
+            const prefabHash = Number(selectedItemHash);
+            if (Number.isNaN(prefabHash)) return;
+
+            const item = manager.create_item(prefabHash);
+            const leftover = device.insert_item_into_slot(index, item);
+            if (leftover) {
+                console.warn('Item could not be inserted into slot; leftover returned.');
+            }
+            syncFromWasm();
+            slotInfoList = getSlotInfo();
+            closeInsertMenu();
+        } catch (e) {
+            console.error('Failed to insert item into slot:', e);
         }
     }
 
@@ -459,7 +533,7 @@
                                 <span class="slot-index">Slot {slot.index}</span>
                                 {#if slot.occupied}
                                     <div class="slot-info">
-                                        <span class="slot-hash">#{slot.itemHash}</span>
+                                        <span class="slot-hash">{slot.itemName}</span>
                                         <span class="slot-qty"
                                             >{slot.quantity}/{slot.maxQuantity}</span
                                         >
@@ -471,7 +545,40 @@
                                         </button>
                                     </div>
                                 {:else}
-                                    <span class="slot-empty">Empty</span>
+                                    <div class="slot-empty-container">
+                                        {#if insertIndexOpen !== slot.index}
+                                            <span class="slot-empty">Empty</span>
+                                        {/if}
+                                        <button
+                                            class="slot-insert-btn"
+                                            onclick={() => openInsertMenu(slot.index)}
+                                            >Insert</button
+                                        >
+                                        {#if insertIndexOpen === slot.index}
+                                            <div class="insert-menu">
+                                                <select bind:value={selectedItemHash}>
+                                                    {#each registeredItems() as item}
+                                                        <option value={item.prefab_hash}
+                                                            >{item.name} ({item.item_type})</option
+                                                        >
+                                                    {/each}
+                                                </select>
+                                                <div class="insert-actions">
+                                                    <button
+                                                        class="btn small"
+                                                        onclick={() =>
+                                                            insertItemIntoSlot(slot.index)}
+                                                        >Insert</button
+                                                    >
+                                                    <button
+                                                        class="btn small"
+                                                        onclick={() => closeInsertMenu()}
+                                                        >Cancel</button
+                                                    >
+                                                </div>
+                                            </div>
+                                        {/if}
+                                    </div>
                                 {/if}
                             </div>
                         {/each}
@@ -837,6 +944,7 @@
     }
 
     .slot-row {
+        position: relative;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -844,6 +952,7 @@
         background: rgba(255, 255, 255, 0.03);
         border-radius: 6px;
         border: 1px solid transparent;
+        overflow: visible;
     }
 
     .slot-row.occupied {
@@ -891,6 +1000,71 @@
         font-size: 11px;
         color: rgba(255, 255, 255, 0.4);
         font-style: italic;
+    }
+
+    .slot-empty-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .slot-insert-btn {
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: none;
+        background: rgba(34, 197, 94, 0.12);
+        color: #bbf7d0;
+        cursor: pointer;
+        font-size: 11px;
+    }
+
+    .slot-insert-btn:hover {
+        background: rgba(34, 197, 94, 0.2);
+    }
+
+    .insert-menu {
+        position: absolute;
+        right: 8px;
+        top: calc(100% + 6px);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(15, 23, 42, 0.98);
+        padding: 6px;
+        border-radius: 6px;
+        box-shadow: 0 8px 20px rgba(2, 6, 23, 0.6);
+        z-index: 40;
+        max-width: min(360px, 70vw);
+    }
+
+    .insert-menu select {
+        background: #0f1724;
+        color: #fff;
+        padding: 6px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 12px;
+        width: 160px;
+        max-width: 220px;
+    }
+
+    .insert-actions .btn {
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: none;
+        background: rgba(99, 102, 241, 0.12);
+    }
+
+    .insert-actions .btn.small {
+        padding: 4px 6px;
+        font-size: 11px;
+        color: #a5b4fc;
+        cursor: pointer;
+        font-size: 11px;
+    }
+
+    .insert-actions .btn:hover {
+        background: rgba(99, 102, 241, 0.2);
     }
 
     /* IC Section */

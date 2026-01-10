@@ -38,15 +38,14 @@
 
 <div class="controls" role="group" aria-label="Simulation controls">
     <div class="left">
-        <button class="btn small" onclick={() => handleStep(1)}>Step 1</button>
-        <button class="btn small" onclick={() => handleStep(5)}>Step 5</button>
-    </div>
-
-    <div class="center">
         <div class="tick-display">
             <div class="tick-count">{tickCount}</div>
             <div class="tick-label">Ticks</div>
         </div>
+    </div>
+
+    <div class="center">
+        <button class="btn small" onclick={() => handleStep(1)}>Step</button>
     </div>
 
     <div class="right">
@@ -80,33 +79,33 @@
         left: 50%;
         transform: translateX(-50%);
         z-index: 1000;
-        display: flex;
-        gap: 14px;
+        display: inline-flex;
+        gap: 10px;
         align-items: center;
-        padding: 10px 14px;
-        background: rgba(24, 26, 46, 0.92);
-        border-radius: 14px;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        box-shadow: 0 10px 40px rgba(2, 6, 23, 0.6);
+        padding: 6px 10px;
+        background: rgba(18, 20, 40, 0.9);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        box-shadow: 0 8px 30px rgba(2, 6, 23, 0.55);
         backdrop-filter: blur(6px);
-        min-width: 280px;
         max-width: calc(100% - 40px);
-        width: min(520px, 88%);
     }
 
     .btn {
         background: rgba(255, 255, 255, 0.03);
         color: #e6eef8;
         border: 1px solid rgba(255, 255, 255, 0.02);
-        padding: 8px 12px;
-        border-radius: 10px;
+        height: 36px;
+        padding: 0 10px;
+        border-radius: 8px;
         cursor: pointer;
         font-weight: 700;
         font-size: 13px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 6px;
+        gap: 8px;
+        min-width: 56px;
         transition:
             transform 0.12s ease,
             background 0.12s ease,
@@ -114,32 +113,44 @@
     }
 
     .btn.small {
-        padding: 6px 8px;
+        height: 36px;
+        min-width: 56px;
+        padding: 0 8px;
         border-radius: 8px;
         font-size: 12px;
+        font-weight: 800;
     }
 
     .btn:hover {
         transform: translateY(-1px);
     }
 
+    .btn:focus-visible {
+        outline: 2px solid rgba(96, 165, 250, 0.18);
+        outline-offset: 2px;
+    }
+
     .btn.primary {
-        background: linear-gradient(180deg, rgba(99, 102, 241, 0.95), rgba(79, 70, 229, 0.95));
+        background: linear-gradient(180deg, rgba(99, 102, 241, 0.98), rgba(79, 70, 229, 0.98));
         color: #fff;
         border-color: rgba(99, 102, 241, 0.25);
-        box-shadow: 0 6px 18px rgba(79, 70, 229, 0.12);
-        width: 44px;
-        height: 44px;
+        box-shadow: 0 8px 18px rgba(79, 70, 229, 0.12);
+        width: 36px;
+        height: 36px;
         padding: 0;
         font-size: 14px;
-        border-radius: 10px;
+        border-radius: 8px;
+        min-width: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .btn.primary.active {
-        background: linear-gradient(180deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
+        background: linear-gradient(180deg, rgba(239, 68, 68, 0.98), rgba(220, 38, 38, 0.98));
         box-shadow:
-            0 8px 22px rgba(239, 68, 68, 0.18) inset,
-            0 8px 26px rgba(20, 20, 40, 0.35);
+            0 8px 18px rgba(20, 20, 40, 0.35),
+            0 4px 10px rgba(239, 68, 68, 0.08) inset;
         transform: translateY(-1px) scale(1.02);
     }
 
@@ -147,27 +158,72 @@
         display: flex;
         align-items: center;
         gap: 8px;
+        padding: 4px 6px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.02);
+        height: 36px;
     }
 
     .rate-control label {
         font-size: 12px;
-        color: rgba(230, 238, 248, 0.9);
+        color: rgba(230, 238, 248, 0.95);
+        min-width: 30px;
+        text-align: right;
+        font-family: 'JetBrains Mono', monospace;
+        line-height: 1;
     }
 
     .rate-control input[type='range'] {
-        width: 120px;
+        width: 104px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: transparent;
+        height: 12px;
+        margin-left: 4px;
+    }
+
+    .rate-control input[type='range']::-webkit-slider-runnable-track {
+        height: 6px;
+        background: linear-gradient(90deg, rgba(99, 102, 241, 0.95), rgba(79, 70, 229, 0.95));
+        border-radius: 999px;
+    }
+    .rate-control input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 12px;
+        height: 12px;
+        margin-top: -3px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        border: 2px solid rgba(79, 70, 229, 0.9);
+    }
+
+    .rate-control input[type='range']::-moz-range-track {
+        height: 6px;
+        background: linear-gradient(90deg, rgba(99, 102, 241, 0.95), rgba(79, 70, 229, 0.95));
+        border-radius: 999px;
+    }
+    .rate-control input[type='range']::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+        background: #fff;
+        border-radius: 50%;
+        border: 2px solid rgba(79, 70, 229, 0.9);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
     }
 
     /* Layout helpers */
     .left {
         display: flex;
-        gap: 6px;
+        gap: 8px;
         align-items: center;
     }
     .center {
-        flex: 1;
+        flex: 0 1 auto;
         display: flex;
         justify-content: center;
+        align-items: center;
     }
     .right {
         display: flex;
@@ -180,20 +236,25 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 6px 12px;
+        height: 36px;
+        padding: 0 6px;
         background: rgba(255, 255, 255, 0.02);
         border-radius: 8px;
-        min-width: 86px;
+        min-width: 64px;
+        font-family: 'JetBrains Mono', monospace;
     }
 
     .tick-count {
-        font-size: 18px;
+        font-size: 14px;
         font-weight: 800;
         color: #eaf2ff;
+        line-height: 1;
+        margin: 0;
     }
     .tick-label {
-        font-size: 11px;
+        font-size: 10px;
         color: rgba(230, 238, 248, 0.7);
-        margin-top: 2px;
+        margin: 0;
+        line-height: 1;
     }
 </style>
