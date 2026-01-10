@@ -41,13 +41,6 @@ pub struct WasmCableNetwork {
 
 #[wasm_bindgen]
 impl WasmCableNetwork {
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> WasmCableNetwork {
-        WasmCableNetwork {
-            inner: CableNetwork::new(),
-        }
-    }
-
     /// Add a `WasmDevice` instance to this cable network.
     pub fn add_device(&self, device: &WasmDevice) -> Result<(), JsValue> {
         self.inner
@@ -71,6 +64,11 @@ impl WasmCableNetwork {
         let opt = self.inner.borrow().get_device_shared(ref_id);
         opt.map(|d| WasmDevice { inner: d })
             .ok_or_else(|| JsValue::from_str("Device not found"))
+    }
+
+    /// Get the manager-assigned ID for this network
+    pub fn id(&self) -> Option<i32> {
+        self.inner.borrow().get_id()
     }
 
     /// Return all devices in this cable network as `WasmDevice` wrappers
@@ -225,12 +223,6 @@ impl WasmCableNetwork {
             .borrow()
             .batch_write_by_name(prefab_hash, name_hash, logic_type, value)
             .map_err(|e| JsValue::from_str(&format!("{e:?}")))
-    }
-}
-
-impl Default for WasmCableNetwork {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -955,13 +947,6 @@ pub struct WasmAtmosphericNetwork {
 
 #[wasm_bindgen]
 impl WasmAtmosphericNetwork {
-    #[wasm_bindgen(constructor)]
-    pub fn new(volume: f64) -> WasmAtmosphericNetwork {
-        WasmAtmosphericNetwork {
-            inner: AtmosphericNetwork::new(volume),
-        }
-    }
-
     pub fn pressure(&self) -> f64 {
         self.inner.borrow().pressure()
     }
@@ -1003,6 +988,9 @@ impl WasmAtmosphericNetwork {
 
     pub fn add_mixture(&self, other: &WasmGasMixture) {
         self.inner.borrow_mut().add_mixture(&other.inner);
+    }
+    pub fn id(&self) -> Option<i32> {
+        self.inner.borrow().get_id()
     }
 
     pub fn remove_moles(&self, moles: f64, state_value: u32) -> WasmGasMixture {
@@ -1342,17 +1330,6 @@ impl WasmSimulationManager {
         WasmAtmosphericNetwork { inner: net }
     }
 
-    /// Register an existing cable network with this simulation manager
-    pub fn register_cable_network(&mut self, network: &WasmCableNetwork) {
-        self.inner.register_cable_network(network.inner.clone());
-    }
-
-    /// Register an existing atmospheric network with this simulation manager
-    pub fn register_atmospheric_network(&mut self, network: &WasmAtmosphericNetwork) {
-        self.inner
-            .register_atmospheric_network(network.inner.clone());
-    }
-
     /// Get a cable network by index
     pub fn get_cable_network(&self, idx: usize) -> Result<WasmCableNetwork, JsValue> {
         match self.inner.get_cable_network(idx) {
@@ -1370,9 +1347,28 @@ impl WasmSimulationManager {
             .collect()
     }
 
+    /// Get a cable network by its manager-assigned id
+    pub fn get_cable_network_by_id(&self, id: i32) -> Result<WasmCableNetwork, JsValue> {
+        match self.inner.get_cable_network_by_id(id) {
+            Some(n) => Ok(WasmCableNetwork { inner: n }),
+            None => Err(JsValue::from_str("Cable network not found")),
+        }
+    }
+
     /// Get an atmospheric network by index
     pub fn get_atmospheric_network(&self, idx: usize) -> Result<WasmAtmosphericNetwork, JsValue> {
         match self.inner.get_atmospheric_network(idx) {
+            Some(n) => Ok(WasmAtmosphericNetwork { inner: n }),
+            None => Err(JsValue::from_str("Atmospheric network not found")),
+        }
+    }
+
+    /// Get an atmospheric network by its manager-assigned id
+    pub fn get_atmospheric_network_by_id(
+        &self,
+        id: i32,
+    ) -> Result<WasmAtmosphericNetwork, JsValue> {
+        match self.inner.get_atmospheric_network_by_id(id) {
             Some(n) => Ok(WasmAtmosphericNetwork { inner: n }),
             None => Err(JsValue::from_str("Atmospheric network not found")),
         }

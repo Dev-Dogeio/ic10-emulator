@@ -21,6 +21,9 @@ use wasm_bindgen::prelude::*;
 /// - Name hash (for operations like `lbn`, `sbn`)
 #[derive(Clone)]
 pub struct CableNetwork {
+    /// Optional assigned id for this network
+    id: Option<i32>,
+
     /// All devices on the network, keyed by their reference ID
     devices: BTreeMap<i32, Shared<dyn Device>>,
 
@@ -31,6 +34,18 @@ pub struct CableNetwork {
     /// Index for quick lookup by name hash
     /// Maps name_hash -> list of device reference IDs
     name_index: BTreeMap<i32, Vec<i32>>,
+}
+
+impl CableNetwork {
+    /// Set the assigned id for this network
+    pub fn set_id(&mut self, id: Option<i32>) {
+        self.id = id;
+    }
+
+    /// Get the assigned id for this network
+    pub fn get_id(&self) -> Option<i32> {
+        self.id
+    }
 }
 
 impl Display for CableNetwork {
@@ -128,6 +143,7 @@ impl CableNetwork {
     /// Create a new cable network
     pub fn new() -> Shared<CableNetwork> {
         shared(CableNetwork {
+            id: None,
             devices: BTreeMap::new(),
             prefab_index: BTreeMap::new(),
             name_index: BTreeMap::new(),

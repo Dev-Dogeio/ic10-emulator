@@ -13,6 +13,7 @@
 use crate::LogicSlotType;
 use crate::LogicType;
 use crate::conversions::fmt_trim;
+use crate::devices::DeviceAtmosphericNetworkType;
 use crate::devices::device_factory;
 use crate::devices::{Device, SimulationDeviceSettings};
 use crate::items::item_factory;
@@ -25,10 +26,12 @@ use std::fmt::Display;
 /// Central manager for running the simulation
 #[derive(Default, Clone, Debug)]
 pub struct SimulationManager {
-    cable_networks: Vec<Shared<CableNetwork>>,
-    atmospheric_networks: Vec<Shared<AtmosphericNetwork>>,
+    cable_networks: BTreeMap<i32, Shared<CableNetwork>>,
+    atmospheric_networks: BTreeMap<i32, Shared<AtmosphericNetwork>>,
     devices: BTreeMap<i32, Shared<dyn Device>>,
     items: BTreeMap<i32, Shared<dyn Item>>,
+    next_cable_network_id: i32,
+    next_atmospheric_network_id: i32,
     next_id: i32,
     allocated_ids: HashSet<i32>,
 }
@@ -37,6 +40,8 @@ impl SimulationManager {
     /// Create a new `SimulationManager` with default settings
     pub fn new() -> Self {
         Self {
+            next_cable_network_id: 1,
+            next_atmospheric_network_id: 1,
             next_id: 1,
             allocated_ids: HashSet::new(),
             ..Default::default()
@@ -74,26 +79,16 @@ impl SimulationManager {
         self.items.values().cloned().collect()
     }
 
-    /// Register a cable network to be updated each tick
-    pub fn register_cable_network(&mut self, network: Shared<CableNetwork>) {
-        self.cable_networks.push(network);
-    }
-
-    /// Register an atmospheric network to be processed each tick
-    pub fn register_atmospheric_network(&mut self, network: Shared<AtmosphericNetwork>) {
-        self.atmospheric_networks.push(network);
-    }
-
     /// Perform a simulation tick in the correct order and return the total number of phase changes.
     pub fn update(&self, tick: u64) -> u32 {
         // 1) Process atmospheric updates
         let mut total_changes: u32 = 0;
-        for net in &self.atmospheric_networks {
+        for net in self.atmospheric_networks.values() {
             total_changes += net.borrow_mut().process_phase_changes();
         }
 
         // 2) Update all cable networks (which run device updates and IC runners)
-        for net in &self.cable_networks {
+        for net in self.cable_networks.values() {
             net.borrow().update(tick);
         }
 
@@ -103,7 +98,7 @@ impl SimulationManager {
     /// Reset internal manager state by removing devices and clearing networks.
     pub fn reset(&mut self) {
         // Remove all devices from cable networks
-        for net in &self.cable_networks {
+        for net in self.cable_networks.values() {
             let mut net_mut = net.borrow_mut();
             let ids = net_mut.all_device_ids();
             for id in ids {
@@ -114,11 +109,15 @@ impl SimulationManager {
         self.cable_networks.clear();
         self.atmospheric_networks.clear();
 
+        // Reset ID counters
+        self.next_cable_network_id = 1;
+        self.next_atmospheric_network_id = 1;
+        self.next_id = 1;
+        self.allocated_ids.clear();
+
         // Clear tracked devices/items
         self.devices.clear();
         self.items.clear();
-        self.next_id = 1;
-        self.allocated_ids.clear();
     }
 
     /// Create a new device by prefab hash using the device factory and track it.
@@ -142,8 +141,29 @@ impl SimulationManager {
         settings.id = Some(id);
 
         if let Some(d) = device_factory::create_device(prefab_hash, settings) {
+            // If the device created an internal atmospheric network, track it as well
+            if let Some(atmo_device) = d.borrow().as_atmospheric_device()
+                && let Some(atmo_net) =
+                    atmo_device.get_atmospheric_network(DeviceAtmosphericNetworkType::Internal)
+            {
+                if atmo_net.borrow().get_id().is_some() {
+                    if !self
+                        .atmospheric_networks
+                        .contains_key(&atmo_net.borrow().get_id().unwrap())
+                    {
+                        panic!("Internal atmospheric network has an ID not tracked by the manager");
+                    }
+                } else {
+                    let atmo_id = self.next_atmospheric_network_id;
+                    self.next_atmospheric_network_id += 1;
+                    atmo_net.borrow_mut().set_id(Some(atmo_id));
+                    self.atmospheric_networks.insert(atmo_id, atmo_net.clone());
+                }
+            }
+
             // Track the created device
             self.devices.insert(d.borrow().get_id(), d.clone());
+
             Some(d)
         } else {
             // Creation failed, free reserved id
@@ -191,35 +211,53 @@ impl SimulationManager {
 
     /// Get all cable networks registered with this manager
     pub fn all_cable_networks(&self) -> Vec<Shared<CableNetwork>> {
-        self.cable_networks.clone()
+        self.cable_networks.values().cloned().collect()
     }
 
     /// Get a cable network registered with this manager by index
     pub fn get_cable_network(&self, idx: usize) -> Option<Shared<CableNetwork>> {
-        self.cable_networks.get(idx).cloned()
+        self.cable_networks.values().nth(idx).cloned()
     }
 
     /// Get an atmospheric network registered with this manager by index
     pub fn get_atmospheric_network(&self, idx: usize) -> Option<Shared<AtmosphericNetwork>> {
-        self.atmospheric_networks.get(idx).cloned()
+        self.atmospheric_networks.values().nth(idx).cloned()
     }
 
     /// Get all atmospheric networks registered with this manager
     pub fn all_atmospheric_networks(&self) -> Vec<Shared<AtmosphericNetwork>> {
-        self.atmospheric_networks.clone()
+        self.atmospheric_networks.values().cloned().collect()
+    }
+
+    /// Get a cable network by its assigned id
+    pub fn get_cable_network_by_id(&self, id: i32) -> Option<Shared<CableNetwork>> {
+        self.cable_networks.get(&id).cloned()
+    }
+
+    /// Get an atmospheric network by its assigned id
+    pub fn get_atmospheric_network_by_id(&self, id: i32) -> Option<Shared<AtmosphericNetwork>> {
+        self.atmospheric_networks.get(&id).cloned()
     }
 
     /// Create a new cable network and register it with this manager.
+    /// The manager assigns a unique id and stores it in the network.
     pub fn create_cable_network(&mut self) -> Shared<CableNetwork> {
         let network = CableNetwork::new();
-        self.register_cable_network(network.clone());
+        let id = self.next_cable_network_id;
+        self.next_cable_network_id += 1;
+        network.borrow_mut().set_id(Some(id));
+        self.cable_networks.insert(id, network.clone());
         network
     }
 
     /// Create a new atmospheric network and register it with this manager.
+    /// The manager assigns a unique id and stores it in the network.
     pub fn create_atmospheric_network(&mut self, volume: f64) -> Shared<AtmosphericNetwork> {
         let network = AtmosphericNetwork::new(volume);
-        self.register_atmospheric_network(network.clone());
+        let id = self.next_atmospheric_network_id;
+        self.next_atmospheric_network_id += 1;
+        network.borrow_mut().set_id(Some(id));
+        self.atmospheric_networks.insert(id, network.clone());
         network
     }
 }
@@ -229,10 +267,10 @@ impl Display for SimulationManager {
         writeln!(f, "SimulationManager {{")?;
 
         writeln!(f, "  Cable Networks ({}):", self.cable_networks.len())?;
-        for (i, n) in self.cable_networks.iter().enumerate() {
+        for (id, n) in self.cable_networks.iter() {
             let net = n.borrow();
             let ids = net.all_device_ids();
-            writeln!(f, "    Network #{}: {} device(s)", i, ids.len())?;
+            writeln!(f, "    Network #{}: {} device(s)", id, ids.len())?;
 
             for id in ids {
                 if let Some(device_ref) = net.get_device(id) {
@@ -325,13 +363,13 @@ impl Display for SimulationManager {
             "  Atmospheric Networks ({}):",
             self.atmospheric_networks.len()
         )?;
-        for (i, net) in self.atmospheric_networks.iter().enumerate() {
+        for (id, net) in self.atmospheric_networks.iter() {
             let borrowed = net.borrow();
             let mixture = borrowed.mixture();
             writeln!(
                 f,
                 "    Network #{}: {} L, {} K, {} kPa, {} mol",
-                i,
+                id,
                 fmt_trim(mixture.volume(), 3),
                 fmt_trim(mixture.temperature(), 2),
                 fmt_trim(mixture.pressure(), 3),

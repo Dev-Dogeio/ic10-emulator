@@ -11,7 +11,7 @@ mod tests {
             SimulationDeviceSettings, SlotHostDevice, VolumePump,
         },
         items::{FilterSize, ItemIntegratedCircuit10, SimulationItemSettings},
-        networks::{AtmosphericNetwork, CableNetwork},
+        networks::AtmosphericNetwork,
         types::shared,
     };
 
@@ -20,8 +20,7 @@ mod tests {
         // Start from a clean state
         let mut manager = SimulationManager::new();
 
-        let cn = CableNetwork::new();
-        manager.register_cable_network(cn.clone());
+        let cn = manager.create_cable_network();
 
         // Create one of each device
         let ac = AirConditioner::new(SimulationDeviceSettings {
@@ -232,8 +231,7 @@ mod tests {
     fn test_simulation_manager_device_item_enumeration() {
         let mut manager = SimulationManager::new();
 
-        let cn = CableNetwork::new();
-        manager.register_cable_network(cn.clone());
+        let cn = manager.create_cable_network();
 
         // Create Filtration device and register it on the network
         let fil = Filtration::new(SimulationDeviceSettings {
@@ -282,6 +280,35 @@ mod tests {
             .get_atmospheric_network(DeviceAtmosphericNetworkType::Internal)
             .unwrap();
         assert!(Rc::ptr_eq(&an_internal, &ac_internal));
+    }
+
+    #[test]
+    fn test_manager_creates_and_registers_internal_atmo_network() {
+        let mut manager = SimulationManager::new();
+        assert_eq!(manager.all_atmospheric_networks().len(), 0);
+
+        let d = manager
+            .create_device(AirConditioner::PREFAB_HASH, None)
+            .expect("Device creation failed");
+
+        let device = d.borrow();
+
+        let atmospheric_device = device
+            .as_atmospheric_device()
+            .expect("Device should be atmospheric device");
+
+        let internal_net = atmospheric_device
+            .get_atmospheric_network(DeviceAtmosphericNetworkType::Internal)
+            .expect("Expected internal network created");
+
+        let id = internal_net.borrow().get_id().expect("id should be set");
+
+        // The network should have an id assigned and be discoverable via the manager
+        let found = manager
+            .get_atmospheric_network_by_id(id)
+            .expect("manager should have registered the network");
+        assert!(Rc::ptr_eq(&found, &internal_net));
+        assert_eq!(manager.all_atmospheric_networks().len(), 1);
     }
 
     #[test]

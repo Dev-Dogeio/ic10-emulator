@@ -349,11 +349,6 @@ impl AirConditioner {
             Input => Ok(&mut self.input_network),
             Output => Ok(&mut self.output_network),
             Output2 => Ok(&mut self.waste_network),
-            Internal => Err(SimulationError::RuntimeError {
-                message: "AirConditioner does not support Internal atmospheric connection slot"
-                    .to_string(),
-                line: 0,
-            }),
             _ => Err(SimulationError::RuntimeError {
                 message: format!(
                     "AirConditioner does not support atmospheric connection type {:?}",
@@ -620,10 +615,10 @@ impl AtmosphericDevice for AirConditioner {
     ) -> OptShared<AtmosphericNetwork> {
         use DeviceAtmosphericNetworkType::*;
         match connection {
+            Internal => Some(self.internal.clone()),
             Input => self.input_network.clone(),
             Output => self.output_network.clone(),
             Output2 => self.waste_network.clone(),
-            Internal => Some(self.internal.clone()),
             _ => None,
         }
     }

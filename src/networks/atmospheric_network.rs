@@ -7,6 +7,9 @@ use std::fmt::{Debug, Display};
 /// An atmospheric network that manages a shared gas mixture.
 #[derive(Clone)]
 pub struct AtmosphericNetwork {
+    /// Optional assigned id for this network
+    id: Option<i32>,
+
     /// The shared gas mixture for this network
     mixture: GasMixture,
 }
@@ -21,8 +24,19 @@ impl AtmosphericNetwork {
         );
 
         shared(AtmosphericNetwork {
+            id: None,
             mixture: GasMixture::new(volume),
         })
+    }
+
+    /// Set the assigned id for this network
+    pub fn set_id(&mut self, id: Option<i32>) {
+        self.id = id;
+    }
+
+    /// Get the assigned id for this network
+    pub fn get_id(&self) -> Option<i32> {
+        self.id
     }
 
     /// Get immutable reference to the network's gas mixture
