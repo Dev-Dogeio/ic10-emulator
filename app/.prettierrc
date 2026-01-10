@@ -1,0 +1,10 @@
+{
+    "semi": true,
+    "singleQuote": true,
+    "useTabs": false,
+    "trailingComma": "es5",
+    "printWidth": 100,
+    "tabWidth": 4,
+    "svelteStrictMode": true,
+    "svelteBracketNewLine": true
+}
