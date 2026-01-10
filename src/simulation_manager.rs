@@ -42,7 +42,7 @@ pub struct SimulationManager {
     // Device/Item ID management
     next_id: i32,
     allocated_ids: HashSet<i32>,
-    
+
     // Simulation tick counter
     pub ticks: u64,
 }

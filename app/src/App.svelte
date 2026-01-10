@@ -800,8 +800,7 @@
             {/if}
         {/each}
 
-            <SimulationControls />
-
+        <SimulationControls />
     {/if}
 </div>
 
