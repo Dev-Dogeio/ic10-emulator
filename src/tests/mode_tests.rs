@@ -83,6 +83,62 @@ fn filtration_respects_mode() {
         "Filtered should have moles when Mode=1.0"
     );
 
+    // New test: filtration should remove both liquid and gas forms when configured for either
+    {
+        let f3 = Filtration::new(SimulationDeviceSettings {
+            id: Some(10),
+            ..SimulationDeviceSettings::default()
+        });
+
+        let input3 = AtmosphericNetwork::new(10.0);
+        // Add both steam (gas) and liquid water
+        input3.borrow_mut().add_gas(GasType::Steam, 50.0, 300.0);
+        input3.borrow_mut().add_gas(GasType::Water, 50.0, 300.0);
+        let filtered3 = AtmosphericNetwork::new(10.0);
+        let waste3 = AtmosphericNetwork::new(10.0);
+
+        // insert physical filter (slot 0) set to Water (liquid form)
+        {
+            let mut f3_borrow = f3.borrow_mut();
+            let slot = f3_borrow.get_slot_mut(0).unwrap();
+            let mut filter_item = Filter::new(SimulationItemSettings {
+                id: Some(11),
+                ..SimulationItemSettings::default()
+            });
+            filter_item.set_gas_type(GasType::Water);
+            filter_item.set_size(FilterSize::Small);
+            filter_item.set_quantity(1);
+            let filter: Shared<dyn Item> = shared(filter_item);
+            let _ = slot.try_insert(filter);
+        }
+
+        f3.borrow_mut()
+            .set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input3.clone()))
+            .unwrap();
+        f3.borrow_mut()
+            .set_atmospheric_network(
+                DeviceAtmosphericNetworkType::Output,
+                Some(filtered3.clone()),
+            )
+            .unwrap();
+        f3.borrow_mut()
+            .set_atmospheric_network(DeviceAtmosphericNetworkType::Output2, Some(waste3.clone()))
+            .unwrap();
+
+        f3.borrow_mut().write(LogicType::Mode, 1.0).unwrap();
+        f3.borrow().update(0).unwrap();
+
+        // Both steam and water should have been filtered
+        assert!(
+            filtered3.borrow().get_moles(GasType::Steam) > 0.0,
+            "Filtered should contain Steam"
+        );
+        assert!(
+            filtered3.borrow().get_moles(GasType::Water) > 0.0,
+            "Filtered should contain Water"
+        );
+    }
+
     // Reset networks
     let input2 = AtmosphericNetwork::new(10.0);
     input2.borrow_mut().add_gas(GasType::Oxygen, 10.0, 300.0);
