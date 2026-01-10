@@ -19,7 +19,10 @@ use crate::{
 use crate::animation_curve::AnimationCurve;
 use crate::conversions::fmt_trim;
 use std::{
-    cell::RefCell, fmt::{Debug, Display}, rc::Rc, sync::{Arc, OnceLock}
+    cell::RefCell,
+    fmt::{Debug, Display},
+    rc::Rc,
+    sync::{Arc, OnceLock},
 };
 
 /// Pressure per tick used for mole transfer (kPa).
@@ -290,14 +293,12 @@ impl AirConditioner {
         use DeviceAtmosphericNetworkType::*;
         match connection {
             Internal => Ok(self.internal.clone()),
-            Input => self
-                .input_network
-                .as_ref()
-                .and_then(|w| w.upgrade())
-                .ok_or(SimulationError::RuntimeError {
+            Input => self.input_network.as_ref().and_then(|w| w.upgrade()).ok_or(
+                SimulationError::RuntimeError {
                     message: "AirConditioner device has no input atmospheric network".to_string(),
                     line: 0,
-                }),
+                },
+            ),
             Output => self
                 .output_network
                 .as_ref()
@@ -306,14 +307,12 @@ impl AirConditioner {
                     message: "AirConditioner device has no output atmospheric network".to_string(),
                     line: 0,
                 }),
-            Output2 => self
-                .waste_network
-                .as_ref()
-                .and_then(|w| w.upgrade())
-                .ok_or(SimulationError::RuntimeError {
+            Output2 => self.waste_network.as_ref().and_then(|w| w.upgrade()).ok_or(
+                SimulationError::RuntimeError {
                     message: "AirConditioner device has no output2 atmospheric network".to_string(),
                     line: 0,
-                }),
+                },
+            ),
             _ => Err(SimulationError::RuntimeError {
                 message: format!(
                     "AirConditioner does not support atmospheric connection type {:?}",
@@ -645,17 +644,20 @@ impl Display for AirConditioner {
         )?;
 
         if let Some(weak) = &self.input_network
-            && let Some(net) = weak.upgrade() {
-                write!(f, ", input: {}", net.borrow().mixture())?;
-            }
+            && let Some(net) = weak.upgrade()
+        {
+            write!(f, ", input: {}", net.borrow().mixture())?;
+        }
         if let Some(weak) = &self.output_network
-            && let Some(net) = weak.upgrade() {
-                write!(f, ", output: {}", net.borrow().mixture())?;
-            }
+            && let Some(net) = weak.upgrade()
+        {
+            write!(f, ", output: {}", net.borrow().mixture())?;
+        }
         if let Some(weak) = &self.waste_network
-            && let Some(net) = weak.upgrade() {
-                write!(f, ", waste: {}", net.borrow().mixture())?;
-            }
+            && let Some(net) = weak.upgrade()
+        {
+            write!(f, ", waste: {}", net.borrow().mixture())?;
+        }
 
         write!(
             f,

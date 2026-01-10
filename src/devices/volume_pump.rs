@@ -17,7 +17,10 @@ use crate::{
 
 use crate::conversions::fmt_trim;
 use std::{
-    cell::RefCell, fmt::{Debug, Display}, rc::Rc, sync::OnceLock
+    cell::RefCell,
+    fmt::{Debug, Display},
+    rc::Rc,
+    sync::OnceLock,
 };
 
 /// Volume pump: moves gas between input and output networks
@@ -176,7 +179,7 @@ impl Device for VolumePump {
             .ok_or(SimulationError::RuntimeError {
                 message: "VolumePump device has no output atmospheric network".to_string(),
                 line: 0,
-            })?; 
+            })?;
 
         let setting = *self.setting.borrow();
 
@@ -242,13 +245,15 @@ impl Display for VolumePump {
         )?;
 
         if let Some(weak) = &self.input_network
-            && let Some(net) = weak.upgrade() {
-                write!(f, ", input: {}", net.borrow().mixture())?;
-            }
+            && let Some(net) = weak.upgrade()
+        {
+            write!(f, ", input: {}", net.borrow().mixture())?;
+        }
         if let Some(weak) = &self.output_network
-            && let Some(net) = weak.upgrade() {
-                write!(f, ", output: {}", net.borrow().mixture())?;
-            }
+            && let Some(net) = weak.upgrade()
+        {
+            write!(f, ", output: {}", net.borrow().mixture())?;
+        }
 
         write!(f, " }}")
     }

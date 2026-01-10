@@ -1,7 +1,10 @@
 //! Filtration device: separates specified gases from an input mixture.
 
 use std::{
-    cell::RefCell, fmt::{Debug, Display}, rc::Rc, sync::OnceLock
+    cell::RefCell,
+    fmt::{Debug, Display},
+    rc::Rc,
+    sync::OnceLock,
 };
 
 use crate::{
@@ -296,32 +299,26 @@ impl Filtration {
     ) -> SimulationResult<Shared<AtmosphericNetwork>> {
         use DeviceAtmosphericNetworkType::*;
         match connection {
-            Input => self
-                .input_network
-                .as_ref()
-                .and_then(|w| w.upgrade())
-                .ok_or(SimulationError::RuntimeError {
+            Input => self.input_network.as_ref().and_then(|w| w.upgrade()).ok_or(
+                SimulationError::RuntimeError {
                     message: "Filtration device has no input atmospheric network".to_string(),
                     line: 0,
-                }),
-            Output => {
-                self.filtered_network
-                    .as_ref()
-                    .and_then(|w| w.upgrade())
-                    .ok_or(SimulationError::RuntimeError {
-                        message: "Filtration device has no filtered atmospheric network"
-                            .to_string(),
-                        line: 0,
-                    })
-            }
-            Output2 => self
-                .waste_network
+                },
+            ),
+            Output => self
+                .filtered_network
                 .as_ref()
                 .and_then(|w| w.upgrade())
                 .ok_or(SimulationError::RuntimeError {
-                    message: "Filtration device has no waste atmospheric network".to_string(),
+                    message: "Filtration device has no filtered atmospheric network".to_string(),
                     line: 0,
                 }),
+            Output2 => self.waste_network.as_ref().and_then(|w| w.upgrade()).ok_or(
+                SimulationError::RuntimeError {
+                    message: "Filtration device has no waste atmospheric network".to_string(),
+                    line: 0,
+                },
+            ),
             _ => Err(SimulationError::RuntimeError {
                 message: format!(
                     "Filtration device does not support atmospheric connection type {:?}",
@@ -703,17 +700,20 @@ impl Display for Filtration {
         )?;
 
         if let Some(weak) = &self.input_network
-            && let Some(net) = weak.upgrade() {
-                write!(f, ", input: {}", net.borrow().mixture())?;
-            }
+            && let Some(net) = weak.upgrade()
+        {
+            write!(f, ", input: {}", net.borrow().mixture())?;
+        }
         if let Some(weak) = &self.filtered_network
-            && let Some(net) = weak.upgrade() {
-                write!(f, ", filtered: {}", net.borrow().mixture())?;
-            }
+            && let Some(net) = weak.upgrade()
+        {
+            write!(f, ", filtered: {}", net.borrow().mixture())?;
+        }
         if let Some(weak) = &self.waste_network
-            && let Some(net) = weak.upgrade() {
-                write!(f, ", waste: {}", net.borrow().mixture())?;
-            }
+            && let Some(net) = weak.upgrade()
+        {
+            write!(f, ", waste: {}", net.borrow().mixture())?;
+        }
 
         // Active filters
         let active = self.active_filters();

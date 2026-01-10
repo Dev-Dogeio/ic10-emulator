@@ -9,7 +9,8 @@ use crate::{
 };
 use std::{
     cell::{Ref, RefCell, RefMut},
-    fmt::{Debug, Display}, rc::Rc,
+    fmt::{Debug, Display},
+    rc::Rc,
 };
 
 /// Chip slot for IC; manages chip, pins, and execution state
