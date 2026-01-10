@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 /// Factory function type for creating items
 pub type ItemFactoryFn =
-    Box<dyn Fn(Option<SimulationItemSettings>) -> Shared<dyn Item> + Send + Sync + 'static>;
+    Box<dyn Fn(SimulationItemSettings) -> Shared<dyn Item> + Send + Sync + 'static>;
 
 /// Item metadata stored as (display_name, item_type)
 pub type ItemMeta = (&'static str, ItemType);
@@ -42,7 +42,7 @@ impl ItemFactoryRegistry {
     pub fn create_item(
         &self,
         prefab_hash: i32,
-        settings: Option<SimulationItemSettings>,
+        settings: SimulationItemSettings,
     ) -> Option<Shared<dyn Item>> {
         self.factories.get(&prefab_hash).map(|f| (f)(settings))
     }
@@ -70,10 +70,7 @@ fn initialize_registry() -> bool {
 }
 
 /// Create an item by prefab hash using the global registry
-pub fn create_item(
-    prefab_hash: i32,
-    settings: Option<SimulationItemSettings>,
-) -> Option<Shared<dyn Item>> {
+pub fn create_item(prefab_hash: i32, settings: SimulationItemSettings) -> Option<Shared<dyn Item>> {
     initialize_item_factory();
 
     let registry_guard = get_registry().lock().unwrap();
@@ -125,9 +122,7 @@ macro_rules! register_item {
     ($item_type:ty, $display:expr, $item_type_enum:expr) => {
         register_item_factory(
             <$item_type>::PREFAB_HASH,
-            Box::new(|settings: Option<SimulationItemSettings>| {
-                shared(<$item_type>::new(settings))
-            }),
+            Box::new(|settings: SimulationItemSettings| shared(<$item_type>::new(settings))),
         );
         register_item_meta(<$item_type>::PREFAB_HASH, ($display, $item_type_enum));
     };
@@ -165,11 +160,10 @@ fn initialize_item_factory() {
                 let prefab = Filter::prefab_hash_for(g, s);
                 register_item_factory(
                     prefab,
-                    Box::new(move |settings: Option<SimulationItemSettings>| {
-                        let mut settings = settings.unwrap_or_default();
+                    Box::new(move |mut settings: SimulationItemSettings| {
                         settings.gas_type = Some(g);
                         settings.filter_size = Some(s);
-                        shared(Filter::new(Some(settings)))
+                        shared(Filter::new(settings))
                     }),
                 );
 

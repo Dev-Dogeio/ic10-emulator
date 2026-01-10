@@ -1,10 +1,7 @@
 //! Filter item implementation
 
 use super::item::{Item, ItemType};
-use crate::{
-    allocate_global_id, atmospherics::GasType, items::SimulationItemSettings,
-    parser::string_to_hash, reserve_global_id,
-};
+use crate::{atmospherics::GasType, items::SimulationItemSettings, parser::string_to_hash};
 use std::any::Any;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -29,15 +26,7 @@ pub struct Filter {
 
 impl Filter {
     /// Create a new `Filter` with default values
-    pub fn new(settings: Option<SimulationItemSettings>) -> Self {
-        let settings = settings.unwrap_or_default();
-
-        let id = if let Some(requested_id) = settings.id {
-            reserve_global_id(requested_id)
-        } else {
-            allocate_global_id()
-        };
-
+    pub fn new(settings: SimulationItemSettings) -> Self {
         let quantity = settings.quantity.unwrap_or(100) as f64;
 
         let gas_type = settings.gas_type.unwrap_or(GasType::CarbonDioxide);
@@ -45,7 +34,7 @@ impl Filter {
         let size = settings.filter_size.unwrap_or(FilterSize::Small);
 
         Self {
-            id,
+            id: settings.id.unwrap(),
             quantity,
             gas_type,
             size,
@@ -97,12 +86,6 @@ impl Filter {
     /// Prefab hash for this filter
     pub fn prefab_hash(&self) -> i32 {
         Filter::prefab_hash_for(self.gas_type, self.size)
-    }
-}
-
-impl Default for Filter {
-    fn default() -> Self {
-        Self::new(None)
     }
 }
 

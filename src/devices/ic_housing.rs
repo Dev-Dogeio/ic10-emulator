@@ -4,7 +4,7 @@ use crate::constants::DEFAULT_MAX_INSTRUCTIONS_PER_TICK;
 use crate::conversions::fmt_trim;
 use crate::types::OptWeakShared;
 use crate::{
-    CableNetwork, allocate_global_id,
+    CableNetwork,
     constants::STACK_SIZE,
     devices::{
         ChipSlot, Device, ICHostDevice, ICHostDeviceMemoryOverride, LogicType,
@@ -13,7 +13,6 @@ use crate::{
     },
     error::{SimulationError, SimulationResult},
     parser::string_to_hash,
-    reserve_global_id,
     types::{OptShared, Shared, shared},
 };
 use crate::{prop_ro, prop_rw_bool, prop_rw_clamped};
@@ -48,15 +47,8 @@ impl ICHousing {
     /// Compile-time prefab hash constant for this device
     pub const PREFAB_HASH: i32 = string_to_hash("StructureCircuitHousing");
 
-    /// Create a new `ICHousing`
-    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
-        let settings = simulation_settings.unwrap_or_default();
-        let reference_id = if let Some(id) = settings.id {
-            reserve_global_id(id)
-        } else {
-            allocate_global_id()
-        };
-
+    /// Create a new `ICHousing`.
+    pub fn new(settings: SimulationDeviceSettings) -> Shared<Self> {
         let name = if let Some(n) = settings.name.as_ref() {
             n.to_string()
         } else {
@@ -72,7 +64,7 @@ impl ICHousing {
             network: None,
             setting: RefCell::new(0.0),
             on: RefCell::new(1.0),
-            reference_id,
+            reference_id: settings.id.unwrap(),
             chip_host: ChipSlot::new(6),
             max_instructions_per_tick,
         });

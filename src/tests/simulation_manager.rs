@@ -1,6 +1,8 @@
 //! Unit tests for the simulation manager
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use crate::{
         Filter, SimulationManager,
         devices::{
@@ -8,7 +10,7 @@ mod tests {
             DeviceAtmosphericNetworkType, Filtration, ICHostDevice, ICHousing, LogicMemory,
             SimulationDeviceSettings, SlotHostDevice, VolumePump,
         },
-        items::{FilterSize, ItemIntegratedCircuit10},
+        items::{FilterSize, ItemIntegratedCircuit10, SimulationItemSettings},
         networks::{AtmosphericNetwork, CableNetwork},
         types::shared,
     };
@@ -22,23 +24,41 @@ mod tests {
         manager.register_cable_network(cn.clone());
 
         // Create one of each device
-        let ac = AirConditioner::new(None);
-        let ac_weak = std::rc::Rc::downgrade(&ac);
+        let ac = AirConditioner::new(SimulationDeviceSettings {
+            id: Some(1),
+            ..SimulationDeviceSettings::default()
+        });
+        let ac_weak = Rc::downgrade(&ac);
 
-        let fil = Filtration::new(None);
-        let fil_weak = std::rc::Rc::downgrade(&fil);
+        let fil = Filtration::new(SimulationDeviceSettings {
+            id: Some(2),
+            ..SimulationDeviceSettings::default()
+        });
+        let fil_weak = Rc::downgrade(&fil);
 
-        let pump = VolumePump::new(None);
-        let pump_weak = std::rc::Rc::downgrade(&pump);
+        let pump = VolumePump::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
+        let pump_weak = Rc::downgrade(&pump);
 
-        let housing = ICHousing::new(None);
-        let housing_weak = std::rc::Rc::downgrade(&housing);
+        let housing = ICHousing::new(SimulationDeviceSettings {
+            id: Some(4),
+            ..SimulationDeviceSettings::default()
+        });
+        let housing_weak = Rc::downgrade(&housing);
 
-        let lm = LogicMemory::new(None);
-        let lm_weak = std::rc::Rc::downgrade(&lm);
+        let lm = LogicMemory::new(SimulationDeviceSettings {
+            id: Some(5),
+            ..SimulationDeviceSettings::default()
+        });
+        let lm_weak = Rc::downgrade(&lm);
 
-        let ds = DaylightSensor::new(None);
-        let ds_weak = std::rc::Rc::downgrade(&ds);
+        let ds = DaylightSensor::new(SimulationDeviceSettings {
+            id: Some(6),
+            ..SimulationDeviceSettings::default()
+        });
+        let ds_weak = Rc::downgrade(&ds);
 
         // Add all devices to the cable network
         cn.borrow_mut().add_device(ac.clone(), cn.clone());
@@ -49,18 +69,27 @@ mod tests {
         cn.borrow_mut().add_device(ds.clone(), cn.clone());
 
         // Insert an IC chip into each IC host device (AirConditioner, Filtration, ICHousing)
-        let chip_ac = shared(ItemIntegratedCircuit10::new(None));
-        let chip_ac_weak = std::rc::Rc::downgrade(&chip_ac);
+        let chip_ac = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(7),
+            ..SimulationItemSettings::default()
+        }));
+        let chip_ac_weak = Rc::downgrade(&chip_ac);
         ac.borrow().set_chip(chip_ac.clone());
         drop(chip_ac);
 
-        let chip_fil = shared(ItemIntegratedCircuit10::new(None));
-        let chip_fil_weak = std::rc::Rc::downgrade(&chip_fil);
+        let chip_fil = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(8),
+            ..SimulationItemSettings::default()
+        }));
+        let chip_fil_weak = Rc::downgrade(&chip_fil);
         fil.borrow().set_chip(chip_fil.clone());
         drop(chip_fil);
 
-        let chip_housing = shared(ItemIntegratedCircuit10::new(None));
-        let chip_housing_weak = std::rc::Rc::downgrade(&chip_housing);
+        let chip_housing = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(9),
+            ..SimulationItemSettings::default()
+        }));
+        let chip_housing_weak = Rc::downgrade(&chip_housing);
         housing.borrow().set_chip(chip_housing.clone());
         drop(chip_housing);
 
@@ -121,14 +150,14 @@ mod tests {
             .unwrap();
 
         // Keep a weak to one representative atmospheric network
-        let an_rep_weak = std::rc::Rc::downgrade(&an_ac_in);
+        let an_rep_weak = Rc::downgrade(&an_ac_in);
 
         // Also keep a weak to the AirConditioner's internal network
         let ac_internal = ac
             .borrow()
             .get_atmospheric_network(DeviceAtmosphericNetworkType::Internal)
             .unwrap();
-        let ac_internal_weak = std::rc::Rc::downgrade(&ac_internal);
+        let ac_internal_weak = Rc::downgrade(&ac_internal);
 
         // Drop local strong refs so only global manager holds references
         drop(ac);
@@ -207,11 +236,17 @@ mod tests {
         manager.register_cable_network(cn.clone());
 
         // Create Filtration device and register it on the network
-        let fil = Filtration::new(None);
+        let fil = Filtration::new(SimulationDeviceSettings {
+            id: Some(1),
+            ..SimulationDeviceSettings::default()
+        });
         cn.borrow_mut().add_device(fil.clone(), cn.clone());
 
         // Insert an Oxygen Large filter into slot 0
-        let mut f = Filter::new(None);
+        let mut f = Filter::new(SimulationItemSettings {
+            id: Some(2),
+            ..SimulationItemSettings::default()
+        });
         f.set_gas_type(crate::atmospherics::GasType::Oxygen);
         f.set_size(FilterSize::Large);
         f.set_quantity(42);
@@ -238,15 +273,15 @@ mod tests {
             ticks_per_day: Some(2400.0),
             max_instructions_per_tick: Some(128),
             name: None,
-            id: None,
+            id: Some(1),
             internal_atmospheric_network: Some(an_internal.clone()),
         };
-        let ac = AirConditioner::new(Some(settings));
+        let ac = AirConditioner::new(settings);
         let ac_internal = ac
             .borrow()
             .get_atmospheric_network(DeviceAtmosphericNetworkType::Internal)
             .unwrap();
-        assert!(std::rc::Rc::ptr_eq(&an_internal, &ac_internal));
+        assert!(Rc::ptr_eq(&an_internal, &ac_internal));
     }
 
     #[test]
@@ -296,12 +331,12 @@ mod tests {
             internal_atmospheric_network: None,
         };
 
-        let ac = AirConditioner::new(Some(ac_settings));
-        let fil = Filtration::new(Some(fil_settings));
-        let pump = VolumePump::new(Some(pump_settings));
-        let housing = ICHousing::new(Some(housing_settings));
-        let ds = DaylightSensor::new(Some(ds_settings));
-        let lm = LogicMemory::new(Some(lm_settings));
+        let ac = AirConditioner::new(ac_settings);
+        let fil = Filtration::new(fil_settings);
+        let pump = VolumePump::new(pump_settings);
+        let housing = ICHousing::new(housing_settings);
+        let ds = DaylightSensor::new(ds_settings);
+        let lm = LogicMemory::new(lm_settings);
 
         assert_eq!(ac.borrow().get_id(), -1100);
         assert_eq!(fil.borrow().get_id(), -1101);

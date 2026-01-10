@@ -13,9 +13,11 @@ mod tests {
     use crate::constants::{RETURN_ADDRESS_INDEX, STACK_POINTER_INDEX};
     use crate::devices::Filtration;
     use crate::devices::ICHostDevice;
+    use crate::devices::SimulationDeviceSettings;
     use crate::devices::{DaylightSensor, Device, ICHousing};
     use crate::instruction::ParsedInstruction;
     use crate::items::FilterSize;
+    use crate::items::SimulationItemSettings;
     use crate::logic::execute_instruction;
     use crate::types::{Shared, shared};
 
@@ -24,7 +26,10 @@ mod tests {
     /// Create a chip with optional initial register values
     fn chip() -> ItemIntegratedCircuit10 {
         // For simple chip-only tests we don't need to attach to a housing
-        ItemIntegratedCircuit10::new(None)
+        ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(1),
+            ..SimulationItemSettings::default()
+        })
     }
 
     // Test-only helper: construct a chip + housing + network and wire them together.
@@ -35,8 +40,14 @@ mod tests {
             Shared<CableNetwork>,
         ) {
             let network = CableNetwork::new();
-            let housing = ICHousing::new(None);
-            let chip = shared(ItemIntegratedCircuit10::new(None));
+            let housing = ICHousing::new(SimulationDeviceSettings {
+                id: Some(1),
+                ..SimulationDeviceSettings::default()
+            });
+            let chip = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+                id: Some(2),
+                ..SimulationItemSettings::default()
+            }));
 
             // Connect chip to housing (this will also attach the chip slot to the chip)
             housing.borrow().set_chip(chip.clone());
@@ -1064,7 +1075,10 @@ j ra
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add a device and assign it to d0
-        let sensor = DaylightSensor::new(None);
+        let sensor = DaylightSensor::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
@@ -1094,7 +1108,10 @@ yield
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add a device and assign it to d0
-        let sensor = DaylightSensor::new(None);
+        let sensor = DaylightSensor::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
@@ -1125,7 +1142,10 @@ yield
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add a device to make d0 exist
-        let sensor = DaylightSensor::new(None);
+        let sensor = DaylightSensor::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
@@ -1156,7 +1176,10 @@ yield
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add a device to d0
-        let sensor = DaylightSensor::new(None);
+        let sensor = DaylightSensor::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
@@ -1229,7 +1252,10 @@ yield
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add another IC housing to the network (supports Setting = 12)
-        let housing2 = ICHousing::new(None);
+        let housing2 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
         let housing2_id = housing2.borrow().get_id();
         network
             .borrow_mut()
@@ -1294,8 +1320,14 @@ yield
         let (chip, housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add another IC housing device to the network
-        let housing2 = ICHousing::new(None);
-        let chip2 = shared(ItemIntegratedCircuit10::new(None));
+        let housing2 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
+        let chip2 = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(4),
+            ..SimulationItemSettings::default()
+        }));
         housing2.borrow().set_chip(chip2.clone());
         let device_id = housing2.borrow().get_id();
         network
@@ -1364,8 +1396,14 @@ yield
         let (chip, housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add another IC housing device to the network
-        let housing2 = ICHousing::new(None);
-        let chip2 = shared(ItemIntegratedCircuit10::new(None));
+        let housing2 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
+        let chip2 = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(4),
+            ..SimulationItemSettings::default()
+        }));
         housing2.borrow().set_chip(chip2.clone());
 
         let device_id = housing2.borrow().get_id();
@@ -1418,7 +1456,10 @@ yield
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add another IC housing device to the network (supports Setting)
-        let housing2 = ICHousing::new(None);
+        let housing2 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
         let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
@@ -1447,7 +1488,10 @@ yield
 
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
-        let housing2 = ICHousing::new(None);
+        let housing2 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
         let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
@@ -1493,8 +1537,11 @@ yield
         assert_eq!(initial_count, 1, "Expected 1 device initially");
 
         // Add 3 more ICHousing devices (they support Setting)
-        for _ in 0..3 {
-            let housing = ICHousing::new(None);
+        for i in 0..3 {
+            let housing = ICHousing::new(SimulationDeviceSettings {
+                id: Some(i + 2),
+                ..SimulationDeviceSettings::default()
+            });
             network.borrow_mut().add_device(housing, network.clone());
         }
 
@@ -1503,7 +1550,10 @@ yield
         assert_eq!(total_count, 4, "Expected 4 devices after adding 3");
 
         // Get the prefab hash for ICHousing
-        let housing = ICHousing::new(None);
+        let housing = ICHousing::new(SimulationDeviceSettings {
+            id: Some(2),
+            ..SimulationDeviceSettings::default()
+        });
         let hash = housing.borrow().get_prefab_hash();
 
         // Count devices that match the hash
@@ -1559,7 +1609,10 @@ yield
 
     #[test]
     fn test_ichousing_line_number_write_no_chip_errors() {
-        let housing = ICHousing::new(None);
+        let housing = ICHousing::new(SimulationDeviceSettings {
+            id: Some(1),
+            ..SimulationDeviceSettings::default()
+        });
 
         let res = housing.borrow().write(LogicType::LineNumber, 5.0);
         assert!(res.is_err());
@@ -1569,7 +1622,10 @@ yield
     fn test_filtration_slot_ls() {
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
-        let filtration = Filtration::new(None);
+        let filtration = Filtration::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
         let fil_id = filtration.borrow().get_id();
         network
             .borrow_mut()
@@ -1579,7 +1635,10 @@ yield
         {
             let mut f_borrow = filtration.borrow_mut();
             let slot = f_borrow.get_slot_mut(0).unwrap();
-            let mut filter_item = Filter::new(None);
+            let mut filter_item = Filter::new(SimulationItemSettings {
+                id: Some(4),
+                ..SimulationItemSettings::default()
+            });
             filter_item.set_gas_type(GasType::Oxygen);
             filter_item.set_size(FilterSize::Small);
             filter_item.set_quantity(10);
@@ -1656,7 +1715,10 @@ yield
         let (chip, _housing, _network) = ItemIntegratedCircuit10::new_with_network();
 
         // Get the prefab hash for ICHousing
-        let housing = ICHousing::new(None);
+        let housing = ICHousing::new(SimulationDeviceSettings {
+            id: Some(1),
+            ..SimulationDeviceSettings::default()
+        });
         let hash = housing.borrow().get_prefab_hash();
 
         // Test with string name "Setting"
@@ -1755,16 +1817,28 @@ yield
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add two IC housing devices to the network
-        let housing1 = ICHousing::new(None);
-        let chip1 = shared(ItemIntegratedCircuit10::new(None));
+        let housing1 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
+        let chip1 = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(4),
+            ..SimulationItemSettings::default()
+        }));
         housing1.borrow().set_chip(chip1.clone());
         let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing1.clone(), network.clone());
 
-        let housing2 = ICHousing::new(None);
-        let chip2 = shared(ItemIntegratedCircuit10::new(None));
+        let housing2 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(5),
+            ..SimulationDeviceSettings::default()
+        });
+        let chip2 = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(6),
+            ..SimulationItemSettings::default()
+        }));
         housing2.borrow().set_chip(chip2.clone());
 
         let device_id2 = housing2.borrow().get_id();
@@ -1855,16 +1929,28 @@ yield
         let (chip, _housing, network) = ItemIntegratedCircuit10::new_with_network();
 
         // Add two IC housing devices to the network
-        let housing1 = ICHousing::new(None);
-        let chip1 = shared(ItemIntegratedCircuit10::new(None));
+        let housing1 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(3),
+            ..SimulationDeviceSettings::default()
+        });
+        let chip1 = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(4),
+            ..SimulationItemSettings::default()
+        }));
         housing1.borrow().set_chip(chip1.clone());
         let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
             .add_device(housing1.clone(), network.clone());
 
-        let housing2 = ICHousing::new(None);
-        let chip2 = shared(ItemIntegratedCircuit10::new(None));
+        let housing2 = ICHousing::new(SimulationDeviceSettings {
+            id: Some(5),
+            ..SimulationDeviceSettings::default()
+        });
+        let chip2 = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+            id: Some(6),
+            ..SimulationItemSettings::default()
+        }));
         housing2.borrow().set_chip(chip2.clone());
         let device_id2 = housing2.borrow().get_id();
         network

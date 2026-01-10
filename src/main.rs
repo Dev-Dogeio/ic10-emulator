@@ -7,9 +7,9 @@ use ic10_emulator_lib::{
     atmospherics::{GasType, celsius_to_kelvin},
     devices::{
         AirConditioner, AtmosphericDevice, DeviceAtmosphericNetworkType, Filtration, ICHostDevice,
-        ICHousing, VolumePump,
+        ICHousing, SimulationDeviceSettings, VolumePump,
     },
-    items::{Filter, FilterSize},
+    items::{Filter, FilterSize, SimulationItemSettings},
     parser::{preprocess, string_to_hash},
     types::{Shared, shared},
 };
@@ -41,7 +41,10 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
     let input_network = manager.create_atmospheric_network(10.0);
     let output_network = manager.create_atmospheric_network(10.0);
 
-    let pump = VolumePump::new(None);
+    let pump = VolumePump::new(SimulationDeviceSettings {
+        id: Some(manager.allocate_next_id()),
+        ..SimulationDeviceSettings::default()
+    });
     cable_network
         .borrow_mut()
         .add_device(pump.clone(), cable_network.clone());
@@ -158,7 +161,10 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
     let input = manager.create_atmospheric_network(10.0); // AC input
     let vent = manager.create_atmospheric_network(1130.0); // AC hot gas output
 
-    let ac = AirConditioner::new(None);
+    let ac = AirConditioner::new(SimulationDeviceSettings {
+        id: Some(manager.allocate_next_id()),
+        ..SimulationDeviceSettings::default()
+    });
     ac.borrow_mut()
         .set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input.clone()))?;
     ac.borrow_mut()
@@ -166,13 +172,19 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
     ac.borrow_mut()
         .set_atmospheric_network(DeviceAtmosphericNetworkType::Output2, Some(tank.clone()))?;
 
-    let pump = VolumePump::new(None);
+    let pump = VolumePump::new(SimulationDeviceSettings {
+        id: Some(manager.allocate_next_id()),
+        ..SimulationDeviceSettings::default()
+    });
     pump.borrow_mut()
         .set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(tank.clone()))?;
     pump.borrow_mut()
         .set_atmospheric_network(DeviceAtmosphericNetworkType::Output, Some(input.clone()))?;
 
-    let chip = shared(ItemIntegratedCircuit10::new(None));
+    let chip = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+        id: Some(manager.allocate_next_id()),
+        ..SimulationItemSettings::default()
+    }));
     ac.borrow().set_chip(chip.clone());
 
     let network = manager.create_cable_network();
@@ -264,7 +276,10 @@ fn ac_device_test() -> Result<(), Box<dyn Error>> {
     let input = manager.create_atmospheric_network(120.0);
     let waste = manager.create_atmospheric_network(60.0);
 
-    let airconditioner = AirConditioner::new(None);
+    let airconditioner = AirConditioner::new(SimulationDeviceSettings {
+        id: Some(manager.allocate_next_id()),
+        ..SimulationDeviceSettings::default()
+    });
     {
         let mut ac = airconditioner.borrow_mut();
         ac.set_atmospheric_network(DeviceAtmosphericNetworkType::Input, Some(input.clone()))?;
@@ -316,12 +331,18 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
     let filtered = manager.create_atmospheric_network(20.0);
     let waste = manager.create_atmospheric_network(10.0);
 
-    let filtration = Filtration::new(None);
+    let filtration = Filtration::new(SimulationDeviceSettings {
+        id: Some(manager.allocate_next_id()),
+        ..SimulationDeviceSettings::default()
+    });
     {
         let mut f = filtration.borrow_mut();
         // Insert a filter item into slot 0
         let slot = f.get_slot_mut(0).unwrap();
-        let mut filter_item = Filter::new(None);
+        let mut filter_item = Filter::new(SimulationItemSettings {
+            id: Some(manager.allocate_next_id()),
+            ..SimulationItemSettings::default()
+        });
         filter_item.set_gas_type(GasType::Oxygen);
         filter_item.set_size(FilterSize::Small);
         filter_item.set_quantity(100);
@@ -375,8 +396,14 @@ fn ic_program_test() -> Result<(), Box<dyn Error>> {
 
     // Create a network
     let network = manager.create_cable_network();
-    let chip = shared(ItemIntegratedCircuit10::new(None));
-    let housing = ICHousing::new(None);
+    let chip = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
+        id: Some(manager.allocate_next_id()),
+        ..SimulationItemSettings::default()
+    }));
+    let housing = ICHousing::new(SimulationDeviceSettings {
+        id: Some(manager.allocate_next_id()),
+        ..SimulationDeviceSettings::default()
+    });
 
     housing.borrow().set_chip(chip.clone());
     network

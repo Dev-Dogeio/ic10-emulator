@@ -32,10 +32,7 @@ pub struct SimulationItemSettings {
 }
 
 /// Create an item by `prefab_hash`, returning `Some` when recognized.
-pub fn create_item(
-    prefab_hash: i32,
-    settings: Option<SimulationItemSettings>,
-) -> OptShared<dyn Item> {
+pub fn create_item(prefab_hash: i32, settings: SimulationItemSettings) -> OptShared<dyn Item> {
     item_factory::create_item(prefab_hash, settings)
 }
 

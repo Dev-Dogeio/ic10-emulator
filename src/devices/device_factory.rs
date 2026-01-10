@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 /// Factory function type for creating devices
-pub type DeviceFactoryFn = fn(Option<SimulationDeviceSettings>) -> Shared<dyn Device>;
+pub type DeviceFactoryFn = fn(SimulationDeviceSettings) -> Shared<dyn Device>;
 
 /// Device metadata describing logic properties and slot properties for a prefab.
 ///
@@ -68,7 +68,7 @@ impl DeviceFactoryRegistry {
     pub fn create_device(
         &self,
         prefab_hash: i32,
-        simulation_settings: Option<SimulationDeviceSettings>,
+        simulation_settings: SimulationDeviceSettings,
     ) -> Option<Shared<dyn Device>> {
         self.factories
             .get(&prefab_hash)
@@ -89,7 +89,7 @@ impl DeviceFactoryRegistry {
 /// Create a device by prefab hash using the global registry
 pub fn create_device(
     prefab_hash: i32,
-    simulation_settings: Option<SimulationDeviceSettings>,
+    simulation_settings: SimulationDeviceSettings,
 ) -> Option<Shared<dyn Device>> {
     initialize_device_factory();
 
