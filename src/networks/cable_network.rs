@@ -170,7 +170,7 @@ impl CableNetwork {
         if self.devices.contains_key(&ref_id) {
             // Check if device is the same
             let existing = self.devices.get(&ref_id).unwrap();
-            if Rc::ptr_eq(&existing, &device) {
+            if Rc::ptr_eq(existing, &device) {
                 // Same device already present, no action needed
                 return;
             }

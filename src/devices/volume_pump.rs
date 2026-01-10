@@ -17,9 +17,7 @@ use crate::{
 
 use crate::conversions::fmt_trim;
 use std::{
-    cell::RefCell,
-    fmt::{Debug, Display},
-    sync::OnceLock,
+    cell::RefCell, fmt::{Debug, Display}, rc::Rc, sync::OnceLock
 };
 
 /// Volume pump: moves gas between input and output networks
@@ -37,9 +35,9 @@ pub struct VolumePump {
     setting: RefCell<f64>,
 
     /// The input network
-    input_network: OptShared<AtmosphericNetwork>,
+    input_network: OptWeakShared<AtmosphericNetwork>,
     /// The output network
-    output_network: OptShared<AtmosphericNetwork>,
+    output_network: OptWeakShared<AtmosphericNetwork>,
 }
 
 /// Constructors for `VolumePump`.
@@ -165,6 +163,7 @@ impl Device for VolumePump {
         let input_rc = self
             .input_network
             .as_ref()
+            .and_then(|w| w.upgrade())
             .ok_or(SimulationError::RuntimeError {
                 message: "VolumePump device has no input atmospheric network".to_string(),
                 line: 0,
@@ -173,10 +172,11 @@ impl Device for VolumePump {
         let output_rc = self
             .output_network
             .as_ref()
+            .and_then(|w| w.upgrade())
             .ok_or(SimulationError::RuntimeError {
                 message: "VolumePump device has no output atmospheric network".to_string(),
                 line: 0,
-            })?;
+            })?; 
 
         let setting = *self.setting.borrow();
 
@@ -241,12 +241,14 @@ impl Display for VolumePump {
             self.name, self.reference_id, on_str, setting_str
         )?;
 
-        if let Some(net) = &self.input_network {
-            write!(f, ", input: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.output_network {
-            write!(f, ", output: {}", net.borrow().mixture())?;
-        }
+        if let Some(weak) = &self.input_network
+            && let Some(net) = weak.upgrade() {
+                write!(f, ", input: {}", net.borrow().mixture())?;
+            }
+        if let Some(weak) = &self.output_network
+            && let Some(net) = weak.upgrade() {
+                write!(f, ", output: {}", net.borrow().mixture())?;
+            }
 
         write!(f, " }}")
     }
@@ -268,11 +270,11 @@ impl AtmosphericDevice for VolumePump {
         use DeviceAtmosphericNetworkType::*;
         match connection {
             Input => {
-                self.input_network = network;
+                self.input_network = network.as_ref().map(Rc::downgrade);
                 Ok(())
             }
             Output => {
-                self.output_network = network;
+                self.output_network = network.as_ref().map(Rc::downgrade);
                 Ok(())
             }
             _ => Err(SimulationError::RuntimeError {
@@ -291,8 +293,8 @@ impl AtmosphericDevice for VolumePump {
     ) -> OptShared<AtmosphericNetwork> {
         use DeviceAtmosphericNetworkType::*;
         match connection {
-            Input => self.input_network.clone(),
-            Output => self.output_network.clone(),
+            Input => self.input_network.as_ref().and_then(|w| w.upgrade()),
+            Output => self.output_network.as_ref().and_then(|w| w.upgrade()),
             _ => None,
         }
     }

@@ -19,9 +19,7 @@ use crate::{
 use crate::animation_curve::AnimationCurve;
 use crate::conversions::fmt_trim;
 use std::{
-    cell::RefCell,
-    fmt::{Debug, Display},
-    sync::{Arc, OnceLock},
+    cell::RefCell, fmt::{Debug, Display}, rc::Rc, sync::{Arc, OnceLock}
 };
 
 /// Pressure per tick used for mole transfer (kPa).
@@ -50,11 +48,11 @@ pub struct AirConditioner {
     setting: RefCell<f64>,
 
     /// The input network
-    input_network: OptShared<AtmosphericNetwork>,
+    input_network: OptWeakShared<AtmosphericNetwork>,
     /// The output network
-    output_network: OptShared<AtmosphericNetwork>,
+    output_network: OptWeakShared<AtmosphericNetwork>,
     /// The waste network
-    waste_network: OptShared<AtmosphericNetwork>,
+    waste_network: OptWeakShared<AtmosphericNetwork>,
     /// Internal buffer used to hold transferred gas
     internal: Shared<AtmosphericNetwork>,
 
@@ -295,7 +293,7 @@ impl AirConditioner {
             Input => self
                 .input_network
                 .as_ref()
-                .cloned()
+                .and_then(|w| w.upgrade())
                 .ok_or(SimulationError::RuntimeError {
                     message: "AirConditioner device has no input atmospheric network".to_string(),
                     line: 0,
@@ -303,7 +301,7 @@ impl AirConditioner {
             Output => self
                 .output_network
                 .as_ref()
-                .cloned()
+                .and_then(|w| w.upgrade())
                 .ok_or(SimulationError::RuntimeError {
                     message: "AirConditioner device has no output atmospheric network".to_string(),
                     line: 0,
@@ -311,7 +309,7 @@ impl AirConditioner {
             Output2 => self
                 .waste_network
                 .as_ref()
-                .cloned()
+                .and_then(|w| w.upgrade())
                 .ok_or(SimulationError::RuntimeError {
                     message: "AirConditioner device has no output2 atmospheric network".to_string(),
                     line: 0,
@@ -343,7 +341,7 @@ impl AirConditioner {
     fn network_slot_mut(
         &mut self,
         connection: DeviceAtmosphericNetworkType,
-    ) -> Result<&mut OptShared<AtmosphericNetwork>, SimulationError> {
+    ) -> Result<&mut OptWeakShared<AtmosphericNetwork>, SimulationError> {
         use DeviceAtmosphericNetworkType::*;
         match connection {
             Input => Ok(&mut self.input_network),
@@ -605,7 +603,7 @@ impl AtmosphericDevice for AirConditioner {
         network: OptShared<AtmosphericNetwork>,
     ) -> SimulationResult<()> {
         let slot = self.network_slot_mut(connection)?;
-        *slot = network;
+        *slot = network.as_ref().map(Rc::downgrade);
         Ok(())
     }
 
@@ -616,9 +614,9 @@ impl AtmosphericDevice for AirConditioner {
         use DeviceAtmosphericNetworkType::*;
         match connection {
             Internal => Some(self.internal.clone()),
-            Input => self.input_network.clone(),
-            Output => self.output_network.clone(),
-            Output2 => self.waste_network.clone(),
+            Input => self.input_network.as_ref().and_then(|w| w.upgrade()),
+            Output => self.output_network.as_ref().and_then(|w| w.upgrade()),
+            Output2 => self.waste_network.as_ref().and_then(|w| w.upgrade()),
             _ => None,
         }
     }
@@ -646,15 +644,18 @@ impl Display for AirConditioner {
             self.name, self.reference_id, on_str, mode_str, setting_str
         )?;
 
-        if let Some(net) = &self.input_network {
-            write!(f, ", input: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.output_network {
-            write!(f, ", output: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.waste_network {
-            write!(f, ", waste: {}", net.borrow().mixture())?;
-        }
+        if let Some(weak) = &self.input_network
+            && let Some(net) = weak.upgrade() {
+                write!(f, ", input: {}", net.borrow().mixture())?;
+            }
+        if let Some(weak) = &self.output_network
+            && let Some(net) = weak.upgrade() {
+                write!(f, ", output: {}", net.borrow().mixture())?;
+            }
+        if let Some(weak) = &self.waste_network
+            && let Some(net) = weak.upgrade() {
+                write!(f, ", waste: {}", net.borrow().mixture())?;
+            }
 
         write!(
             f,

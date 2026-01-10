@@ -26,12 +26,19 @@ use std::fmt::Display;
 /// Central manager for running the simulation
 #[derive(Default, Clone, Debug)]
 pub struct SimulationManager {
+    // Registered networks
     cable_networks: BTreeMap<i32, Shared<CableNetwork>>,
     atmospheric_networks: BTreeMap<i32, Shared<AtmosphericNetwork>>,
+
+    // Tracked devices and items
     devices: BTreeMap<i32, Shared<dyn Device>>,
     items: BTreeMap<i32, Shared<dyn Item>>,
+
+    // Network ID management
     next_cable_network_id: i32,
     next_atmospheric_network_id: i32,
+
+    // Device/Item ID management
     next_id: i32,
     allocated_ids: HashSet<i32>,
 }
@@ -199,6 +206,32 @@ impl SimulationManager {
         }
     }
 
+    /// Remove a device tracked by this manager by reference ID
+    /// Also removes the device from its cable network and any internal atmospheric network
+    pub fn remove_device(&mut self, ref_id: i32) -> Option<Shared<dyn Device>> {
+        let device = self.devices.get(&ref_id)?;
+
+        if let Some(cable_net) = device.borrow().get_network() {
+            cable_net.borrow_mut().remove_device(ref_id).unwrap();
+        }
+
+        if let Some(atmo_device) = device.borrow().as_atmospheric_device()
+            && let Some(atmo_net) =
+                atmo_device.get_atmospheric_network(DeviceAtmosphericNetworkType::Internal)
+        {
+            self.atmospheric_networks
+                .remove(&atmo_net.borrow().get_id()?)
+                .unwrap();
+        }
+
+        self.devices.remove(&ref_id)
+    }
+
+    /// Remove an item tracked by this manager by reference ID
+    pub fn remove_item(&mut self, ref_id: i32) -> Option<Shared<dyn Item>> {
+        self.items.remove(&ref_id)
+    }
+
     /// Get a device tracked by this manager by reference ID
     pub fn get_device(&self, ref_id: i32) -> Option<Shared<dyn Device>> {
         self.devices.get(&ref_id).cloned()
@@ -249,6 +282,16 @@ impl SimulationManager {
         network.borrow_mut().set_id(Some(id));
         self.atmospheric_networks.insert(id, network.clone());
         network
+    }
+
+    /// Remove a cable network by its assigned id
+    pub fn remove_cable_network(&mut self, id: i32) -> Option<Shared<CableNetwork>> {
+        self.cable_networks.remove(&id)
+    }
+
+    /// Remove an atmospheric network by its assigned id
+    pub fn remove_atmospheric_network(&mut self, id: i32) -> Option<Shared<AtmosphericNetwork>> {
+        self.atmospheric_networks.remove(&id)
     }
 }
 

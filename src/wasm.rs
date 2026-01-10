@@ -115,16 +115,6 @@ impl WasmCableNetwork {
             .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 
-    /// Set the name of a device by reference ID.
-    pub fn set_device_name(&self, ref_id: i32, name: &str) -> Result<(), JsValue> {
-        let net = self.inner.borrow();
-        let mut dev = net
-            .get_device_mut(ref_id)
-            .ok_or_else(|| JsValue::from_str("Device not found"))?;
-        dev.rename(name);
-        Ok(())
-    }
-
     /// Batch read logic values from all devices matching the given prefab hash.
     pub fn batch_read_by_prefab(
         &self,
@@ -155,13 +145,6 @@ impl WasmCableNetwork {
     #[wasm_bindgen(js_name = toString)]
     pub fn to_string_js(&self) -> String {
         format!("{}", self.inner.borrow())
-    }
-
-    /// Update a device's name index in the network
-    pub fn update_device_name(&self, ref_id: i32, old_name_hash: i32, new_name_hash: i32) {
-        self.inner
-            .borrow_mut()
-            .update_device_name(ref_id, old_name_hash, new_name_hash);
     }
 
     /// Check whether a device exists on this network
@@ -1363,6 +1346,21 @@ impl WasmSimulationManager {
             Some(n) => Ok(WasmAtmosphericNetwork { inner: n }),
             None => Err(JsValue::from_str("Atmospheric network not found")),
         }
+    }
+
+    /// Remove a device tracked by this manager by reference ID. Returns true on success.
+    pub fn remove_device(&mut self, ref_id: i32) -> bool {
+        self.inner.remove_device(ref_id).is_some()
+    }
+
+    /// Remove a cable network by its assigned id. Returns true on success.
+    pub fn remove_cable_network(&mut self, id: i32) -> bool {
+        self.inner.remove_cable_network(id).is_some()
+    }
+
+    /// Remove an atmospheric network by its assigned id. Returns true on success.
+    pub fn remove_atmospheric_network(&mut self, id: i32) -> bool {
+        self.inner.remove_atmospheric_network(id).is_some()
     }
 
     /// Get all atmospheric networks

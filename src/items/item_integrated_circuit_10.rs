@@ -12,6 +12,7 @@ use crate::{LogicType, logic};
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 /// The IC10 programmable chip
 #[derive(Debug)]
@@ -464,7 +465,7 @@ impl ItemIntegratedCircuit10 {
     /// Attach the chip to a `ChipSlot` and register self device aliases
     pub fn set_chip_slot(&mut self, slot: Shared<ChipSlot>, device_id: i32) {
         // Store weak slot reference
-        self.chip_slot = Some(std::rc::Rc::downgrade(&slot));
+        self.chip_slot = Some(Rc::downgrade(&slot));
 
         // Add a convenient alias `db` referencing the device itself
         self.add_device_alias("db".to_string(), device_id);

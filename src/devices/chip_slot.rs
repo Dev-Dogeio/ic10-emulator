@@ -9,7 +9,7 @@ use crate::{
 };
 use std::{
     cell::{Ref, RefCell, RefMut},
-    fmt::{Debug, Display},
+    fmt::{Debug, Display}, rc::Rc,
 };
 
 /// Chip slot for IC; manages chip, pins, and execution state
@@ -40,7 +40,7 @@ impl ChipSlot {
 
     /// Set the host device reference
     pub fn set_host_device(&mut self, device: OptShared<dyn Device>) {
-        self.host_device = device.map(|d| std::rc::Rc::downgrade(&d));
+        self.host_device = device.map(|d| Rc::downgrade(&d));
     }
 
     /// Get the hosted chip (if any)

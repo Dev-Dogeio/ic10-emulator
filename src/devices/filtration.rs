@@ -1,9 +1,7 @@
 //! Filtration device: separates specified gases from an input mixture.
 
 use std::{
-    cell::RefCell,
-    fmt::{Debug, Display},
-    sync::OnceLock,
+    cell::RefCell, fmt::{Debug, Display}, rc::Rc, sync::OnceLock
 };
 
 use crate::{
@@ -45,11 +43,11 @@ pub struct Filtration {
     mode: RefCell<f64>,
 
     /// The input network
-    input_network: OptShared<AtmosphericNetwork>,
+    input_network: OptWeakShared<AtmosphericNetwork>,
     /// The filtered network
-    filtered_network: OptShared<AtmosphericNetwork>,
+    filtered_network: OptWeakShared<AtmosphericNetwork>,
     /// The waste network
-    waste_network: OptShared<AtmosphericNetwork>,
+    waste_network: OptWeakShared<AtmosphericNetwork>,
 
     /// Device slots (2x Filter)
     slots: Vec<Slot>,
@@ -301,7 +299,7 @@ impl Filtration {
             Input => self
                 .input_network
                 .as_ref()
-                .cloned()
+                .and_then(|w| w.upgrade())
                 .ok_or(SimulationError::RuntimeError {
                     message: "Filtration device has no input atmospheric network".to_string(),
                     line: 0,
@@ -309,7 +307,7 @@ impl Filtration {
             Output => {
                 self.filtered_network
                     .as_ref()
-                    .cloned()
+                    .and_then(|w| w.upgrade())
                     .ok_or(SimulationError::RuntimeError {
                         message: "Filtration device has no filtered atmospheric network"
                             .to_string(),
@@ -319,7 +317,7 @@ impl Filtration {
             Output2 => self
                 .waste_network
                 .as_ref()
-                .cloned()
+                .and_then(|w| w.upgrade())
                 .ok_or(SimulationError::RuntimeError {
                     message: "Filtration device has no waste atmospheric network".to_string(),
                     line: 0,
@@ -351,7 +349,7 @@ impl Filtration {
     fn network_slot_mut(
         &mut self,
         connection: DeviceAtmosphericNetworkType,
-    ) -> Result<&mut OptShared<AtmosphericNetwork>, SimulationError> {
+    ) -> Result<&mut OptWeakShared<AtmosphericNetwork>, SimulationError> {
         use DeviceAtmosphericNetworkType::*;
         match connection {
             Input => Ok(&mut self.input_network),
@@ -667,7 +665,7 @@ impl AtmosphericDevice for Filtration {
         network: OptShared<AtmosphericNetwork>,
     ) -> SimulationResult<()> {
         let slot = self.network_slot_mut(connection)?;
-        *slot = network;
+        *slot = network.as_ref().map(Rc::downgrade);
         Ok(())
     }
 
@@ -677,9 +675,9 @@ impl AtmosphericDevice for Filtration {
     ) -> OptShared<AtmosphericNetwork> {
         use DeviceAtmosphericNetworkType::*;
         match connection {
-            Input => self.input_network.clone(),
-            Output => self.filtered_network.clone(),
-            Output2 => self.waste_network.clone(),
+            Input => self.input_network.as_ref().and_then(|w| w.upgrade()),
+            Output => self.filtered_network.as_ref().and_then(|w| w.upgrade()),
+            Output2 => self.waste_network.as_ref().and_then(|w| w.upgrade()),
             _ => None,
         }
     }
@@ -704,15 +702,18 @@ impl Display for Filtration {
             self.name, self.reference_id, on_str, mode_str
         )?;
 
-        if let Some(net) = &self.input_network {
-            write!(f, ", input: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.filtered_network {
-            write!(f, ", filtered: {}", net.borrow().mixture())?;
-        }
-        if let Some(net) = &self.waste_network {
-            write!(f, ", waste: {}", net.borrow().mixture())?;
-        }
+        if let Some(weak) = &self.input_network
+            && let Some(net) = weak.upgrade() {
+                write!(f, ", input: {}", net.borrow().mixture())?;
+            }
+        if let Some(weak) = &self.filtered_network
+            && let Some(net) = weak.upgrade() {
+                write!(f, ", filtered: {}", net.borrow().mixture())?;
+            }
+        if let Some(weak) = &self.waste_network
+            && let Some(net) = weak.upgrade() {
+                write!(f, ", waste: {}", net.borrow().mixture())?;
+            }
 
         // Active filters
         let active = self.active_filters();
