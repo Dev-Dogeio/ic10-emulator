@@ -7,14 +7,13 @@ use std::sync::OnceLock;
 use crate::conversions::fmt_trim;
 use crate::types::OptWeakShared;
 use crate::{
-    CableNetwork, allocate_global_id,
+    CableNetwork,
     devices::{
         Device, LogicType, SimulationDeviceSettings,
         property_descriptor::{PropertyDescriptor, PropertyRegistry},
     },
     error::SimulationResult,
     parser::string_to_hash,
-    reserve_global_id,
     types::{OptShared, Shared, shared},
 };
 use crate::{prop_ro, prop_rw_clamped};
@@ -36,15 +35,8 @@ impl LogicMemory {
     /// Compile-time prefab hash constant for this device
     pub const PREFAB_HASH: i32 = string_to_hash("StructureLogicMemory");
 
-    /// Create a new `LogicMemory`
-    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
-        let settings = simulation_settings.unwrap_or_default();
-        let reference_id = if let Some(id) = settings.id {
-            reserve_global_id(id)
-        } else {
-            allocate_global_id()
-        };
-
+    /// Create a new `LogicMemory`.
+    pub fn new(settings: SimulationDeviceSettings) -> Shared<Self> {
         let name = if let Some(n) = settings.name.as_ref() {
             n.to_string()
         } else {
@@ -55,7 +47,7 @@ impl LogicMemory {
             name,
             network: None,
             setting: RefCell::new(0.0),
-            reference_id,
+            reference_id: settings.id.unwrap(),
         })
     }
 

@@ -150,6 +150,13 @@ impl CableNetwork {
         drop(borrowed);
 
         // Add to main device map
+        if self.devices.contains_key(&ref_id) {
+            panic!(
+                "Device with reference ID {} already exists on the network",
+                ref_id
+            );
+        }
+
         self.devices.insert(ref_id, Rc::clone(&device));
 
         // Add to prefab index and insert in sorted order

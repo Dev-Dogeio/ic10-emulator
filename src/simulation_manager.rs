@@ -19,7 +19,7 @@ use crate::items::item_factory;
 use crate::items::{self, Item, SimulationItemSettings};
 use crate::networks::{AtmosphericNetwork, CableNetwork};
 use crate::types::Shared;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Display;
 
 /// Central manager for running the simulation
@@ -29,12 +29,39 @@ pub struct SimulationManager {
     atmospheric_networks: Vec<Shared<AtmosphericNetwork>>,
     devices: BTreeMap<i32, Shared<dyn Device>>,
     items: BTreeMap<i32, Shared<dyn Item>>,
+    next_id: i32,
+    allocated_ids: HashSet<i32>,
 }
 
 impl SimulationManager {
     /// Create a new `SimulationManager` with default settings
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            next_id: 1,
+            allocated_ids: HashSet::new(),
+            ..Default::default()
+        }
+    }
+
+    /// Allocate the next available ID
+    pub fn allocate_next_id(&mut self) -> i32 {
+        let id = self.next_id;
+        self.allocated_ids.insert(id);
+        self.next_id += 1;
+        id
+    }
+
+    /// Reserve a specific ID; returns true if successful
+    pub fn reserve_id(&mut self, id: i32) -> bool {
+        if self.allocated_ids.contains(&id) {
+            false
+        } else {
+            self.allocated_ids.insert(id);
+            if id >= self.next_id {
+                self.next_id = id + 1;
+            }
+            true
+        }
     }
 
     /// Return a slice of all devices created by this manager
@@ -90,6 +117,8 @@ impl SimulationManager {
         // Clear tracked devices/items
         self.devices.clear();
         self.items.clear();
+        self.next_id = 1;
+        self.allocated_ids.clear();
     }
 
     /// Create a new device by prefab hash using the device factory and track it.
@@ -98,11 +127,27 @@ impl SimulationManager {
         prefab_hash: i32,
         settings: Option<SimulationDeviceSettings>,
     ) -> Option<Shared<dyn Device>> {
+        // Prepare settings and ensure an ID is set; when not provided (0) use the manager's counter
+        let mut settings = settings.unwrap_or_default();
+
+        let id = if let Some(id) = settings.id {
+            if !self.reserve_id(id) {
+                return None;
+            }
+            id
+        } else {
+            self.allocate_next_id()
+        };
+
+        settings.id = Some(id);
+
         if let Some(d) = device_factory::create_device(prefab_hash, settings) {
             // Track the created device
             self.devices.insert(d.borrow().get_id(), d.clone());
             Some(d)
         } else {
+            // Creation failed, free reserved id
+            self.allocated_ids.remove(&id);
             None
         }
     }
@@ -113,6 +158,19 @@ impl SimulationManager {
         prefab_hash: i32,
         settings: Option<SimulationItemSettings>,
     ) -> Option<Shared<dyn Item>> {
+        let mut settings = settings.unwrap_or_default();
+
+        let id = if let Some(id) = settings.id {
+            if !self.reserve_id(id) {
+                return None;
+            }
+            id
+        } else {
+            self.allocate_next_id()
+        };
+
+        settings.id = Some(id);
+
         if let Some(it) = item_factory::create_item(prefab_hash, settings) {
             self.items.insert(it.borrow().get_id(), it.clone());
             Some(it)

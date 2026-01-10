@@ -1,7 +1,7 @@
 //! AirConditioner device: transfers heat and gas between atmospheric networks.
 
 use crate::{
-    CableNetwork, allocate_global_id,
+    CableNetwork,
     atmospherics::{CELSIUS_TO_KELVIN, GasType, MatterState, ONE_ATMOSPHERE, calculate_moles},
     constants::DEFAULT_MAX_INSTRUCTIONS_PER_TICK,
     devices::{
@@ -12,7 +12,7 @@ use crate::{
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
     parser::string_to_hash,
-    prop_ro, prop_rw_bool, prop_rw_clamped, reserve_global_id,
+    prop_ro, prop_rw_bool, prop_rw_clamped,
     types::{OptShared, OptWeakShared, Shared, shared},
 };
 
@@ -86,8 +86,8 @@ impl AirConditioner {
     /// Compile-time prefab hash constant for this device
     pub const PREFAB_HASH: i32 = string_to_hash("StructureAirConditioner");
 
-    /// Create a new `AirConditioner`. Optionally accepts simulation settings.
-    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
+    /// Create a new `AirConditioner`.
+    pub fn new(settings: SimulationDeviceSettings) -> Shared<Self> {
         // Load curves once and share them across instances
         static TEMPERATURE_DELTA_CURVE: OnceLock<Arc<AnimationCurve>> = OnceLock::new();
         static INPUT_AND_WASTE_CURVE: OnceLock<Arc<AnimationCurve>> = OnceLock::new();
@@ -110,18 +110,10 @@ impl AirConditioner {
             )
         }));
 
-        let settings = simulation_settings.unwrap_or_default();
-
         let internal = if let Some(net) = settings.internal_atmospheric_network.as_ref() {
             net.clone()
         } else {
             AtmosphericNetwork::new(INTERNAL_VOLUME_LITRES)
-        };
-
-        let reference_id = if let Some(id) = settings.id {
-            reserve_global_id(id)
-        } else {
-            allocate_global_id()
         };
 
         let name = if let Some(n) = settings.name.as_ref() {
@@ -140,7 +132,7 @@ impl AirConditioner {
             setting: RefCell::new(20.0),
             on: RefCell::new(1.0),
             mode: RefCell::new(0.0),
-            reference_id,
+            reference_id: settings.id.unwrap(),
             max_instructions_per_tick,
             input_network: None,
             output_network: None,

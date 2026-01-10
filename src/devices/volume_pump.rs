@@ -1,7 +1,7 @@
 //! Volume pump device: moves gas between input and output networks.
 
 use crate::{
-    CableNetwork, allocate_global_id,
+    CableNetwork,
     atmospherics::MatterState,
     devices::{
         AtmosphericDevice, Device, DeviceAtmosphericNetworkType, LogicType,
@@ -11,7 +11,7 @@ use crate::{
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
     parser::string_to_hash,
-    prop_ro, prop_rw_bool, prop_rw_clamped, reserve_global_id,
+    prop_ro, prop_rw_bool, prop_rw_clamped,
     types::{OptShared, OptWeakShared, Shared, shared},
 };
 
@@ -47,17 +47,8 @@ impl VolumePump {
     /// Compile-time prefab hash constant for this device
     pub const PREFAB_HASH: i32 = string_to_hash("StructureVolumePump");
 
-    /// Create a new `VolumePump`. Optionally accepts simulation settings.
-    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
-        let settings = simulation_settings.unwrap_or_default();
-
-        // Use specific ID if provided, otherwise allocate new one
-        let reference_id = if let Some(id) = settings.id {
-            reserve_global_id(id)
-        } else {
-            allocate_global_id()
-        };
-
+    /// Create a new `VolumePump`.
+    pub fn new(settings: SimulationDeviceSettings) -> Shared<Self> {
         let name = if let Some(n) = settings.name.as_ref() {
             n.to_string()
         } else {
@@ -69,7 +60,7 @@ impl VolumePump {
             network: None,
             setting: RefCell::new(5.0),
             on: RefCell::new(0.0),
-            reference_id,
+            reference_id: settings.id.unwrap(),
             input_network: None,
             output_network: None,
         })

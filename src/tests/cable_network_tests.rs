@@ -977,27 +977,6 @@ mod tests {
     }
 
     #[test]
-    fn test_network_with_duplicate_device_ids() {
-        let network = CableNetwork::new();
-
-        let device1 = shared(MockDevice::with_values(1, 100, 200, 10.0, 0.0, 0.0));
-        network.borrow_mut().add_device(device1, network.clone());
-
-        // Try to add another device with same ID but different prefab
-        let device2 = shared(MockDevice::with_values(1, 200, 300, 20.0, 0.0, 0.0));
-        network.borrow_mut().add_device(device2, network.clone());
-
-        // The second device should replace the first
-        assert_eq!(network.borrow().device_count(), 1);
-        {
-            let net = network.borrow();
-            let device = net.get_device(1).unwrap();
-            assert_eq!(device.get_prefab_hash(), 200); // Second device's prefab
-            assert_eq!(device.read(LogicType::Setting).unwrap(), 20.0); // Second device's value
-        }
-    }
-
-    #[test]
     fn test_batch_operations_with_floating_point_precision() {
         let network = CableNetwork::new();
 

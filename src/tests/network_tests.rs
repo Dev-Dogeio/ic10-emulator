@@ -1,6 +1,7 @@
 //! Unit tests for networks
 #[cfg(test)]
 mod tests {
+    use crate::devices::SimulationDeviceSettings;
     use crate::devices::property_descriptor::{PropertyDescriptor, PropertyRegistry};
     use crate::error::SimulationError;
     use crate::parser::string_to_hash;
@@ -361,7 +362,10 @@ mod tests {
     #[test]
     fn test_housing_on_network() {
         let network = CableNetwork::new();
-        let housing = ICHousing::new(None);
+        let housing = ICHousing::new(SimulationDeviceSettings {
+            id: Some(1),
+            ..SimulationDeviceSettings::default()
+        });
 
         network
             .borrow_mut()
@@ -374,7 +378,10 @@ mod tests {
     #[test]
     fn test_device_rename_updates_network() {
         let network = CableNetwork::new();
-        let housing = ICHousing::new(None);
+        let housing = ICHousing::new(SimulationDeviceSettings {
+            id: Some(1),
+            ..SimulationDeviceSettings::default()
+        });
         let device_id = housing.borrow().get_id();
 
         // Add device to network

@@ -3,16 +3,19 @@ use crate::{
     atmospherics::GasType,
     devices::{
         AirConditioner, AtmosphericDevice, Device, DeviceAtmosphericNetworkType, Filtration,
-        LogicType,
+        LogicType, SimulationDeviceSettings,
     },
-    items::FilterSize,
+    items::{FilterSize, SimulationItemSettings},
     networks::AtmosphericNetwork,
     types::{Shared, shared},
 };
 
 #[test]
 fn filtration_respects_mode() {
-    let filtration = Filtration::new(None);
+    let filtration = Filtration::new(SimulationDeviceSettings {
+        id: Some(1),
+        ..SimulationDeviceSettings::default()
+    });
 
     let input = AtmosphericNetwork::new(10.0);
     let filtered = AtmosphericNetwork::new(10.0);
@@ -33,7 +36,10 @@ fn filtration_respects_mode() {
     }
 
     // For testing we will directly construct and call through a new Filtration instance
-    let f = Filtration::new(None);
+    let f = Filtration::new(SimulationDeviceSettings {
+        id: Some(2),
+        ..SimulationDeviceSettings::default()
+    });
     let input_rc = AtmosphericNetwork::new(10.0);
     input_rc.borrow_mut().add_gas(GasType::Oxygen, 10.0, 300.0);
     let filtered_rc = AtmosphericNetwork::new(10.0);
@@ -43,7 +49,10 @@ fn filtration_respects_mode() {
     {
         let mut f_borrow = f.borrow_mut();
         let slot = f_borrow.get_slot_mut(0).unwrap();
-        let mut filter_item = Filter::new(None);
+        let mut filter_item = Filter::new(SimulationItemSettings {
+            id: Some(3),
+            ..SimulationItemSettings::default()
+        });
         filter_item.set_gas_type(GasType::Oxygen);
         filter_item.set_size(FilterSize::Small);
         filter_item.set_quantity(1);
@@ -81,12 +90,18 @@ fn filtration_respects_mode() {
     let filtered2_rc = AtmosphericNetwork::new(10.0);
     let waste2_rc = AtmosphericNetwork::new(10.0);
 
-    let f2 = Filtration::new(None);
+    let f2 = Filtration::new(SimulationDeviceSettings {
+        id: Some(1),
+        ..SimulationDeviceSettings::default()
+    });
     // insert physical filter (slot 0) for Oxygen
     {
         let mut f2_borrow = f2.borrow_mut();
         let slot = f2_borrow.get_slot_mut(0).unwrap();
-        let mut filter_item = Filter::new(None);
+        let mut filter_item = Filter::new(SimulationItemSettings {
+            id: Some(2),
+            ..SimulationItemSettings::default()
+        });
         filter_item.set_gas_type(GasType::Oxygen);
         filter_item.set_size(FilterSize::Small);
         filter_item.set_quantity(1);
@@ -120,7 +135,10 @@ fn filtration_respects_mode() {
 
 #[test]
 fn airconditioner_respects_mode() {
-    let ac = AirConditioner::new(None);
+    let ac = AirConditioner::new(SimulationDeviceSettings {
+        id: Some(1),
+        ..SimulationDeviceSettings::default()
+    });
 
     let input_rc = AtmosphericNetwork::new(100.0);
     let output_rc = AtmosphericNetwork::new(100.0);

@@ -6,7 +6,7 @@ use std::fmt::{Debug, Display};
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    AtmosphericNetwork, CableNetwork, Item,
+    AtmosphericNetwork, CableNetwork, Item, Slot,
     devices::property_descriptor::{PropertyRegistry, SlotPropertyRegistry, empty_slot_registry},
     error::{SimulationError, SimulationResult},
     items::ItemIntegratedCircuit10,
@@ -40,7 +40,7 @@ pub struct SimulationDeviceSettings {
     pub max_instructions_per_tick: Option<usize>,
     /// Device name override
     pub name: Option<String>,
-    /// The device will request this ID and panic if already allocated
+    /// The reference id of the device, caller is responsible for ensuring uniqueness
     pub id: Option<i32>,
     /// Internal atmospheric network to use for devices that require an internal buffer, ignored otherwise
     pub internal_atmospheric_network: OptShared<AtmosphericNetwork>,
@@ -845,6 +845,12 @@ pub trait SlotHostDevice {
         index: usize,
         incoming: Shared<dyn Item>,
     ) -> Result<(), Shared<dyn Item>>;
+
+    /// Get a reference to the slot by index.
+    fn get_slot(&self, index: usize) -> Option<&Slot>;
+
+    /// Get a mutable reference to the slot by index.
+    fn get_slot_mut(&mut self, index: usize) -> Option<&mut Slot>;
 
     /// Remove an item from a slot and return it if present.
     fn remove_item(&mut self, index: usize) -> OptShared<dyn Item>;

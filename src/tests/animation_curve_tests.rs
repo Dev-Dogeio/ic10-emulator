@@ -43,8 +43,14 @@ mod tests {
 
     #[test]
     fn curves_are_shared() {
-        let a = AirConditioner::new(Some(SimulationDeviceSettings::default()));
-        let b = AirConditioner::new(Some(SimulationDeviceSettings::default()));
+        let a = AirConditioner::new(SimulationDeviceSettings {
+            id: Some(1),
+            ..SimulationDeviceSettings::default()
+        });
+        let b = AirConditioner::new(SimulationDeviceSettings {
+            id: Some(2),
+            ..SimulationDeviceSettings::default()
+        });
 
         // Compare the arc pointers for curve equality
         let p1 = Arc::as_ptr(&a.borrow().get_temperature_delta_curve());

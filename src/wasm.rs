@@ -10,7 +10,7 @@ use crate::devices::{DeviceAtmosphericNetworkType, device_factory};
 use crate::items::{self, ItemIntegratedCircuit10};
 use crate::items::{FilterSize, SimulationItemSettings, item::Item};
 use crate::networks::BatchMode;
-use crate::types::{OptShared, Shared, shared};
+use crate::types::{OptShared, Shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager, parser};
 use serde::Serialize;
 use serde_wasm_bindgen::to_value;
@@ -879,14 +879,6 @@ pub struct WasmICChip {
 
 #[wasm_bindgen]
 impl WasmICChip {
-    /// Create a new IC chip
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> WasmICChip {
-        WasmICChip {
-            inner: shared(ItemIntegratedCircuit10::new(None)),
-        }
-    }
-
     pub fn id(&self) -> i32 {
         self.inner.borrow().get_id()
     }
@@ -953,12 +945,6 @@ impl WasmICChip {
 
     pub fn get_host_id(&self) -> Option<i32> {
         self.inner.borrow().get_host_id()
-    }
-}
-
-impl Default for WasmICChip {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

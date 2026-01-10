@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    CableNetwork, Filter, Item, ItemType, LogicSlotType, Slot, allocate_global_id,
+    CableNetwork, Filter, Item, ItemType, LogicSlotType, Slot,
     atmospherics::{GasType, MAX_PRESSURE_GAS_PIPE, MatterState, PIPE_VOLUME, calculate_moles},
     constants::DEFAULT_MAX_INSTRUCTIONS_PER_TICK,
     conversions::lerp,
@@ -21,7 +21,7 @@ use crate::{
     error::{SimulationError, SimulationResult},
     networks::AtmosphericNetwork,
     parser::string_to_hash,
-    prop_ro, prop_rw_bool, prop_slot_ro, reserve_global_id,
+    prop_ro, prop_rw_bool, prop_slot_ro,
     types::{OptShared, OptWeakShared, Shared, shared},
 };
 
@@ -69,15 +69,8 @@ impl Filtration {
     /// Compile-time prefab hash constant for this device
     pub const PREFAB_HASH: i32 = string_to_hash("StructureFiltration");
 
-    /// Create a new `Filtration`. Optionally accepts simulation settings.
-    pub fn new(simulation_settings: Option<SimulationDeviceSettings>) -> Shared<Self> {
-        let settings = simulation_settings.unwrap_or_default();
-        let reference_id = if let Some(id) = settings.id {
-            reserve_global_id(id)
-        } else {
-            allocate_global_id()
-        };
-
+    /// Create a new `Filtration`.
+    pub fn new(settings: SimulationDeviceSettings) -> Shared<Self> {
         let name = if let Some(n) = settings.name.as_ref() {
             n.to_string()
         } else {
@@ -93,7 +86,7 @@ impl Filtration {
             network: None,
             on: RefCell::new(1.0),
             mode: RefCell::new(0.0),
-            reference_id,
+            reference_id: settings.id.unwrap(),
             max_instructions_per_tick,
             input_network: None,
             waste_network: None,
@@ -652,6 +645,14 @@ impl SlotHostDevice for Filtration {
         } else {
             self.slots[index].remove()
         }
+    }
+
+    fn get_slot(&self, index: usize) -> Option<&Slot> {
+        self.get_slot(index)
+    }
+
+    fn get_slot_mut(&mut self, index: usize) -> Option<&mut Slot> {
+        self.get_slot_mut(index)
     }
 
     fn slot_count(&self) -> usize {
