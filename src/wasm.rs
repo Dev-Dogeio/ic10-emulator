@@ -1283,28 +1283,11 @@ impl WasmSimulationManager {
             .collect()
     }
 
-    /// Return all items created by this manager as `WasmItem` wrappers
-    pub fn all_items(&self) -> Vec<WasmItem> {
-        self.inner
-            .all_items()
-            .into_iter()
-            .map(|i| WasmItem { inner: Some(i) })
-            .collect()
-    }
-
     /// Get a device tracked by this manager by reference ID
     pub fn get_device(&self, ref_id: i32) -> Result<WasmDevice, JsValue> {
         match self.inner.get_device(ref_id) {
             Some(d) => Ok(WasmDevice { inner: d }),
             None => Err(JsValue::from_str("Device not found")),
-        }
-    }
-
-    /// Get an item tracked by this manager by reference ID
-    pub fn get_item(&self, ref_id: i32) -> Result<WasmItem, JsValue> {
-        match self.inner.get_item(ref_id) {
-            Some(it) => Ok(WasmItem { inner: Some(it) }),
-            None => Err(JsValue::from_str("Item not found")),
         }
     }
 

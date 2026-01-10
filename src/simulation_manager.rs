@@ -30,9 +30,8 @@ pub struct SimulationManager {
     cable_networks: BTreeMap<i32, Shared<CableNetwork>>,
     atmospheric_networks: BTreeMap<i32, Shared<AtmosphericNetwork>>,
 
-    // Tracked devices and items
+    // Tracked devices
     devices: BTreeMap<i32, Shared<dyn Device>>,
-    items: BTreeMap<i32, Shared<dyn Item>>,
 
     // Network ID management
     next_cable_network_id: i32,
@@ -81,11 +80,6 @@ impl SimulationManager {
         self.devices.values().cloned().collect()
     }
 
-    /// Return a slice of all items created by this manager
-    pub fn all_items(&self) -> Vec<Shared<dyn Item>> {
-        self.items.values().cloned().collect()
-    }
-
     /// Perform a simulation tick in the correct order and return the total number of phase changes.
     pub fn update(&self, tick: u64) -> u32 {
         // 1) Process atmospheric updates
@@ -122,9 +116,8 @@ impl SimulationManager {
         self.next_id = 1;
         self.allocated_ids.clear();
 
-        // Clear tracked devices/items
+        // Clear tracked devices
         self.devices.clear();
-        self.items.clear();
     }
 
     /// Create a new device by prefab hash using the device factory and track it.
@@ -198,12 +191,7 @@ impl SimulationManager {
 
         settings.id = Some(id);
 
-        if let Some(it) = item_factory::create_item(prefab_hash, settings) {
-            self.items.insert(it.borrow().get_id(), it.clone());
-            Some(it)
-        } else {
-            None
-        }
+        item_factory::create_item(prefab_hash, settings)
     }
 
     /// Remove a device tracked by this manager by reference ID
@@ -227,19 +215,9 @@ impl SimulationManager {
         self.devices.remove(&ref_id)
     }
 
-    /// Remove an item tracked by this manager by reference ID
-    pub fn remove_item(&mut self, ref_id: i32) -> Option<Shared<dyn Item>> {
-        self.items.remove(&ref_id)
-    }
-
     /// Get a device tracked by this manager by reference ID
     pub fn get_device(&self, ref_id: i32) -> Option<Shared<dyn Device>> {
         self.devices.get(&ref_id).cloned()
-    }
-
-    /// Get an item tracked by this manager by reference ID
-    pub fn get_item(&self, ref_id: i32) -> Option<Shared<dyn Item>> {
-        self.items.get(&ref_id).cloned()
     }
 
     /// Get all cable networks registered with this manager
