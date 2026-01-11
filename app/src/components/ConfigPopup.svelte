@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { tick } from 'svelte';
+
     export interface ConfigField {
         id: string;
         label: string;
@@ -26,6 +28,7 @@
     $effect(() => {
         if (visible) {
             localFields = fields.map((f) => ({ ...f }));
+            tick().then(focusFirstField);
         }
     });
 
@@ -51,6 +54,16 @@
         if (idx !== -1) {
             localFields[idx] = { ...localFields[idx], value };
         }
+    }
+
+    function focusFirstField() {
+        if (!containerEl) return;
+        const el = containerEl.querySelector('input, select, textarea') as HTMLElement | null;
+        if (!el) return;
+        try {
+            el.focus();
+            if (el instanceof HTMLInputElement) el.select();
+        } catch {}
     }
 
     let containerEl: HTMLElement | null = $state(null);
@@ -137,8 +150,8 @@
         bottom: 0;
         background: rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(4px);
-        z-index: 1000;
-        pointer-events: none;
+        z-index: 1000000;
+        pointer-events: auto;
     }
 
     .popup-container {
@@ -146,12 +159,16 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
+        display: flex;
+        flex-direction: column;
         background: #1e1e2e;
         border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 12px;
         min-width: 320px;
-        max-width: 480px;
-        z-index: 1001;
+        max-width: 90vw;
+        width: min(480px, 90vw);
+        z-index: 1000001;
+        overflow: hidden;
         box-shadow:
             0 20px 60px rgba(0, 0, 0, 0.5),
             0 8px 24px rgba(0, 0, 0, 0.3);
@@ -174,6 +191,9 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
     }
 
     .field-group {

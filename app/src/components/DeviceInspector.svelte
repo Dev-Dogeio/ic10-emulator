@@ -676,7 +676,6 @@
                             class="code-editor"
                             bind:value={icCode}
                             placeholder="# Enter IC10 code here..."
-                            rows="10"
                             onblur={() => pushCodeToChip()}
                         ></textarea>
                     </div>
@@ -732,6 +731,9 @@
 
     .tab-content {
         flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
         overflow: auto;
         padding: 12px;
     }
@@ -1100,6 +1102,17 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .code-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
     }
 
     .chip-status {
@@ -1190,6 +1203,11 @@
         border-radius: 6px;
         background: #0f0f1a;
         color: #e0e0e0;
+        flex: 1;
+        min-height: 0;
+        resize: none;
+        overflow: auto;
+        font-family: 'JetBrains Mono', monospace;
     }
 
     .code-error-popup {
