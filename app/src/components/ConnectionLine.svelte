@@ -80,7 +80,7 @@
 <path
     d={path}
     stroke="transparent"
-    stroke-width="12"
+    stroke-width="20"
     fill="none"
     class="connection-hitbox"
     oncontextmenu={handleContextMenu}
@@ -127,7 +127,7 @@
         filter: drop-shadow(0 0 8px currentColor);
     }
 
-    .connection-line.selected {
+    .connection-hitbox:hover + .connection-line {
         stroke-width: 4;
         filter: drop-shadow(0 0 8px currentColor);
     }
