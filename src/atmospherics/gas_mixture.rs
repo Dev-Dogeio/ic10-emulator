@@ -6,8 +6,9 @@
 
 use crate::{
     atmospherics::{
-        DEFAULT_STATE_CHANGE_RATIO, MINIMUM_GAS_VOLUME, MINIMUM_VALID_TOTAL_MOLES,
-        PRESSURE_EQUALIZATION_EPSILON, calculate_pressure, kelvin_to_celsius,
+        DEFAULT_STATE_CHANGE_RATIO, MINIMUM_GAS_VOLUME, MINIMUM_QUANTITY_MOLES,
+        MINIMUM_VALID_TOTAL_MOLES, PRESSURE_EQUALIZATION_EPSILON, calculate_pressure,
+        kelvin_to_celsius,
     },
     conversions::fmt_trim,
 };
@@ -403,21 +404,22 @@ impl GasMixture {
         for gas_type in GasType::all() {
             let gas = self.get_gas_mut(gas_type);
             let result = gas.change_state(pressure, volume, 0.0, true);
-            if result.occurred
-                && let Some(changed) = result.changed
-            {
+            if let Some(changed) = result.changed {
                 additions.push(changed);
-                changes += 1;
+                if changed.quantity() >= MINIMUM_QUANTITY_MOLES {
+                    changes += 1;
+                }
             }
         }
 
         // Add the changed moles to the mixture
+        let processed = additions.len() > 0;
         for mole in additions {
             self.add_mole_no_equalize(&mole);
         }
 
         // Equalize temperature after all phase changes
-        if changes > 0 {
+        if processed {
             self.equalize_internal_energy();
         }
 
