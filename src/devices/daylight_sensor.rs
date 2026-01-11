@@ -167,6 +167,8 @@ impl Device for DaylightSensor {
     fn update(&self, tick: u64) -> SimulationResult<()> {
         // Only update when device is On (non-zero)
         if *self.on.borrow() == 0.0 {
+            self.horizontal.replace(0.0);
+            self.vertical.replace(0.0);
             return Ok(());
         }
 

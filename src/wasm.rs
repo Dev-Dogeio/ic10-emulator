@@ -795,6 +795,17 @@ impl WasmDevice {
             false
         }
     }
+
+    /// Return the stored source text from an installed chip (empty string if none or no chip)
+    pub fn get_chip_source(&self) -> String {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device() {
+            if let Some(chip) = host.chip_slot().borrow().get_chip() {
+                return chip.get_source().unwrap_or_default();
+            }
+        }
+        String::new()
+    }
 }
 
 #[wasm_bindgen]
@@ -953,6 +964,11 @@ impl WasmICChip {
 
     pub fn get_host_id(&self) -> Option<i32> {
         self.inner.borrow().get_host_id()
+    }
+
+    /// Get the source text stored in this chip (empty string if none)
+    pub fn get_source(&self) -> String {
+        self.inner.borrow().get_source().unwrap_or_default()
     }
 }
 

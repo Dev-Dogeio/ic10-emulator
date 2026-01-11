@@ -35,6 +35,9 @@ pub struct ItemIntegratedCircuit10 {
     /// Compile-time constants
     defines: RefCell<HashMap<String, f64>>,
 
+    /// Original source text
+    source: RefCell<Option<String>>,
+
     /// Chip slot reference (optional)
     chip_slot: OptWeakShared<ChipSlot>,
 
@@ -80,6 +83,7 @@ impl ItemIntegratedCircuit10 {
             aliases: RefCell::new(aliases),
             labels: RefCell::new(HashMap::new()),
             defines: RefCell::new(get_builtin_constants()),
+            source: RefCell::new(None),
             chip_slot: None,
             registers: RefCell::new([0.0; REGISTER_COUNT]),
             stack: RefCell::new([0.0; STACK_SIZE]),
@@ -96,6 +100,7 @@ impl ItemIntegratedCircuit10 {
         *self.pc.borrow_mut() = 0;
         *self.halted.borrow_mut() = false;
         *self.error_line.borrow_mut() = None;
+        *self.source.borrow_mut() = Some(source.to_string());
 
         // Preprocess the source
         let preprocessed = preprocess(source)?;
@@ -465,6 +470,11 @@ impl ItemIntegratedCircuit10 {
         self.chip_slot
             .as_ref()
             .and_then(|weak| weak.upgrade().and_then(|rc| rc.borrow().id()))
+    }
+
+    /// Get the stored original source text for this chip (if any)
+    pub fn get_source(&self) -> Option<String> {
+        self.source.borrow().clone()
     }
 
     /// Attach the chip to a `ChipSlot` and register self device aliases

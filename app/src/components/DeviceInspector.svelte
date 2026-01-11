@@ -298,15 +298,33 @@
 
         // Entering IC tab
         if (activeIsIC && !_prevActiveIsIC) {
-            if (hasChipNow && icCode && icCode.trim() && !codeError) {
-                pushCodeToChip();
+            if (hasChipNow) {
+                try {
+                    const src = device.get_chip_source();
+                    if (src && src.trim() && (!icCode || !icCode.trim())) {
+                        icCode = src;
+                    } else if (icCode && icCode.trim() && !codeError) {
+                        pushCodeToChip();
+                    }
+                } catch (e) {
+                    // ignore
+                }
             }
         }
 
         // Chip was attached while IC tab is active
         if (hasChipNow && !_prevHasChip) {
-            if (activeIsIC && icCode && icCode.trim() && !codeError) {
-                pushCodeToChip();
+            if (activeIsIC) {
+                try {
+                    const src = device.get_chip_source();
+                    if (src && src.trim() && (!icCode || !icCode.trim())) {
+                        icCode = src;
+                    } else if (icCode && icCode.trim() && !codeError) {
+                        pushCodeToChip();
+                    }
+                } catch (e) {
+                    // ignore
+                }
             }
         }
 
@@ -388,6 +406,16 @@
             // If code is present in the editor, load it into the newly installed chip
             if (icCode && icCode.trim()) {
                 pushCodeToChip();
+            } else {
+                // Otherwise, if the chip already has stored source, load it into the editor
+                try {
+                    const src = device.get_chip_source();
+                    if (src && src.trim() && (!icCode || !icCode.trim())) {
+                        icCode = src;
+                    }
+                } catch (e) {
+                    // ignore
+                }
             }
 
             syncFromWasm();
