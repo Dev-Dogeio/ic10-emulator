@@ -8,29 +8,28 @@
         getTickCount,
     } from '../stores/simulationState.svelte';
 
-    let autoRunning: boolean = $state(isAutoStepping());
     let autoRate: number = $state(getAutoStepRate() ?? 1);
     let tickCount: number = $derived(getTickCount());
+    let autoRunning: boolean = $state(isAutoStepping());
 
     function handleStep(n: number) {
         stepTicks(n);
     }
 
     function handleToggleAuto() {
-        if (autoRunning) {
+        if (isAutoStepping()) {
             stopAutoStep();
-            autoRunning = false;
         } else {
             startAutoStep(autoRate);
-            autoRunning = true;
         }
+        autoRunning = isAutoStepping();
     }
 
     function handleRateChange(e: Event) {
         const target = e.target as HTMLInputElement;
         const val = Number(target.value) || 1;
         autoRate = Math.max(1, Math.min(64, Math.round(val)));
-        if (autoRunning) {
+        if (isAutoStepping()) {
             startAutoStep(autoRate);
         }
     }

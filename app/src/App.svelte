@@ -41,8 +41,9 @@
 
     import { getInspectorState, openInspector } from './stores/inspectorState.svelte';
 
-    const NODE_W = 210;
-    const NODE_H = 95;
+    import { NODE_W, NODE_H, CONNECTION_COLORS } from './lib/constants';
+
+    const snapToPixel = (v: number, scale: number) => Math.round(v * scale) / scale;
 
     // Get reactive state
     const simState = getSimulationState();
@@ -54,7 +55,6 @@
 
     let selectedDeviceId: number | null = $state(null);
     let selectedNetworkId: string | null = $state(null);
-    let selectedConnectionId: string | null = $state(null);
 
     // Connection dragging state
     interface PendingConnection {
@@ -84,13 +84,15 @@
     let configPopupFields: ConfigField[] = $state([]);
     let pendingAtmoNetworkPosition: { x: number; y: number } | null = $state(null);
 
-    let contextMenuItems: MenuItem[] = $state([
+    // Base context menu items for creating networks
+    const BASE_CONTEXT_MENU_ITEMS: MenuItem[] = [
         { id: 'create-cable-network', label: 'Create Cable Network', icon: '🔌' },
         { id: 'create-atmo-network', label: 'Create Atmospheric Network', icon: '💨' },
         { id: 'divider1', label: '', divider: true },
         { id: 'cancel', label: 'Cancel', icon: '✕' },
-    ]);
+    ];
 
+    let contextMenuItems: MenuItem[] = $state([...BASE_CONTEXT_MENU_ITEMS]);
     onMount(async () => {
         await initializeWasm();
     });
@@ -124,33 +126,24 @@
         const clickedDevice = getTopmostDeviceAt(event.gridX, event.gridY);
         const clickedNetwork = getTopmostNetworkAt(event.gridX, event.gridY);
 
-        const base: MenuItem[] = [
-            { id: 'create-cable-network', label: 'Create Cable Network', icon: '🔌' },
-            { id: 'create-atmo-network', label: 'Create Atmospheric Network', icon: '💨' },
-            { id: 'divider1', label: '', divider: true },
-            { id: 'cancel', label: 'Cancel', icon: '✕' },
-        ];
-
         const items: MenuItem[] = [];
 
         if (clickedDevice) {
             items.push({ id: 'remove-device', label: 'Remove Device', icon: '🗑️' });
             if (!clickedNetwork) {
-                items.push({ id: 'divider1', label: '', divider: true });
+                items.push({ id: 'divider-actions', label: '', divider: true });
             }
         }
 
         if (clickedNetwork) {
             items.push({ id: 'remove-network', label: 'Remove Network', icon: '🗑️' });
-            items.push({ id: 'divider1', label: '', divider: true });
+            items.push({ id: 'divider-actions', label: '', divider: true });
         }
 
-        contextMenuItems = items.concat(base);
-
+        contextMenuItems = [...items, ...BASE_CONTEXT_MENU_ITEMS];
         contextMenuVisible = true;
     }
 
-    const snapToPixel = (v: number, scale: number) => Math.round(v * scale) / scale;
     function handleContextMenuSelect(itemId: string) {
         switch (itemId) {
             case 'create-cable-network':
@@ -308,7 +301,6 @@
     function handleGridClick(e: MouseEvent) {
         selectedDeviceId = null;
         selectedNetworkId = null;
-        selectedConnectionId = null;
     }
 
     // Connection handling functions
@@ -350,9 +342,9 @@
 
         // Adjust for side
         if (side === 'left') {
-            x = node.x - 8;
+            x = node.x;
         } else {
-            x = node.x + nodeWidth + 8;
+            x = node.x + nodeWidth;
         }
 
         // Adjust for connector type offsets (respect which connectors exist on the device)
@@ -374,15 +366,15 @@
             );
 
             if (connectorType === 'cable') {
-                y = node.y + nodeHeight / 2 - 30;
+                y = node.y + nodeHeight / 2 - 22;
             } else if (connectorType === 'atmo-input') {
-                y = node.y + nodeHeight / 2 + (hasAtmoInput2 ? -10 : 0);
+                y = node.y + nodeHeight / 2 + (hasAtmoInput2 ? -8 : 0);
             } else if (connectorType === 'atmo-input2') {
-                y = node.y + nodeHeight / 2 + (hasAtmoInput ? 20 : 0);
+                y = node.y + nodeHeight / 2 + (hasAtmoInput ? 14 : 0);
             } else if (connectorType === 'atmo-output') {
-                y = node.y + nodeHeight / 2 + (hasAtmoOutput2 ? -10 : 0);
+                y = node.y + nodeHeight / 2 + (hasAtmoOutput2 ? -8 : 0);
             } else if (connectorType === 'atmo-output2') {
-                y = node.y + nodeHeight / 2 + (hasAtmoOutput ? 20 : 0);
+                y = node.y + nodeHeight / 2 + (hasAtmoOutput ? 14 : 0);
             }
         }
 
@@ -555,11 +547,11 @@
     }
 
     function getPendingConnectionColor(): string {
-        if (!pendingConnection) return '#818cf8';
+        if (!pendingConnection) return CONNECTION_COLORS.default;
         const type = pendingConnection.connectorType;
-        if (type === 'cable' || type === 'network-cable') return '#fbbf24';
-        if (type === 'atmo-output' || type === 'atmo-output2') return '#f472b6';
-        return '#60a5fa';
+        if (type === 'cable' || type === 'network-cable') return CONNECTION_COLORS.cable;
+        if (type === 'atmo-output' || type === 'atmo-output2') return CONNECTION_COLORS.atmoOutput;
+        return CONNECTION_COLORS.atmoInput;
     }
 
     // Calculate connection line positions
@@ -692,7 +684,6 @@
                             targetPos={{ x: positions.target.x, y: positions.target.y }}
                             sourceSide={positions.source.side}
                             targetSide={positions.target.side}
-                            selected={selectedConnectionId === connection.id}
                             onContextMenu={handleConnectionContextMenu}
                         />
                     {/each}
@@ -714,12 +705,11 @@
 
                 {#snippet nodeContent()}
                     {#each simState.gridNetworks as network (network.id)}
-                        <div
-                            class="node-wrapper"
-                            style:left="{snapToPixel(network.x, gridScale)}px"
-                            style:top="{snapToPixel(network.y, gridScale)}px"
-                            style:width="{NODE_W}px"
-                            style:height="{NODE_H}px"
+                        <g
+                            transform="translate({snapToPixel(network.x, gridScale)}, {snapToPixel(
+                                network.y,
+                                gridScale
+                            )})"
                         >
                             <NetworkNode
                                 data={network.data}
@@ -736,16 +726,15 @@
                                 onStartConnect={handleNetworkStartConnect}
                                 onEndConnect={handleNetworkEndConnect}
                             />
-                        </div>
+                        </g>
                     {/each}
 
                     {#each simState.gridDevices as gridDevice (gridDevice.id)}
-                        <div
-                            class="node-wrapper"
-                            style:left="{snapToPixel(gridDevice.x, gridScale)}px"
-                            style:top="{snapToPixel(gridDevice.y, gridScale)}px"
-                            style:width="{NODE_W}px"
-                            style:height="{NODE_H}px"
+                        <g
+                            transform="translate({snapToPixel(
+                                gridDevice.x,
+                                gridScale
+                            )}, {snapToPixel(gridDevice.y, gridScale)})"
                         >
                             <DeviceNode
                                 device={gridDevice.device}
@@ -763,7 +752,7 @@
                                 onStartConnect={handleDeviceStartConnect}
                                 onEndConnect={handleDeviceEndConnect}
                             />
-                        </div>
+                        </g>
                     {/each}
                 {/snippet}
             </Grid>
@@ -903,11 +892,6 @@
         position: relative;
         overflow: hidden;
         contain: layout style paint;
-    }
-
-    :global(.node-wrapper) {
-        position: absolute;
-        contain: layout style;
     }
 
     :global(.pending-connection) {

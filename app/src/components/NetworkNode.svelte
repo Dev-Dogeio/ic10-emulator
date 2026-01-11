@@ -2,6 +2,8 @@
     import type { WasmCableNetwork, WasmAtmosphericNetwork } from '../../pkg/ic10_emulator';
     import type { ConnectorType } from '../stores/simulationState.svelte';
     import Connector, { type ConnectorSide } from './Connector.svelte';
+    import Node from './Node.svelte';
+    import { NODE_W, NODE_H, CONNECTION_COLORS } from '../lib/constants';
 
     export type NetworkType = 'cable' | 'atmospheric';
 
@@ -55,9 +57,7 @@
         onInspect,
     }: Props = $props();
 
-    import Node from './Node.svelte';
-
-    function getNetworkInfo(): string {
+    let networkInfo = $derived.by(() => {
         if (data.type === 'cable') {
             const cable = data.network as WasmCableNetwork;
             return `${cable.device_count()} devices`;
@@ -68,14 +68,24 @@
             const volume = atmo.total_volume().toFixed(1);
             return `${pressure} kPa, ${temp} K, ${volume} L`;
         }
-    }
+    });
 
-    function getIcon(): string {
-        return data.type === 'cable' ? '🔌' : '💨';
-    }
+    let icon = $derived(data.type === 'cable' ? '🔌' : '💨');
+
+    let networkColor = $derived(
+        data.type === 'cable' ? CONNECTION_COLORS.cable : CONNECTION_COLORS.atmoInput
+    );
 
     let networkConnectorType: ConnectorType = $derived(
         data.type === 'cable' ? 'network-cable' : 'network-atmo'
+    );
+
+    let networkTitle = $derived(
+        data.type === 'cable' ? `Network ${data.managerId}` : `Atmosphere ${data.managerId}`
+    );
+
+    let networkTypeLabel = $derived(
+        data.type === 'cable' ? 'Cable Network' : 'Atmospheric Network'
     );
 
     function isCompatible(): boolean {
@@ -119,8 +129,60 @@
     {onMove}
     {onSelect}
     {onInspect}
+    width={NODE_W}
+    height={NODE_H}
     nodeClass={`network-node ${data.type === 'cable' ? 'cable' : 'atmospheric'}`}
 >
+    <!-- Background rect with gradient -->
+    <defs>
+        <linearGradient id="network-bg-{data.id}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="rgba(255, 255, 255, 0.08)"></stop>
+            <stop offset="100%" stop-color="rgba(255, 255, 255, 0.03)"></stop>
+        </linearGradient>
+        <filter id="network-shadow-{data.id}" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="rgba(0,0,0,0.3)"
+            ></feDropShadow>
+        </filter>
+    </defs>
+
+    <rect
+        x="0"
+        y="0"
+        width={NODE_W}
+        height={NODE_H}
+        rx="12"
+        ry="12"
+        fill="url(#network-bg-{data.id})"
+        stroke={selected ? '#818cf8' : networkColor}
+        stroke-width="2"
+        filter="url(#network-shadow-{data.id})"
+        class="network-background"
+    ></rect>
+
+    <!-- Inner highlight -->
+    <rect
+        x="2"
+        y="2"
+        width={NODE_W - 4}
+        height={NODE_H - 4}
+        rx="10"
+        ry="10"
+        fill="none"
+        stroke="rgba(255, 255, 255, 0.02)"
+        stroke-width="1"
+    ></rect>
+    <rect
+        x="0"
+        y="0"
+        width={NODE_W}
+        height={NODE_H}
+        rx="12"
+        ry="12"
+        fill="rgba(255, 255, 255, 0.02)"
+        class="node-hover"
+        pointer-events="none"
+    ></rect>
+
     <!-- Left connector -->
     <Connector
         id={`network-${data.id}-left`}
@@ -128,6 +190,8 @@
         side="left"
         label={data.type === 'cable' ? 'Network' : 'Atmo'}
         offsetY={0}
+        nodeWidth={NODE_W}
+        nodeHeight={NODE_H}
         compatible={isCompatible()}
         connecting={connectingType !== null}
         onStartConnect={handleConnectorStart}
@@ -141,126 +205,58 @@
         side="right"
         label={data.type === 'cable' ? 'Network' : 'Atmo'}
         offsetY={0}
+        nodeWidth={NODE_W}
+        nodeHeight={NODE_H}
         compatible={isCompatible()}
         connecting={connectingType !== null}
         onStartConnect={handleConnectorStart}
         onEndConnect={handleConnectorEnd}
     />
 
-    <div class="network-header">
-        <span class="network-icon">{getIcon()}</span>
-        <span class="network-name"
-            >{data.type === 'cable'
-                ? `Network ${data.managerId}`
-                : `Atmosphere ${data.managerId}`}</span
-        >
-    </div>
-    <div class="network-type">
-        {data.type === 'cable' ? 'Cable Network' : 'Atmospheric Network'}
-    </div>
-    <div class="network-info">{getNetworkInfo()}</div>
+    <!-- Network icon -->
+    <text x="16" y="24" font-size="16" class="network-icon">{icon}</text>
+
+    <!-- Network name -->
+    <text x="40" y="24" font-size="12" font-weight="600" fill="#fff" class="network-name">
+        {networkTitle}
+    </text>
+
+    <!-- Network type label -->
+    <text x="16" y="40" font-size="9" fill={networkColor} class="network-type">
+        {networkTypeLabel.toUpperCase()}
+    </text>
+
+    <!-- Network info -->
+    <text
+        x="16"
+        y="56"
+        font-size="8"
+        fill="rgba(255, 255, 255, 0.6)"
+        font-family="'JetBrains Mono', monospace"
+        class="network-info"
+    >
+        {networkInfo}
+    </text>
 </Node>
 
 <style>
-    :global(.network-node.cable) {
-        --network-color: #fbbf24;
-    }
-
-    :global(.network-node.atmospheric) {
-        --network-color: #60a5fa;
-    }
-
-    :global(.network-node) {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-        cursor: move;
-        user-select: none;
-        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
-        background: linear-gradient(
-            135deg,
-            rgba(255, 255, 255, 0.08) 0%,
-            rgba(255, 255, 255, 0.03) 100%
-        );
-        border: 2px solid var(--network-color);
-        border-radius: 12px;
-        padding: 11px 16px;
-        width: 100%;
-        height: 100%;
-        max-width: none;
-        max-height: none;
-        margin: 0;
-        box-sizing: border-box;
-        min-width: 0;
-        min-height: 0;
-        transition:
-            background 0.15s ease,
-            border-color 0.15s ease,
-            box-shadow 0.15s ease;
-        overflow: visible;
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-    }
-
-    :global(.network-node:focus-visible) {
-        outline: 2px solid var(--network-color);
-        outline-offset: 2px;
-    }
-
-    :global(.network-node.dragging) {
-        cursor: grabbing;
-        z-index: 100;
-        transition: none !important;
-        filter: none !important;
-        box-shadow: none !important;
-    }
-
-    :global(.network-node.selected),
-    :global(.network-node.dragging) {
-        border-color: #818cf8;
-    }
-
-    :global(.network-node:hover):not(.selected):not(.dragging) {
-        background: linear-gradient(
-            135deg,
-            rgba(255, 255, 255, 0.12) 0%,
-            rgba(255, 255, 255, 0.05) 100%
-        );
-    }
-
-    .network-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 4px;
-        width: 100%;
+    .network-background {
+        transition: stroke 0.15s ease;
     }
 
     .network-icon {
-        font-size: 18px;
+        pointer-events: none;
     }
 
     .network-name {
-        font-size: 14px;
-        font-weight: 600;
-        color: #fff;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 100%;
+        pointer-events: none;
     }
 
     .network-type {
-        font-size: 10px;
-        color: var(--network-color);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
+        pointer-events: none;
     }
 
     .network-info {
-        font-size: 9px;
-        color: rgba(255, 255, 255, 0.6);
-        font-family: 'JetBrains Mono', monospace;
+        pointer-events: none;
     }
 </style>

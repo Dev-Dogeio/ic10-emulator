@@ -23,7 +23,6 @@
 
     let container: HTMLDivElement;
     let svgEl: SVGSVGElement | null = null;
-    let nodesLayer: HTMLDivElement | null = null;
     let isPanning = false;
     let startX = 0;
     let startY = 0;
@@ -163,8 +162,6 @@
     function getGridPattern(): string {
         return `
             linear-gradient(
-                0deg,
-                var(--grid-line-color) 0px,
                 var(--grid-line-color) 1px,
                 transparent 1px
             ),
@@ -222,32 +219,21 @@
     style:background-position={getBackgroundPosition()}
     style:background-size={getBackgroundSize()}
 >
-    <!-- SVG layer for paths -->
+    <!-- SVG layer for paths and nodes -->
     <svg
         class="grid-viewport"
         bind:this={svgEl}
-        viewBox="0 0 {width} {height}"
+        viewBox={`${-offsetX / scale} ${-offsetY / scale} ${width / scale} ${height / scale}`}
         preserveAspectRatio="xMinYMin meet"
         xmlns="http://www.w3.org/2000/svg"
-        style:transform="translate3d({offsetX}px, {offsetY}px, 0) scale({scale})"
-        style:transform-origin="0 0"
     >
         {#if svgContent}
             {@render svgContent()}
         {/if}
-    </svg>
-
-    <!-- DOM layer for nodes -->
-    <div
-        class="nodes-layer"
-        bind:this={nodesLayer}
-        style:transform="translate3d({offsetX}px, {offsetY}px, 0) scale({scale})"
-        style:transform-origin="0 0"
-    >
         {#if nodeContent}
             {@render nodeContent()}
         {/if}
-    </div>
+    </svg>
 </div>
 
 <style>
@@ -274,23 +260,22 @@
         width: 100%;
         height: 100%;
         overflow: visible;
-        pointer-events: none;
         will-change: transform;
         backface-visibility: hidden;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        -webkit-font-smoothing: antialiased;
     }
 
-    .nodes-layer {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 0;
-        height: 0;
-        pointer-events: none;
-        will-change: transform;
-        backface-visibility: hidden;
+    .grid-viewport :global(text) {
+        text-rendering: geometricPrecision;
     }
 
-    .nodes-layer > :global(*) {
-        pointer-events: auto;
+    .grid-viewport :global(rect),
+    .grid-viewport :global(circle),
+    .grid-viewport :global(line),
+    .grid-viewport :global(path) {
+        shape-rendering: geometricPrecision;
+        vector-effect: non-scaling-stroke;
     }
 </style>

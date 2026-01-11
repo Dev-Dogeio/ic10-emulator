@@ -1,23 +1,44 @@
 <script lang="ts">
-    import { onDestroy } from 'svelte';
+    import { onDestroy, type Snippet } from 'svelte';
+    import { NODE_W, NODE_H } from '../lib/constants';
 
-    export let id: string | number;
-    export let x: number = 0;
-    export let y: number = 0;
-    export let gridX: number | undefined = undefined;
-    export let gridY: number | undefined = undefined;
-    export let scale: number = 1;
-    export let selected: boolean = false;
-    export let nodeClass: string = '';
+    interface Props {
+        id: string | number;
+        x?: number;
+        y?: number;
+        width?: number;
+        height?: number;
+        gridX?: number;
+        gridY?: number;
+        scale?: number;
+        selected?: boolean;
+        nodeClass?: string;
+        onMove?: (id: any, x: number, y: number) => void;
+        onSelect?: (id: any) => void;
+        onInspect?: (id: any) => void;
+        onClick?: (id: any) => void;
+        children?: Snippet;
+    }
 
-    export let onMove: ((id: any, x: number, y: number) => void) | undefined = undefined;
-    export let onSelect: ((id: any) => void) | undefined = undefined;
-    export let onInspect: ((id: any) => void) | undefined = undefined;
-    export let onClick: ((id: any) => void) | undefined = undefined;
+    let {
+        id,
+        x = 0,
+        y = 0,
+        gridX = undefined,
+        gridY = undefined,
+        scale = 1,
+        selected = false,
+        nodeClass = '',
+        onMove = undefined,
+        onSelect = undefined,
+        onInspect = undefined,
+        onClick = undefined,
+        children,
+    }: Props = $props();
 
-    let root: HTMLElement | null = null;
+    let root: SVGGElement | null = null;
 
-    let isDragging = false;
+    let isDragging = $state(false);
     let dragStartX = 0;
     let dragStartY = 0;
     let initialX = 0;
@@ -26,21 +47,20 @@
     let rafId: number | null = null;
     let pointerDx = 0;
     let pointerDy = 0;
-    let visualDx = 0;
-    let visualDy = 0;
+    let visualDx = $state(0);
+    let visualDy = $state(0);
     let dragScale = 1;
 
     let lastClientX = 0;
     let lastClientY = 0;
 
     function rafLoop() {
-        if (root) root.style.transform = `translate(${visualDx}px, ${visualDy}px) translateZ(0)`;
         rafId = requestAnimationFrame(rafLoop);
     }
 
     function handlePointerDown(e: PointerEvent) {
         if (e.button !== 0) return;
-        (root || (e.target as Element)).setPointerCapture?.(e.pointerId);
+        (e.target as Element).setPointerCapture?.(e.pointerId);
         isDragging = true;
         dragStartX = e.clientX;
         dragStartY = e.clientY;
@@ -89,19 +109,21 @@
         }
     }
 
-    $: if (isDragging && scale !== dragScale) {
-        const vx = visualDx;
-        const vy = visualDy;
-        dragStartX = lastClientX - vx * scale;
-        dragStartY = lastClientY - vy * scale;
-        dragScale = scale;
-    }
+    $effect(() => {
+        if (isDragging && scale !== dragScale) {
+            const vx = visualDx;
+            const vy = visualDy;
+            dragStartX = lastClientX - vx * scale;
+            dragStartY = lastClientY - vy * scale;
+            dragScale = scale;
+        }
+    });
 
     function handlePointerUp(e: PointerEvent) {
         if (!isDragging) return;
         isDragging = false;
         try {
-            (root || (e.target as Element)).releasePointerCapture?.(e.pointerId);
+            (e.target as Element).releasePointerCapture?.(e.pointerId);
         } catch {}
         if (rafId != null) cancelAnimationFrame(rafId);
         rafId = null;
@@ -110,11 +132,6 @@
         const dyGrid = (pointerDy || 0) / (dragScale || 1);
         const newGridX = initialX + dxGrid;
         const newGridY = initialY + dyGrid;
-
-        if (root) {
-            root.style.transition = '';
-            root.style.transform = '';
-        }
 
         if (onMove) onMove(id, newGridX, newGridY);
 
@@ -138,14 +155,41 @@
 
 <svelte:window onpointermove={handlePointerMove} onpointerup={handlePointerUp} />
 
-<div
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<g
     bind:this={root}
-    class={nodeClass}
+    class="svg-node {nodeClass}"
     class:dragging={isDragging}
     class:selected
+    transform="translate({visualDx}, {visualDy})"
     onpointerdown={handlePointerDown}
     ondblclick={handleDoubleClick}
-    {...$$restProps}
 >
-    <slot />
-</div>
+    {#if children}
+        {@render children()}
+    {/if}
+</g>
+
+<style>
+    .svg-node {
+        cursor: move;
+    }
+
+    .svg-node.dragging {
+        cursor: grabbing;
+    }
+
+    .svg-node :global(.node-hover) {
+        opacity: 0;
+        transition: opacity 120ms ease;
+        pointer-events: none;
+    }
+
+    .svg-node:hover :global(.node-hover) {
+        opacity: 1;
+    }
+
+    .svg-node.dragging :global(.node-hover) {
+        opacity: 0 !important;
+    }
+</style>

@@ -7,7 +7,6 @@ import init, {
     type WasmCableNetwork,
     type WasmAtmosphericNetwork,
     type DevicePrefabInfo,
-    GasType,
 } from '../../pkg/ic10_emulator';
 
 export type { WasmDevice, WasmCableNetwork, WasmAtmosphericNetwork, DevicePrefabInfo };

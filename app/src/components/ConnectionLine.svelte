@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { Connection } from '../stores/simulationState.svelte';
     import type { ConnectorSide } from './Connector.svelte';
+    import { CONNECTION_COLORS } from '../lib/constants';
 
     interface ConnectorPosition {
         x: number;
@@ -27,7 +28,15 @@
         onContextMenu,
     }: Props = $props();
 
-    function getPath(): string {
+    function handleContextMenu(e: MouseEvent) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onContextMenu) {
+            onContextMenu(connection, e);
+        }
+    }
+
+    const path = $derived.by(() => {
         const offset = 2;
 
         const sX = sourcePos.x + (sourceSide === 'left' ? offset : -offset);
@@ -44,35 +53,24 @@
         const c2y = tY;
 
         return `M ${sX} ${sY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${tX} ${tY}`;
-    }
+    });
 
-    function getColor(): string {
+    const color = $derived.by(() => {
         switch (connection.networkType) {
             case 'cable':
-                return '#fbbf24';
+                return CONNECTION_COLORS.cable;
             case 'atmospheric':
                 if (
                     connection.deviceConnectorType === 'atmo-output' ||
                     connection.deviceConnectorType === 'atmo-output2'
                 ) {
-                    return '#f472b6';
+                    return CONNECTION_COLORS.atmoOutput;
                 }
-                return '#60a5fa';
+                return CONNECTION_COLORS.atmoInput;
             default:
-                return '#818cf8';
+                return CONNECTION_COLORS.default;
         }
-    }
-
-    function handleContextMenu(e: MouseEvent) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (onContextMenu) {
-            onContextMenu(connection, e);
-        }
-    }
-
-    const path = $derived(getPath());
-    const color = $derived(getColor());
+    });
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -91,7 +89,7 @@
 <path
     d={path}
     stroke={color}
-    stroke-width={selected ? 3 : 2}
+    stroke-width={selected ? 4 : 3}
     fill="none"
     class="connection-line"
     class:selected
@@ -102,7 +100,7 @@
 <path
     d={path}
     stroke={color}
-    stroke-width="2"
+    stroke-width="3"
     fill="none"
     class="connection-flow"
     stroke-dasharray="8 4"
@@ -123,12 +121,12 @@
     }
 
     .connection-line:hover {
-        stroke-width: 4;
+        stroke-width: 5;
         filter: drop-shadow(0 0 8px currentColor);
     }
 
     .connection-hitbox:hover + .connection-line {
-        stroke-width: 4;
+        stroke-width: 5;
         filter: drop-shadow(0 0 8px currentColor);
     }
 

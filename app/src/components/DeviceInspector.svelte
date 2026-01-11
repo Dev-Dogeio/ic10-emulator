@@ -29,7 +29,7 @@
     }
 
     // Available tabs based on device capabilities
-    let availableTabs = $derived(() => {
+    let availableTabs = $derived.by(() => {
         const tabs: { id: TabId; label: string; icon: string }[] = [
             { id: 'overview', label: 'Overview', icon: '📋' },
             { id: 'logic', label: 'Logic', icon: '⚙️' },
@@ -196,7 +196,7 @@
     }
 
     // Registered item prefabs for insertion menu
-    let registeredItems = $derived(() => {
+    let registeredItems = $derived.by(() => {
         try {
             const arr = get_registered_item_prefabs();
             const list: { name: string; prefab_hash: number; item_type: string }[] = [];
@@ -224,7 +224,7 @@
 
     function openInsertMenu(index: number) {
         insertIndexOpen = index;
-        const items = registeredItems();
+        const items = registeredItems;
         selectedItemHash = items.length > 0 ? items[0].prefab_hash : null;
     }
 
@@ -257,7 +257,7 @@
 
     // IC Chip handling
     let icCode = $state('');
-    let icHasChip = $derived(() => {
+    let icHasChip = $derived.by(() => {
         if (!prefabInfo.is_ic_host) return false;
         try {
             return device.has_chip();
@@ -272,7 +272,7 @@
     function pushCodeToChip() {
         if (!prefabInfo.is_ic_host) return;
         try {
-            if (!icHasChip()) {
+            if (!icHasChip) {
                 codeError = 'No chip installed';
                 return;
             }
@@ -294,7 +294,7 @@
 
     $effect(() => {
         const activeIsIC = activeTab === 'ic' && prefabInfo.is_ic_host;
-        const hasChipNow = icHasChip();
+        const hasChipNow = icHasChip;
 
         // Entering IC tab
         if (activeIsIC && !_prevActiveIsIC) {
@@ -334,7 +334,7 @@
         }
     });
 
-    let devicePinHeader = $derived(() => {
+    let devicePinHeader = $derived.by(() => {
         if (!prefabInfo.is_ic_host) return 'Device Pins';
         try {
             const count = device.get_device_pin_count();
@@ -398,7 +398,7 @@
     }
 
     // Quick stats for overview
-    let quickStats = $derived(() => {
+    let quickStats = $derived.by(() => {
         const stats: { label: string; value: string }[] = [
             { label: 'Reference ID', value: String(device.id()) },
             { label: 'Prefab Hash', value: String(prefabInfo.prefab_hash) },
@@ -413,7 +413,7 @@
 <div class="device-inspector">
     <!-- Tab bar -->
     <div class="tab-bar">
-        {#each availableTabs() as tab (tab.id)}
+        {#each availableTabs as tab (tab.id)}
             <button
                 class="tab-btn"
                 class:active={activeTab === tab.id}
@@ -453,7 +453,7 @@
 
                 <!-- Quick stats -->
                 <div class="stats-grid">
-                    {#each quickStats() as stat}
+                    {#each quickStats as stat}
                         <div class="stat-item">
                             <span class="stat-label">{stat.label}</span>
                             <span class="stat-value">{stat.value}</span>
@@ -557,7 +557,7 @@
                                         {#if insertIndexOpen === slot.index}
                                             <div class="insert-menu">
                                                 <select bind:value={selectedItemHash}>
-                                                    {#each registeredItems() as item}
+                                                    {#each registeredItems as item}
                                                         <option value={item.prefab_hash}
                                                             >{item.name} ({item.item_type})</option
                                                         >
@@ -589,7 +589,7 @@
             <div class="ic-section">
                 <!-- Chip status -->
                 <div class="chip-status">
-                    {#if icHasChip()}
+                    {#if icHasChip}
                         <span class="chip-badge installed">IC10 Installed</span>
                     {:else}
                         <span class="chip-badge not-installed">No Chip</span>
@@ -599,7 +599,7 @@
 
                 <!-- Device Pins -->
                 <div class="pins-section">
-                    <h4>{devicePinHeader()}</h4>
+                    <h4>{devicePinHeader}</h4>
 
                     {#if codeError}
                         <div class="code-error-popup">
@@ -641,7 +641,7 @@
                 </div>
 
                 <!-- Code editor (simplified) -->
-                {#if icHasChip()}
+                {#if icHasChip}
                     <div class="code-section">
                         <h4>IC10 Code</h4>
                         <textarea

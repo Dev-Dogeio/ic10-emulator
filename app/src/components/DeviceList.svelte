@@ -37,7 +37,7 @@
         return '📊';
     }
 
-    let groupedPrefabs = $derived(() => {
+    let groupedPrefabs = $derived.by(() => {
         const groups: Record<string, DevicePrefabInfo[]> = {};
         for (const prefab of prefabs) {
             const category = getDeviceCategory(prefab);
@@ -57,7 +57,7 @@
     </div>
 
     <div class="scroll-area">
-        {#each Object.entries(groupedPrefabs()) as [category, categoryPrefabs]}
+        {#each Object.entries(groupedPrefabs) as [category, categoryPrefabs]}
             <div class="category">
                 <h3 class="category-header">{category}</h3>
                 <div class="category-items">

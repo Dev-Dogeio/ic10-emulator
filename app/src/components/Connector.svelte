@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { ConnectorType } from '../stores/simulationState.svelte';
+    import { NODE_W, NODE_H, CONNECTION_COLORS, UI_COLORS, LABEL_BG } from '../lib/constants';
 
     export type ConnectorSide = 'left' | 'right';
 
@@ -9,6 +10,8 @@
         side: ConnectorSide;
         label?: string;
         offsetY?: number;
+        nodeWidth?: number;
+        nodeHeight?: number;
         active?: boolean;
         connecting?: boolean;
         compatible?: boolean;
@@ -27,6 +30,8 @@
         side,
         label = '',
         offsetY = 0,
+        nodeWidth = NODE_W,
+        nodeHeight = NODE_H,
         active = false,
         connecting = false,
         compatible = false,
@@ -40,16 +45,16 @@
         switch (type) {
             case 'cable':
             case 'network-cable':
-                return '#fbbf24';
+                return CONNECTION_COLORS.cable;
             case 'atmo-input':
             case 'atmo-input2':
             case 'network-atmo':
-                return '#60a5fa';
+                return CONNECTION_COLORS.atmoInput;
             case 'atmo-output':
             case 'atmo-output2':
-                return '#f472b6';
+                return CONNECTION_COLORS.atmoOutput;
             default:
-                return '#818cf8';
+                return CONNECTION_COLORS.default;
         }
     }
 
@@ -87,136 +92,138 @@
     }
 
     const color = $derived(getConnectorColor());
+    const icon = $derived(getConnectorIcon());
+
+    const cx = $derived(side === 'left' ? 0 : nodeWidth);
+    const cy = $derived(nodeHeight / 2 + offsetY);
+    const radius = 8;
+
+    const labelX = $derived(side === 'left' ? cx - 15 : cx + 15);
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
+<g
     class="connector"
-    class:left={side === 'left'}
-    class:right={side === 'right'}
     class:active
     class:connecting={connecting && compatible}
     class:compatible
     class:hovered={isHovered}
-    style:--connector-color={color}
-    style:--offset-y="{offsetY}px"
     onpointerdown={handlePointerDown}
     onpointerup={handlePointerUp}
     onpointerenter={handlePointerEnter}
     onpointerleave={handlePointerLeave}
-    title={label || type}
 >
-    <div class="connector-dot">
-        <span class="connector-icon">{getConnectorIcon()}</span>
-    </div>
-    {#if label && isHovered}
-        <div
-            class="connector-label"
-            class:label-left={side === 'right'}
-            class:label-right={side === 'left'}
+    <defs>
+        <filter id="glow-filter-{id}" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="blur"></feGaussianBlur>
+            <feMerge>
+                <feMergeNode in="blur"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+    </defs>
+
+    {#if connecting && compatible}
+        <circle
+            {cx}
+            {cy}
+            r={radius * 1.4}
+            fill={UI_COLORS.success}
+            fill-opacity="0.18"
+            filter="url(#glow-filter-{id})"
+            class="connector-glow"
+            pointer-events="none"
         >
-            {label}
-        </div>
+            <animate
+                attributeName="r"
+                values={`${radius * 1.4};${radius * 1.6};${radius * 1.4}`}
+                dur="900ms"
+                repeatCount="indefinite"
+            ></animate>
+            <animate
+                attributeName="fill-opacity"
+                values="0.18;0.42;0.18"
+                dur="900ms"
+                repeatCount="indefinite"
+            ></animate>
+        </circle>
     {/if}
-</div>
+
+    <!-- Connector dot -->
+    <circle
+        {cx}
+        {cy}
+        r={radius}
+        fill={isHovered || active ? color : 'rgba(0, 0, 0, 0.25)'}
+        stroke={compatible ? UI_COLORS.success : color}
+        stroke-width="2"
+        class="connector-dot"
+    >
+        {#if connecting && compatible}
+            <animate
+                attributeName="r"
+                values={`${radius};${radius * 1.2};${radius}`}
+                dur="900ms"
+                repeatCount="indefinite"
+            ></animate>
+        {/if}
+    </circle>
+
+    <!-- Icon text -->
+    <text
+        x={cx}
+        y={cy}
+        text-anchor="middle"
+        dominant-baseline="central"
+        font-size="8"
+        fill={isHovered || active ? '#000' : color}
+        class="connector-icon"
+        pointer-events="none"
+    >
+        {icon}
+    </text>
+
+    <!-- Label on hover -->
+    {#if label && isHovered}
+        <g class="connector-label">
+            <rect
+                x={side === 'left' ? labelX - 40 : labelX - 5}
+                y={cy - 8}
+                width="45"
+                height="16"
+                rx="7"
+                fill={LABEL_BG}
+            ></rect>
+            <text
+                x={side === 'left' ? labelX - 17.5 : labelX + 17.5}
+                y={cy}
+                text-anchor="middle"
+                dominant-baseline="central"
+                font-size="9"
+                fill="#fff"
+                pointer-events="none"
+            >
+                {label}
+            </text>
+        </g>
+    {/if}
+</g>
 
 <style>
     .connector {
-        position: absolute;
-        top: 50%;
-        transform: translateY(calc(-50% + var(--offset-y, 0px)));
         cursor: pointer;
-        z-index: 10;
-        display: flex;
-        align-items: center;
-    }
-
-    .connector.left {
-        left: -8px;
-        flex-direction: row-reverse;
-    }
-
-    .connector.right {
-        right: -8px;
-        flex-direction: row;
     }
 
     .connector-dot {
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: rgba(0, 0, 0, 0.6);
-        border: 2px solid var(--connector-color, #818cf8);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.15s ease;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        transition: fill 0.15s ease;
+        shape-rendering: geometricPrecision;
+        vector-effect: non-scaling-stroke;
+        will-change: r;
     }
 
-    .connector-icon {
-        font-size: 8px;
-        color: var(--connector-color, #818cf8);
-        line-height: 1;
-    }
-
-    .connector:hover .connector-dot,
-    .connector.hovered .connector-dot {
-        transform: scale(1.2);
-        background: var(--connector-color, #818cf8);
-        box-shadow: 0 0 8px var(--connector-color, #818cf8);
-    }
-
-    .connector:hover .connector-icon,
-    .connector.hovered .connector-icon {
-        color: #000;
-    }
-
-    .connector.active .connector-dot {
-        background: var(--connector-color, #818cf8);
-        box-shadow: 0 0 12px var(--connector-color, #818cf8);
-    }
-
-    .connector.connecting .connector-dot {
-        animation: pulse 0.8s ease-in-out infinite;
-    }
-
-    .connector.compatible .connector-dot {
-        border-color: #4ade80;
-        box-shadow: 0 0 8px #4ade80;
-    }
-
-    .connector-label {
-        position: absolute;
-        background: rgba(0, 0, 0, 0.85);
-        color: #fff;
-        font-size: 10px;
-        padding: 2px 6px;
-        border-radius: 4px;
-        white-space: nowrap;
+    .connector-glow {
         pointer-events: none;
-        z-index: 20;
-    }
-
-    .connector-label.label-left {
-        right: 100%;
-        margin-right: 8px;
-    }
-
-    .connector-label.label-right {
-        left: 100%;
-        margin-left: 8px;
-    }
-
-    @keyframes pulse {
-        0%,
-        100% {
-            transform: scale(1);
-            opacity: 1;
-        }
-        50% {
-            transform: scale(1.3);
-            opacity: 0.7;
-        }
+        shape-rendering: geometricPrecision;
+        will-change: r, fill-opacity;
     }
 </style>

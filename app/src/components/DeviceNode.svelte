@@ -6,6 +6,8 @@
     } from '../../pkg/ic10_emulator';
     import type { ConnectorType } from '../stores/simulationState.svelte';
     import Connector, { type ConnectorSide } from './Connector.svelte';
+    import Node from './Node.svelte';
+    import { NODE_W, NODE_H } from '../lib/constants';
 
     interface Props {
         device: WasmDevice;
@@ -52,16 +54,22 @@
         onEndConnect,
     }: Props = $props();
 
-    import Node from './Node.svelte';
-
     let deviceId = $derived(device.id());
     let deviceName = $derived(device.name());
 
-    function getDeviceIcon(): string {
+    let deviceIcon = $derived.by(() => {
         if (prefabInfo.is_ic_host) return '🖥️';
         if (prefabInfo.is_atmospheric_device) return '💨';
         return '📊';
-    }
+    });
+
+    let deviceColor = $derived.by(() => {
+        if (prefabInfo.is_ic_host) return 'rgb(74, 222, 128)';
+        if (prefabInfo.is_atmospheric_device) return 'rgb(96, 165, 250)';
+        if (prefabInfo.is_slot_host) return 'rgb(251, 191, 36)';
+        if (prefabInfo.properties && prefabInfo.properties.length > 0) return 'rgb(226, 237, 129)';
+        return 'rgba(255, 255, 255, 0.12)';
+    });
 
     let hasAtmoInput = $derived(
         prefabInfo.atmospheric_connections.some(
@@ -83,6 +91,55 @@
             (c) => c.connection_type === DeviceAtmosphericNetworkType.Output2
         )
     );
+
+    interface Badge {
+        label: string;
+        bgColor: string;
+        textColor: string;
+    }
+
+    let badges = $derived.by(() => {
+        const result: Badge[] = [];
+        if (prefabInfo.is_ic_host) {
+            result.push({
+                label: 'IC HOST',
+                bgColor: 'rgba(34, 197, 94, 0.2)',
+                textColor: '#4ade80',
+            });
+        }
+        if (prefabInfo.is_atmospheric_device) {
+            result.push({
+                label: 'ATMO',
+                bgColor: 'rgba(96, 165, 250, 0.12)',
+                textColor: '#60a5fa',
+            });
+        }
+        if (prefabInfo.is_slot_host) {
+            result.push({
+                label: 'SLOT',
+                bgColor: 'rgba(251, 191, 36, 0.2)',
+                textColor: '#fbbf24',
+            });
+        }
+        if (prefabInfo.properties && prefabInfo.properties.length > 0) {
+            result.push({
+                label: 'LOGIC',
+                bgColor: 'rgba(206, 204, 124, 0.08)',
+                textColor: '#e2ed81',
+            });
+        }
+        if (
+            prefabInfo.atmospheric_connections &&
+            prefabInfo.atmospheric_connections.some((c) => c.connection_type === 0)
+        ) {
+            result.push({
+                label: 'INTRNL',
+                bgColor: 'rgba(148, 163, 184, 0.12)',
+                textColor: '#94a3b8',
+            });
+        }
+        return result;
+    });
 
     function isCompatible(type: ConnectorType): boolean {
         if (!connectingType) return false;
@@ -125,15 +182,69 @@
     {onMove}
     {onSelect}
     {onInspect}
+    width={NODE_W}
+    height={NODE_H}
     nodeClass={`device-node ${prefabInfo.is_ic_host ? 'ic' : ''} ${prefabInfo.is_atmospheric_device ? 'atmo' : ''} ${prefabInfo.is_slot_host ? 'slot' : ''} ${prefabInfo.properties && prefabInfo.properties.length > 0 ? 'logic' : ''}`}
 >
+    <!-- Background rect with gradient -->
+    <defs>
+        <linearGradient id="device-bg-{deviceId}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#252542"></stop>
+            <stop offset="100%" stop-color="#1a1a32"></stop>
+        </linearGradient>
+        <filter id="device-shadow-{deviceId}" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="rgba(0,0,0,0.3)"
+            ></feDropShadow>
+        </filter>
+    </defs>
+
+    <rect
+        x="0"
+        y="0"
+        width={NODE_W}
+        height={NODE_H}
+        rx="10"
+        ry="10"
+        fill="url(#device-bg-{deviceId})"
+        stroke={selected ? '#818cf8' : deviceColor}
+        stroke-width="1"
+        filter="url(#device-shadow-{deviceId})"
+        class="device-background"
+    ></rect>
+
+    <!-- Inner highlight -->
+    <rect
+        x="1"
+        y="1"
+        width={NODE_W - 2}
+        height={NODE_H - 2}
+        rx="9"
+        ry="9"
+        fill="none"
+        stroke="rgba(255, 255, 255, 0.03)"
+        stroke-width="1"
+    ></rect>
+    <rect
+        x="0"
+        y="0"
+        width={NODE_W}
+        height={NODE_H}
+        rx="10"
+        ry="10"
+        fill="rgba(255, 255, 255, 0.02)"
+        class="node-hover"
+        pointer-events="none"
+    ></rect>
+
     <!-- Cable network connector -->
     <Connector
         id={`device-${deviceId}-cable`}
         type="cable"
         side="left"
         label="Network"
-        offsetY={-30}
+        offsetY={-22}
+        nodeWidth={NODE_W}
+        nodeHeight={NODE_H}
         compatible={isCompatible('cable')}
         connecting={connectingType !== null}
         onStartConnect={handleConnectorStart}
@@ -147,7 +258,9 @@
             type="atmo-input"
             side="left"
             label="Input"
-            offsetY={hasAtmoInput2 ? -10 : 0}
+            offsetY={hasAtmoInput2 ? -8 : 0}
+            nodeWidth={NODE_W}
+            nodeHeight={NODE_H}
             compatible={isCompatible('atmo-input')}
             connecting={connectingType !== null}
             onStartConnect={handleConnectorStart}
@@ -160,7 +273,9 @@
             type="atmo-input2"
             side="left"
             label="Input 2"
-            offsetY={hasAtmoInput ? 20 : 0}
+            offsetY={hasAtmoInput ? 14 : 0}
+            nodeWidth={NODE_W}
+            nodeHeight={NODE_H}
             compatible={isCompatible('atmo-input2')}
             connecting={connectingType !== null}
             onStartConnect={handleConnectorStart}
@@ -175,7 +290,9 @@
             type="atmo-output"
             side="right"
             label="Output"
-            offsetY={hasAtmoOutput2 ? -10 : 0}
+            offsetY={hasAtmoOutput2 ? -8 : 0}
+            nodeWidth={NODE_W}
+            nodeHeight={NODE_H}
             compatible={isCompatible('atmo-output')}
             connecting={connectingType !== null}
             onStartConnect={handleConnectorStart}
@@ -188,7 +305,9 @@
             type="atmo-output2"
             side="right"
             label="Output 2"
-            offsetY={hasAtmoOutput ? 20 : 0}
+            offsetY={hasAtmoOutput ? 14 : 0}
+            nodeWidth={NODE_W}
+            nodeHeight={NODE_H}
             compatible={isCompatible('atmo-output2')}
             connecting={connectingType !== null}
             onStartConnect={handleConnectorStart}
@@ -196,178 +315,76 @@
         />
     {/if}
 
-    <div class="device-header">
-        <span class="device-icon">{getDeviceIcon()}</span>
-        <span class="device-name">{deviceName}</span>
-    </div>
-    <div class="device-type">{prefabInfo.device_name}</div>
-    <div class="device-id">ID: {deviceId}</div>
+    <!-- Device icon -->
+    <text x="12" y="20" font-size="14" class="device-icon">{deviceIcon}</text>
 
-    <div class="device-badges">
-        {#if prefabInfo.is_ic_host}
-            <span class="mini-badge ic">IC</span>
-        {/if}
-        {#if prefabInfo.is_atmospheric_device}
-            <span class="mini-badge atmo">ATMO</span>
-        {/if}
-        {#if prefabInfo.atmospheric_connections && prefabInfo.atmospheric_connections.some((c) => c.connection_type === 0)}
-            <span class="mini-badge internal">INTERNAL</span>
-        {/if}
-        {#if prefabInfo.is_slot_host}
-            <span class="mini-badge slot">SLOT</span>
-        {/if}
-        {#if prefabInfo.properties && prefabInfo.properties.length > 0}
-            <span class="mini-badge logic">LOGIC</span>
-        {/if}
-    </div>
+    <!-- Device name -->
+    <text x="32" y="20" font-size="12" font-weight="600" fill="#fff" class="device-name">
+        {deviceName.length > 14 ? deviceName.slice(0, 14) + '…' : deviceName}
+    </text>
+
+    <!-- Device ID -->
+    <text
+        x={NODE_W - 10}
+        y="14"
+        font-size="9"
+        fill="rgba(255, 255, 255, 0.6)"
+        text-anchor="end"
+        font-family="'JetBrains Mono', monospace"
+        class="device-id"
+    >
+        ID: {deviceId}
+    </text>
+
+    <!-- Device type -->
+    <text x="12" y="36" font-size="10" fill="rgba(255, 255, 255, 0.5)" class="device-type">
+        {prefabInfo.device_name.length > 20
+            ? prefabInfo.device_name.slice(0, 20) + '…'
+            : prefabInfo.device_name}
+    </text>
+
+    <!-- Badges -->
+    <g class="device-badges" transform="translate(12, 48)">
+        {#each badges as badge, i}
+            <g transform="translate({i * 38}, 0)">
+                <rect x="0" y="0" width="34" height="12" rx="3" fill={badge.bgColor}></rect>
+                <text
+                    x="17"
+                    y="9"
+                    font-size="7"
+                    font-weight="600"
+                    fill={badge.textColor}
+                    text-anchor="middle"
+                >
+                    {badge.label}
+                </text>
+            </g>
+        {/each}
+    </g>
 </Node>
 
 <style>
-    :global(.device-node.ic) {
-        --device-color: rgb(74, 222, 128);
-    }
-    :global(.device-node.atmo) {
-        --device-color: rgb(96, 165, 250);
-    }
-    :global(.device-node.slot) {
-        --device-color: rgb(251, 191, 36);
-    }
-    :global(.device-node.logic) {
-        --device-color: rgb(226, 237, 129);
-    }
-
-    :global(.device-node) {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-        cursor: move;
-        user-select: none;
-        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
-        background: linear-gradient(135deg, #252542 0%, #1a1a32 100%);
-        border: 1px solid var(--device-color, rgba(255, 255, 255, 0.12));
-        border-radius: 10px;
-        padding: 13px 12px 10px 12px;
-        width: 100%;
-        height: 100%;
-        max-width: none;
-        max-height: none;
-        margin: 0;
-        box-sizing: border-box;
-        min-width: 0;
-        min-height: 0;
-        transition:
-            background 0.15s ease,
-            border-color 0.15s ease,
-            box-shadow 0.15s ease;
-        overflow: visible;
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-    }
-
-    :global(.device-node:focus-visible) {
-        outline: 2px solid #818cf8;
-        outline-offset: 2px;
-    }
-
-    :global(.device-node.dragging) {
-        cursor: grabbing;
-        z-index: 100;
-        transition: none !important;
-        filter: none !important;
-        box-shadow: none !important;
-    }
-
-    :global(.device-node:hover):not(.selected):not(.dragging) {
-        background: linear-gradient(135deg, #2d2d50 0%, #1e1e38 100%);
-    }
-
-    :global(.device-node.selected),
-    :global(.device-node.dragging) {
-        border-color: #818cf8;
-    }
-
-    :global(.device-node .device-type) {
-        color: rgba(var(--device-color, 129, 140, 248), 0.9);
-    }
-
-    .device-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 4px;
-        width: 100%;
-        justify-content: flex-start;
+    .device-background {
+        transition: stroke 0.15s ease;
     }
 
     .device-icon {
-        font-size: 16px;
+        pointer-events: none;
     }
 
     .device-name {
-        font-size: 14px;
-        font-weight: 600;
-        color: #fff;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 100%;
+        pointer-events: none;
     }
 
     .device-type {
-        font-size: 11px;
-        color: rgba(255, 255, 255, 0.5);
-        margin-bottom: 2px;
+        pointer-events: none;
     }
 
     .device-id {
-        position: absolute;
-        top: 6px;
-        right: 10px;
-        font-size: 10px;
-        color: rgba(255, 255, 255, 0.6);
-        font-family: 'JetBrains Mono', monospace;
-        opacity: 0.95;
         pointer-events: none;
     }
 
     .device-badges {
-        display: flex;
-        gap: 6px;
-        margin-top: 4px;
-        flex-wrap: wrap;
-    }
-
-    .mini-badge {
-        font-size: 8px;
-        font-weight: 600;
-        padding: 2px 4px;
-        border-radius: 3px;
-        text-transform: uppercase;
-    }
-
-    .mini-badge.ic {
-        background: rgba(34, 197, 94, 0.2);
-        color: #4ade80;
-    }
-
-    .mini-badge.slot {
-        background: rgba(251, 191, 36, 0.2);
-        color: #fbbf24;
-    }
-
-    .mini-badge.atmo {
-        background: rgba(96, 165, 250, 0.12);
-        color: #60a5fa;
-    }
-
-    .mini-badge.internal {
-        background: rgba(148, 163, 184, 0.12);
-        color: #94a3b8;
-    }
-
-    .mini-badge.logic {
-        background: rgba(206, 204, 124, 0.08);
-        color: #e2ed81;
+        pointer-events: none;
     }
 </style>

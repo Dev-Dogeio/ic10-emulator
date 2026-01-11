@@ -31,7 +31,7 @@
     }
 
     let connectedDevices = $derived(getConnectedDevices());
-    let deviceCount = $derived(() => {
+    let deviceCount = $derived.by(() => {
         try {
             return network.device_count();
         } catch {
@@ -50,7 +50,7 @@
         <div class="stat">
             <span class="stat-icon">🔌</span>
             <span class="stat-label">Connected Devices</span>
-            <span class="stat-value">{deviceCount()}</span>
+            <span class="stat-value">{deviceCount}</span>
         </div>
     </div>
 

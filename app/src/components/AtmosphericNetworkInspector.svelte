@@ -117,7 +117,7 @@
         refreshData();
     });
 
-    let pressure = $derived(() => {
+    let pressure = $derived.by(() => {
         try {
             return network.pressure();
         } catch {
@@ -125,7 +125,7 @@
         }
     });
 
-    let temperature = $derived(() => {
+    let temperature = $derived.by(() => {
         try {
             return network.temperature();
         } catch {
@@ -133,7 +133,7 @@
         }
     });
 
-    let totalMoles = $derived(() => {
+    let totalMoles = $derived.by(() => {
         try {
             return network.total_moles();
         } catch {
@@ -141,7 +141,7 @@
         }
     });
 
-    let volume = $derived(() => {
+    let volume = $derived.by(() => {
         try {
             return network.total_volume();
         } catch {
@@ -151,10 +151,10 @@
 
     $effect(() => {
         if (activeTab === 'overview' || activeTab === 'gases') {
-            void pressure();
-            void temperature();
-            void totalMoles();
-            void volume();
+            void pressure;
+            void temperature;
+            void totalMoles;
+            void volume;
 
             gasInfoList = getGasInfoList();
         }
@@ -200,8 +200,8 @@
     let newTemperature = $state(0);
 
     $effect(() => {
-        newVolume = volume();
-        newTemperature = temperature();
+        newVolume = volume;
+        newTemperature = temperature;
     });
 
     function applyVolume() {
@@ -319,28 +319,28 @@
                         <span class="stat-icon">🔵</span>
                         <div class="stat-info">
                             <span class="stat-label">Pressure</span>
-                            <span class="stat-value">{formatNumber(pressure())} kPa</span>
+                            <span class="stat-value">{formatNumber(pressure)} kPa</span>
                         </div>
                     </div>
                     <div class="stat-card temperature">
                         <span class="stat-icon">🌡️</span>
                         <div class="stat-info">
                             <span class="stat-label">Temperature</span>
-                            <span class="stat-value">{formatNumber(temperature())} K</span>
+                            <span class="stat-value">{formatNumber(temperature)} K</span>
                         </div>
                     </div>
                     <div class="stat-card moles">
                         <span class="stat-icon">⚛️</span>
                         <div class="stat-info">
                             <span class="stat-label">Total Moles</span>
-                            <span class="stat-value">{formatMoles(totalMoles())}</span>
+                            <span class="stat-value">{formatMoles(totalMoles)}</span>
                         </div>
                     </div>
                     <div class="stat-card volume">
                         <span class="stat-icon">📦</span>
                         <div class="stat-info">
                             <span class="stat-label">Volume</span>
-                            <span class="stat-value">{formatNumber(volume())} L</span>
+                            <span class="stat-value">{formatNumber(volume)} L</span>
                         </div>
                     </div>
                 </div>
