@@ -625,6 +625,13 @@ export function connectDeviceToCableNetwork(deviceId: number, networkId: string)
     }
 
     try {
+        const network = gridDevice.device.get_network();
+        network?.remove_device?.(gridDevice.device.id());
+    } catch (e) {
+        console.warn('Failed to remove device from existing cable network:', e);
+    }
+
+    try {
         const cableNetwork = gridNetwork.data.network as WasmCableNetwork;
         cableNetwork.add_device(gridDevice.device);
         console.log(`Connected device ${deviceId} to cable network ${networkId}`);
