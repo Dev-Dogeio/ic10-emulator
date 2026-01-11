@@ -86,16 +86,15 @@
         for (const type of allTypes) {
             try {
                 const moles = network.get_moles(type);
-                if (moles > 0.0001) {
-                    gases.push({
-                        type,
-                        name: getGasName(type),
-                        symbol: getGasSymbol(type),
-                        moles,
-                        ratio: network.gas_ratio(type),
-                        isLiquid: isLiquidType(type),
-                    });
-                }
+                if (moles <= 0) continue;
+                gases.push({
+                    type,
+                    name: getGasName(type),
+                    symbol: getGasSymbol(type),
+                    moles,
+                    ratio: network.gas_ratio(type),
+                    isLiquid: isLiquidType(type),
+                });
             } catch (e) {
                 // Skip types that fail
                 console.warn('Failed to get gas info for type', type);
@@ -149,6 +148,25 @@
         }
     });
 
+    // Whether network is in constant mode (composition locked)
+    let isConstant = $derived.by(() => {
+        try {
+            return network.is_constant();
+        } catch {
+            return false;
+        }
+    });
+
+    function toggleConstant() {
+        try {
+            network.toggle_constant();
+            syncFromWasm();
+            refreshData();
+        } catch (e) {
+            console.error('Failed to toggle constant mode:', e);
+        }
+    }
+
     $effect(() => {
         if (activeTab === 'overview' || activeTab === 'gases') {
             void pressure;
@@ -165,6 +183,10 @@
     let addGasTemp = $state(293.15);
 
     function addGas() {
+        if (isConstant) {
+            console.warn('Network is constant; cannot add gas');
+            return;
+        }
         if (addGasMoles <= 0) return;
         try {
             network.add_gas(addGasType, addGasMoles, addGasTemp);
@@ -176,6 +198,10 @@
     }
 
     function removeGas(type: GasType) {
+        if (isConstant) {
+            console.warn('Network is constant; cannot remove gas');
+            return;
+        }
         try {
             network.remove_all_gas(type);
             syncFromWasm();
@@ -186,6 +212,10 @@
     }
 
     function removeGasMoles(type: GasType, moles: number) {
+        if (isConstant) {
+            console.warn('Network is constant; cannot remove gas moles');
+            return;
+        }
         try {
             network.remove_gas(type, moles);
             syncFromWasm();
@@ -227,6 +257,10 @@
     }
 
     function clearAll() {
+        if (isConstant) {
+            console.warn('Network is constant; cannot clear gases');
+            return;
+        }
         try {
             network.clear();
             syncFromWasm();
@@ -389,7 +423,7 @@
                     <div class="form-row">
                         <label>
                             Type
-                            <select bind:value={addGasType}>
+                            <select bind:value={addGasType} disabled={isConstant}>
                                 {#each getAllGasTypes() as type}
                                     <option value={type}>{getGasName(type)}</option>
                                 {/each}
@@ -399,14 +433,29 @@
                     <div class="form-row double">
                         <label>
                             Moles
-                            <input type="number" bind:value={addGasMoles} min="0" step="100" />
+                            <input
+                                type="number"
+                                bind:value={addGasMoles}
+                                min="0"
+                                step="100"
+                                disabled={isConstant}
+                            />
                         </label>
                         <label>
                             Temp (K)
-                            <input type="number" bind:value={addGasTemp} min="0" step="1" />
+                            <input
+                                type="number"
+                                bind:value={addGasTemp}
+                                min="0"
+                                step="1"
+                                disabled={isConstant}
+                            />
                         </label>
                     </div>
-                    <button class="add-btn" onclick={addGas}>Add Gas</button>
+                    <button class="add-btn" onclick={addGas} disabled={isConstant}>Add Gas</button>
+                    {#if isConstant}
+                        <div class="info">Constant mode is enabled — gas editing is disabled.</div>
+                    {/if}
                 </div>
 
                 <!-- Gas list -->
@@ -433,14 +482,20 @@
                                     <button
                                         class="remove-partial-btn"
                                         onclick={() => removeGasMoles(gas.type, gas.moles * 0.5)}
-                                        title="Remove 50%"
+                                        title={isConstant
+                                            ? 'Disabled in constant mode'
+                                            : 'Remove 50%'}
+                                        disabled={isConstant}
                                     >
                                         -50%
                                     </button>
                                     <button
                                         class="remove-btn"
                                         onclick={() => removeGas(gas.type)}
-                                        title="Remove all"
+                                        title={isConstant
+                                            ? 'Disabled in constant mode'
+                                            : 'Remove all'}
+                                        disabled={isConstant}
                                     >
                                         ✕
                                     </button>
@@ -453,11 +508,43 @@
         {:else if activeTab === 'settings'}
             <div class="settings-section">
                 <div class="setting-group">
+                    <h4
+                        title="When enabled, gas composition will be reset after every interaction."
+                    >
+                        Constant Mode
+                    </h4>
+                    <div class="setting-row">
+                        <label
+                            class="toggle switch"
+                            class:active={isConstant}
+                            title="When enabled, gas composition will be reset after every interaction."
+                        >
+                            <input
+                                type="checkbox"
+                                checked={isConstant}
+                                onchange={toggleConstant}
+                                aria-checked={isConstant}
+                            />
+                            <span class="switch-track" aria-hidden="true">
+                                <span class="switch-thumb"></span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="setting-group">
                     <h4>Volume</h4>
                     <div class="setting-row">
                         <input type="number" bind:value={newVolume} min="1" step="10" />
                         <span class="setting-unit">L</span>
-                        <button class="apply-btn" onclick={applyVolume}>Apply</button>
+                        <button
+                            class="apply-btn"
+                            onclick={applyVolume}
+                            disabled={isConstant}
+                            title={isConstant ? 'Disabled in constant mode' : 'Apply new volume'}
+                        >
+                            Apply
+                        </button>
                     </div>
                 </div>
 
@@ -466,9 +553,24 @@
                     <div class="setting-row">
                         <input type="number" bind:value={newTemperature} min="0" step="1" />
                         <span class="setting-unit">K</span>
-                        <button class="apply-btn" onclick={applyTemperature}>Apply</button>
+                        <button
+                            class="apply-btn"
+                            onclick={applyTemperature}
+                            disabled={isConstant}
+                            title={isConstant
+                                ? 'Disabled in constant mode'
+                                : 'Apply new temperature'}
+                        >
+                            Apply
+                        </button>
                     </div>
                     <div class="temp-presets">
+                        <button
+                            onclick={() => {
+                                newTemperature = 253.15;
+                                applyTemperature();
+                            }}>-20°C</button
+                        >
                         <button
                             onclick={() => {
                                 newTemperature = 273.15;
@@ -483,16 +585,23 @@
                         >
                         <button
                             onclick={() => {
-                                newTemperature = 295.15;
+                                newTemperature = 323.15;
                                 applyTemperature();
-                            }}>22°C</button
+                            }}>50°C</button
                         >
                     </div>
                 </div>
 
                 <div class="danger-zone">
                     <h4>Danger Zone</h4>
-                    <button class="danger-btn" onclick={clearAll}> 🗑️ Clear All Gases </button>
+                    <button
+                        class="danger-btn"
+                        onclick={clearAll}
+                        disabled={isConstant}
+                        title={isConstant ? 'Disabled in constant mode' : 'Clear all gases'}
+                    >
+                        🗑️ Clear All Gases
+                    </button>
                 </div>
             </div>
         {/if}
@@ -500,6 +609,77 @@
 </div>
 
 <style>
+    .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .switch input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .switch-track {
+        min-width: 44px;
+        width: 44px;
+        height: 24px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        display: inline-block;
+        position: relative;
+        transition: background 0.15s ease;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .switch-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #ffffff;
+        position: absolute;
+        left: 3px;
+        top: 3px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+        transition:
+            transform 0.15s ease,
+            background 0.15s ease;
+        transform: translateX(0);
+    }
+
+    .switch.active .switch-track {
+        background: #60a5fa;
+    }
+
+    .switch.active .switch-thumb {
+        transform: translateX(20px);
+    }
+
+    .switch input:focus + .switch-track {
+        box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
+    }
+
+    .info {
+        margin-top: 8px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
     .atmo-inspector {
         display: flex;
         flex-direction: column;
@@ -711,7 +891,7 @@
 
     .form-row.double label {
         flex: 1;
-        min-width: 120px;
+        min-width: 80px;
         max-width: 260px;
     }
 
@@ -759,6 +939,25 @@
 
     .add-btn:hover {
         background: #3b82f6;
+    }
+
+    .add-btn:disabled,
+    .remove-partial-btn:disabled,
+    .remove-btn:disabled,
+    .danger-btn:disabled,
+    .refresh-btn:disabled,
+    .apply-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
+        filter: grayscale(20%);
+    }
+
+    .form-row select:disabled,
+    .form-row input:disabled,
+    .setting-row input:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
 
     .gas-list {

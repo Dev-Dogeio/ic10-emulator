@@ -248,12 +248,12 @@ impl Display for VolumePump {
         if let Some(weak) = &self.input_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", input: {}", net.borrow().mixture())?;
+            write!(f, ", input: {}", net.borrow())?;
         }
         if let Some(weak) = &self.output_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", output: {}", net.borrow().mixture())?;
+            write!(f, ", output: {}", net.borrow())?;
         }
 
         write!(f, " }}")

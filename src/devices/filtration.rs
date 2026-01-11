@@ -739,17 +739,17 @@ impl Display for Filtration {
         if let Some(weak) = &self.input_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", input: {}", net.borrow().mixture())?;
+            write!(f, ", input: {}", net.borrow())?;
         }
         if let Some(weak) = &self.filtered_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", filtered: {}", net.borrow().mixture())?;
+            write!(f, ", filtered: {}", net.borrow())?;
         }
         if let Some(weak) = &self.waste_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", waste: {}", net.borrow().mixture())?;
+            write!(f, ", waste: {}", net.borrow())?;
         }
 
         // Active filters

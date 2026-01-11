@@ -63,7 +63,7 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
         .borrow_mut()
         .add_gas(GasType::Water, 1.0, celsius_to_kelvin(30.0));
 
-    println!("Initial state:\n{}", input_network.borrow().mixture());
+    println!("Initial state:\n{}", input_network.borrow());
 
     let mut ticks = 1;
     const MAX_TICKS: u64 = 15;
@@ -73,8 +73,8 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n Input: {}\nOutput: {}",
-            input_network.borrow().mixture(),
-            output_network.borrow().mixture()
+            input_network.borrow(),
+            output_network.borrow()
         );
 
         if changes == 0 {
@@ -103,7 +103,7 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
         .borrow_mut()
         .add_gas(GasType::Water, 1.0, celsius_to_kelvin(30.0));
 
-    println!("Initial state:\n{}", network.borrow().mixture());
+    println!("Initial state:\n{}", network.borrow());
 
     let mut ticks = 1;
     const MAX_TICKS: u64 = 1000;
@@ -113,7 +113,7 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n{}",
-            network.borrow().mixture()
+            network.borrow()
         );
 
         if changes == 0 {
@@ -128,14 +128,14 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    network.borrow_mut().set_volume(20.0);
+    network.borrow_mut().set_volume(20.0)?;
 
     loop {
         let changes = manager.update()?;
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n{}",
-            network.borrow().mixture()
+            network.borrow()
         );
 
         if changes == 0 {
@@ -239,9 +239,9 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
     println!("Elmo AC Test Program:\n{}\n", program);
 
     println!("Initial state:");
-    println!(" Tank: {}", tank.borrow().mixture());
-    println!(" Input: {}", input.borrow().mixture());
-    println!(" Vent: {}", vent.borrow().mixture());
+    println!(" Tank: {}", tank.borrow());
+    println!(" Input: {}", input.borrow());
+    println!(" Vent: {}", vent.borrow());
 
     let mut ticks = 0;
 
@@ -256,9 +256,9 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
             ticks,
             duration.as_micros() as f64 / 1000.0
         );
-        println!(" Tank: {}", tank.borrow().mixture());
-        println!(" Input: {}", input.borrow().mixture());
-        println!(" Vent: {}", vent.borrow().mixture());
+        println!(" Tank: {}", tank.borrow());
+        println!(" Input: {}", input.borrow());
+        println!(" Vent: {}", vent.borrow());
 
         ticks += 1;
     }
@@ -298,9 +298,9 @@ fn ac_device_test() -> Result<(), Box<dyn Error>> {
 
     println!(
         "Initial state:\n Input: {}\n Output: {}\n Waste: {}",
-        input.borrow().mixture(),
-        input.borrow().mixture(),
-        waste.borrow().mixture()
+        input.borrow(),
+        input.borrow(),
+        waste.borrow()
     );
 
     let mut ticks = 1;
@@ -310,9 +310,9 @@ fn ac_device_test() -> Result<(), Box<dyn Error>> {
 
         println!(
             "\nAfter tick #{ticks}:\n Input: {}\n Output: {}\n Waste: {}",
-            input.borrow().mixture(),
-            input.borrow().mixture(),
-            waste.borrow().mixture()
+            input.borrow(),
+            input.borrow(),
+            waste.borrow()
         );
         ticks += 1;
     }
@@ -366,9 +366,9 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
 
     println!(
         "Initial state:\n Input: {}\n Filtered: {}\n Waste: {}",
-        input.borrow().mixture(),
-        filtered.borrow().mixture(),
-        waste.borrow().mixture()
+        input.borrow(),
+        filtered.borrow(),
+        waste.borrow()
     );
 
     let mut ticks = 1;
@@ -379,9 +379,9 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
 
         println!(
             "\nAfter filtration #{ticks}:\n Input: {}\n Filtered: {}\n Waste: {}",
-            input.borrow().mixture(),
-            filtered.borrow().mixture(),
-            waste.borrow().mixture()
+            input.borrow(),
+            filtered.borrow(),
+            waste.borrow()
         );
         ticks += 1;
     }

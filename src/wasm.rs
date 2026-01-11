@@ -21,7 +21,6 @@ use crate::types::{OptShared, Shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager, parser};
 use serde::Serialize;
 use serde_wasm_bindgen::to_value;
-use std::rc::Rc;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_APPEND_CONTENT: &'static str = r#"
@@ -1004,8 +1003,11 @@ impl WasmAtmosphericNetwork {
         Ok(self.inner.borrow_mut().remove_gas(gas, moles))
     }
 
-    pub fn set_volume(&self, volume: f64) {
-        self.inner.borrow_mut().set_volume(volume);
+    pub fn set_volume(&self, volume: f64) -> Result<(), JsValue> {
+        self.inner
+            .borrow_mut()
+            .set_volume(volume)
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     pub fn clear(&self) {
@@ -1025,6 +1027,7 @@ impl WasmAtmosphericNetwork {
     pub fn add_mixture(&self, other: &WasmGasMixture) {
         self.inner.borrow_mut().add_mixture(&other.inner);
     }
+
     pub fn id(&self) -> i32 {
         self.inner
             .borrow()
@@ -1088,100 +1091,80 @@ impl WasmAtmosphericNetwork {
         self.inner.borrow_mut().remove_energy(joules)
     }
 
-    // ---- GasMixture parity methods (delegating to the internal mixture) ----
-    pub fn volume(&self) -> f64 {
-        self.inner.borrow().mixture().volume()
-    }
-
-    pub fn total_moles_gases(&self) -> f64 {
-        self.inner.borrow().mixture().total_moles_gases()
-    }
-
-    pub fn total_moles_liquids(&self) -> f64 {
-        self.inner.borrow().mixture().total_moles_liquids()
-    }
-
-    pub fn total_moles_by_state(&self, state_value: u32) -> f64 {
-        let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
-        self.inner.borrow().mixture().total_moles_by_state(state)
-    }
-
-    pub fn total_volume_liquids(&self) -> f64 {
-        self.inner.borrow().mixture().total_volume_liquids()
-    }
-
-    pub fn liquid_volume_ratio(&self) -> f64 {
-        self.inner.borrow().mixture().liquid_volume_ratio()
-    }
-
-    pub fn gas_volume(&self) -> f64 {
-        self.inner.borrow().mixture().gas_volume()
-    }
-
-    pub fn total_energy_gases(&self) -> f64 {
-        self.inner.borrow().mixture().total_energy_gases()
-    }
-
-    pub fn total_energy_liquids(&self) -> f64 {
-        self.inner.borrow().mixture().total_energy_liquids()
-    }
-
-    pub fn total_energy(&self) -> f64 {
-        self.inner.borrow().mixture().total_energy()
-    }
-
-    pub fn total_heat_capacity_gases(&self) -> f64 {
-        self.inner.borrow().mixture().total_heat_capacity_gases()
-    }
-
-    pub fn total_heat_capacity_liquids(&self) -> f64 {
-        self.inner.borrow().mixture().total_heat_capacity_liquids()
-    }
-
-    pub fn total_heat_capacity(&self) -> f64 {
-        self.inner.borrow().mixture().total_heat_capacity()
-    }
-
-    pub fn pressure_gases(&self) -> f64 {
-        self.inner.borrow().mixture().pressure_gases()
-    }
-
     pub fn equalize_internal_energy(&self) {
-        self.inner
-            .borrow_mut()
-            .mixture_mut()
-            .equalize_internal_energy();
+        self.inner.borrow_mut().equalize_internal_energy();
     }
 
     pub fn scale(&self, ratio: f64, state_value: u32) {
         let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
-        self.inner.borrow_mut().mixture_mut().scale(ratio, state);
+        self.inner.borrow_mut().scale(ratio, state);
     }
 
-    /// Transfer a ratio of moles from this network's mixture to another network's mixture
-    pub fn transfer_ratio_to_network(
-        &self,
-        target: &WasmAtmosphericNetwork,
-        ratio: f64,
-        state_value: u32,
-    ) -> f64 {
+    pub fn volume(&self) -> f64 {
+        self.inner.borrow().volume()
+    }
+
+    pub fn total_moles_gases(&self) -> f64 {
+        self.inner.borrow().total_moles_gases()
+    }
+
+    pub fn total_moles_liquids(&self) -> f64 {
+        self.inner.borrow().total_moles_liquids()
+    }
+
+    pub fn total_moles_by_state(&self, state_value: u32) -> f64 {
         let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
-        if Rc::ptr_eq(&self.inner, &target.inner) {
-            return 0.0;
-        }
+        self.inner.borrow().total_moles_by_state(state)
+    }
 
-        // Deterministic borrow ordering by pointer address
-        let (a_rc, b_rc) =
-            if (Rc::as_ptr(&self.inner) as usize) <= (Rc::as_ptr(&target.inner) as usize) {
-                (&self.inner, &target.inner)
-            } else {
-                (&target.inner, &self.inner)
-            };
+    pub fn total_volume_liquids(&self) -> f64 {
+        self.inner.borrow().total_volume_liquids()
+    }
 
-        let mut a = a_rc.borrow_mut();
-        let mut b = b_rc.borrow_mut();
-        a.mixture_mut()
-            .transfer_ratio_to(b.mixture_mut(), ratio, state)
+    pub fn liquid_volume_ratio(&self) -> f64 {
+        self.inner.borrow().liquid_volume_ratio()
+    }
+
+    pub fn gas_volume(&self) -> f64 {
+        self.inner.borrow().gas_volume()
+    }
+
+    pub fn total_energy_gases(&self) -> f64 {
+        self.inner.borrow().total_energy_gases()
+    }
+
+    pub fn total_energy_liquids(&self) -> f64 {
+        self.inner.borrow().total_energy_liquids()
+    }
+
+    pub fn total_energy(&self) -> f64 {
+        self.inner.borrow().total_energy()
+    }
+
+    pub fn total_heat_capacity_gases(&self) -> f64 {
+        self.inner.borrow().total_heat_capacity_gases()
+    }
+
+    pub fn total_heat_capacity_liquids(&self) -> f64 {
+        self.inner.borrow().total_heat_capacity_liquids()
+    }
+
+    pub fn total_heat_capacity(&self) -> f64 {
+        self.inner.borrow().total_heat_capacity()
+    }
+
+    pub fn pressure_gases(&self) -> f64 {
+        self.inner.borrow().pressure_gases()
+    }
+
+    /// Check if the network is in constant mixture mode
+    pub fn is_constant(&self) -> bool {
+        self.inner.borrow().is_constant()
+    }
+
+    /// Toggle constant mixture mode
+    pub fn toggle_constant(&self) {
+        self.inner.borrow_mut().toggle_constant();
     }
 }
 

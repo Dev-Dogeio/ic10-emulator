@@ -394,15 +394,14 @@ impl Display for SimulationManager {
         )?;
         for (id, net) in self.atmospheric_networks.iter() {
             let borrowed = net.borrow();
-            let mixture = borrowed.mixture();
             writeln!(
                 f,
                 "    Network #{}: {} L, {} K, {} kPa, {} mol",
                 id,
-                fmt_trim(mixture.volume(), 3),
-                fmt_trim(mixture.temperature(), 2),
-                fmt_trim(mixture.pressure(), 3),
-                fmt_trim(mixture.total_moles(), 3)
+                fmt_trim(borrowed.volume(), 3),
+                fmt_trim(borrowed.temperature(), 2),
+                fmt_trim(borrowed.pressure(), 3),
+                fmt_trim(borrowed.total_moles(), 3)
             )?;
         }
 

@@ -502,8 +502,7 @@ impl Device for AirConditioner {
             // move internal gas to primary output and reset internal buffer
             output_rc
                 .borrow_mut()
-                .add_mixture(self.internal.borrow().mixture());
-            self.internal.borrow_mut().clear();
+                .add_mixture(&self.internal.borrow_mut().consume());
 
             // store metrics
             *self.temperature_differential_efficiency.borrow_mut() =
@@ -648,17 +647,17 @@ impl Display for AirConditioner {
         if let Some(weak) = &self.input_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", input: {}", net.borrow().mixture())?;
+            write!(f, ", input: {}", net.borrow())?;
         }
         if let Some(weak) = &self.output_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", output: {}", net.borrow().mixture())?;
+            write!(f, ", output: {}", net.borrow())?;
         }
         if let Some(weak) = &self.waste_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", waste: {}", net.borrow().mixture())?;
+            write!(f, ", waste: {}", net.borrow())?;
         }
 
         write!(

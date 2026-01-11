@@ -413,7 +413,7 @@ impl GasMixture {
         }
 
         // Add the changed moles to the mixture
-        let processed = additions.len() > 0;
+        let processed = !additions.is_empty();
         for mole in additions {
             self.add_mole_no_equalize(&mole);
         }
