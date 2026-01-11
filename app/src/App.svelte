@@ -647,88 +647,90 @@
                 bind:scale={gridScale}
                 onContextMenu={handleGridContextMenu}
             >
-                <!-- Connection lines -->
-                {#each simState.connections as connection (connection.id)}
-                    {@const positions = getConnectionPositions(connection)}
-                    <ConnectionLine
-                        {connection}
-                        sourcePos={{ x: positions.source.x, y: positions.source.y }}
-                        targetPos={{ x: positions.target.x, y: positions.target.y }}
-                        sourceSide={positions.source.side}
-                        targetSide={positions.target.side}
-                        selected={selectedConnectionId === connection.id}
-                        onContextMenu={handleConnectionContextMenu}
-                    />
-                {/each}
-
-                <!-- Pending connection line while dragging -->
-                {#if pendingConnection}
-                    <path
-                        d={getPendingConnectionPath()}
-                        stroke={getPendingConnectionColor()}
-                        stroke-width="2"
-                        fill="none"
-                        stroke-dasharray="8 4"
-                        stroke-linecap="round"
-                        opacity="0.8"
-                        class="pending-connection"
-                    ></path>
-                {/if}
-
-                {#each simState.gridNetworks as network (network.id)}
-                    <foreignObject
-                        overflow="visible"
-                        x={snapToPixel(network.x, gridScale)}
-                        y={snapToPixel(network.y, gridScale)}
-                        width={NODE_W}
-                        height={NODE_H}
-                        pointer-events="all"
-                    >
-                        <NetworkNode
-                            data={network.data}
-                            x={0}
-                            y={0}
-                            gridX={network.x}
-                            gridY={network.y}
-                            scale={gridScale}
-                            selected={selectedNetworkId === network.id}
-                            connectingType={pendingConnection?.connectorType ?? null}
-                            onMove={handleNetworkMove}
-                            onSelect={handleNetworkSelect}
-                            onInspect={handleNetworkInspect}
-                            onStartConnect={handleNetworkStartConnect}
-                            onEndConnect={handleNetworkEndConnect}
+                {#snippet svgContent()}
+                    <!-- Connection lines -->
+                    {#each simState.connections as connection (connection.id)}
+                        {@const positions = getConnectionPositions(connection)}
+                        <ConnectionLine
+                            {connection}
+                            sourcePos={{ x: positions.source.x, y: positions.source.y }}
+                            targetPos={{ x: positions.target.x, y: positions.target.y }}
+                            sourceSide={positions.source.side}
+                            targetSide={positions.target.side}
+                            selected={selectedConnectionId === connection.id}
+                            onContextMenu={handleConnectionContextMenu}
                         />
-                    </foreignObject>
-                {/each}
+                    {/each}
 
-                {#each simState.gridDevices as gridDevice (gridDevice.id)}
-                    <foreignObject
-                        overflow="visible"
-                        x={snapToPixel(gridDevice.x, gridScale)}
-                        y={snapToPixel(gridDevice.y, gridScale)}
-                        width={NODE_W}
-                        height={NODE_H}
-                        pointer-events="all"
-                    >
-                        <DeviceNode
-                            device={gridDevice.device}
-                            prefabInfo={gridDevice.prefabInfo}
-                            x={0}
-                            y={0}
-                            gridX={gridDevice.x}
-                            gridY={gridDevice.y}
-                            scale={gridScale}
-                            selected={selectedDeviceId === gridDevice.id}
-                            connectingType={pendingConnection?.connectorType ?? null}
-                            onMove={handleDeviceMove}
-                            onSelect={handleDeviceSelect}
-                            onInspect={handleDeviceInspect}
-                            onStartConnect={handleDeviceStartConnect}
-                            onEndConnect={handleDeviceEndConnect}
-                        />
-                    </foreignObject>
-                {/each}
+                    <!-- Pending connection line while dragging -->
+                    {#if pendingConnection}
+                        <path
+                            d={getPendingConnectionPath()}
+                            stroke={getPendingConnectionColor()}
+                            stroke-width="2"
+                            fill="none"
+                            stroke-dasharray="8 4"
+                            stroke-linecap="round"
+                            opacity="0.8"
+                            class="pending-connection"
+                        ></path>
+                    {/if}
+                {/snippet}
+
+                {#snippet nodeContent()}
+                    {#each simState.gridNetworks as network (network.id)}
+                        <div
+                            style:position="absolute"
+                            style:left="{snapToPixel(network.x, gridScale)}px"
+                            style:top="{snapToPixel(network.y, gridScale)}px"
+                            style:width="{NODE_W}px"
+                            style:height="{NODE_H}px"
+                        >
+                            <NetworkNode
+                                data={network.data}
+                                x={0}
+                                y={0}
+                                gridX={network.x}
+                                gridY={network.y}
+                                scale={gridScale}
+                                selected={selectedNetworkId === network.id}
+                                connectingType={pendingConnection?.connectorType ?? null}
+                                onMove={handleNetworkMove}
+                                onSelect={handleNetworkSelect}
+                                onInspect={handleNetworkInspect}
+                                onStartConnect={handleNetworkStartConnect}
+                                onEndConnect={handleNetworkEndConnect}
+                            />
+                        </div>
+                    {/each}
+
+                    {#each simState.gridDevices as gridDevice (gridDevice.id)}
+                        <div
+                            style:position="absolute"
+                            style:left="{snapToPixel(gridDevice.x, gridScale)}px"
+                            style:top="{snapToPixel(gridDevice.y, gridScale)}px"
+                            style:width="{NODE_W}px"
+                            style:height="{NODE_H}px"
+                        >
+                            <DeviceNode
+                                device={gridDevice.device}
+                                prefabInfo={gridDevice.prefabInfo}
+                                x={0}
+                                y={0}
+                                gridX={gridDevice.x}
+                                gridY={gridDevice.y}
+                                scale={gridScale}
+                                selected={selectedDeviceId === gridDevice.id}
+                                connectingType={pendingConnection?.connectorType ?? null}
+                                onMove={handleDeviceMove}
+                                onSelect={handleDeviceSelect}
+                                onInspect={handleDeviceInspect}
+                                onStartConnect={handleDeviceStartConnect}
+                                onEndConnect={handleDeviceEndConnect}
+                            />
+                        </div>
+                    {/each}
+                {/snippet}
             </Grid>
         </div>
 

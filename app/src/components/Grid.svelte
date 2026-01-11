@@ -1,10 +1,13 @@
 <script lang="ts">
+    import { onMount, type Snippet } from 'svelte';
+
     interface Props {
         offsetX?: number;
         offsetY?: number;
         scale?: number;
         gridSize?: number;
-        children?: import('svelte').Snippet;
+        svgContent?: Snippet;
+        nodeContent?: Snippet;
         onContextMenu?: (event: { x: number; y: number; gridX: number; gridY: number }) => void;
     }
 
@@ -13,7 +16,8 @@
         offsetY = $bindable(0),
         scale = $bindable(1),
         gridSize = 45,
-        children,
+        svgContent,
+        nodeContent,
         onContextMenu,
     }: Props = $props();
 
@@ -130,7 +134,6 @@
         const ry = ((offsetY % gridPixelSize) + gridPixelSize) % gridPixelSize;
         return `${rx}px ${ry}px`;
     }
-    import { onMount } from 'svelte';
 
     let resizeObserver: ResizeObserver | null = null;
 
@@ -166,16 +169,28 @@
     style:background-image={getGridPattern()}
     style:background-position={getBackgroundPosition()}
 >
+    <!-- SVG layer for paths -->
     <svg
         class="grid-viewport"
         viewBox="{-offsetX / scale} {-offsetY / scale} {width / scale} {height / scale}"
         preserveAspectRatio="xMinYMin meet"
         xmlns="http://www.w3.org/2000/svg"
     >
-        {#if children}
-            {@render children()}
+        {#if svgContent}
+            {@render svgContent()}
         {/if}
     </svg>
+
+    <!-- DOM layer for nodes -->
+    <div
+        class="nodes-layer"
+        style:transform="translate({offsetX}px, {offsetY}px) scale({scale})"
+        style:transform-origin="0 0"
+    >
+        {#if nodeContent}
+            {@render nodeContent()}
+        {/if}
+    </div>
 </div>
 
 <style>
@@ -202,6 +217,19 @@
         width: 100%;
         height: 100%;
         overflow: visible;
+        pointer-events: none;
+    }
+
+    .nodes-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+    }
+
+    .nodes-layer > :global(*) {
         pointer-events: auto;
     }
 </style>
