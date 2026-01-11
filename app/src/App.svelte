@@ -563,6 +563,19 @@
     }
 
     // Calculate connection line positions
+    // Memoize connection positions to avoid recalculating on every render
+    const connectionPositionsCache = new Map<
+        string,
+        {
+            source: { x: number; y: number; side: ConnectorSide };
+            target: { x: number; y: number; side: ConnectorSide };
+            deviceX: number;
+            deviceY: number;
+            networkX: number;
+            networkY: number;
+        }
+    >();
+
     function getConnectionPositions(connection: Connection): {
         source: { x: number; y: number; side: ConnectorSide };
         target: { x: number; y: number; side: ConnectorSide };
@@ -572,6 +585,18 @@
 
         if (!device || !network) {
             return { source: { x: 0, y: 0, side: 'left' }, target: { x: 0, y: 0, side: 'left' } };
+        }
+
+        // Check cache
+        const cached = connectionPositionsCache.get(connection.id);
+        if (
+            cached &&
+            cached.deviceX === device.x &&
+            cached.deviceY === device.y &&
+            cached.networkX === network.x &&
+            cached.networkY === network.y
+        ) {
+            return { source: cached.source, target: cached.target };
         }
 
         // Determine the device connector side based on connector type so outputs appear on the right
@@ -612,10 +637,20 @@
         const targetPos = useLeft ? networkLeftPos : networkRightPos;
         const targetSide: ConnectorSide = useLeft ? 'left' : 'right';
 
-        return {
+        const result = {
             source: { ...sourcePos, side: deviceSide },
             target: { ...targetPos, side: targetSide },
         };
+
+        connectionPositionsCache.set(connection.id, {
+            ...result,
+            deviceX: device.x,
+            deviceY: device.y,
+            networkX: network.x,
+            networkY: network.y,
+        });
+
+        return result;
     }
 </script>
 
@@ -680,7 +715,7 @@
                 {#snippet nodeContent()}
                     {#each simState.gridNetworks as network (network.id)}
                         <div
-                            style:position="absolute"
+                            class="node-wrapper"
                             style:left="{snapToPixel(network.x, gridScale)}px"
                             style:top="{snapToPixel(network.y, gridScale)}px"
                             style:width="{NODE_W}px"
@@ -706,7 +741,7 @@
 
                     {#each simState.gridDevices as gridDevice (gridDevice.id)}
                         <div
-                            style:position="absolute"
+                            class="node-wrapper"
                             style:left="{snapToPixel(gridDevice.x, gridScale)}px"
                             style:top="{snapToPixel(gridDevice.y, gridScale)}px"
                             style:width="{NODE_W}px"
@@ -867,6 +902,12 @@
         flex: 1;
         position: relative;
         overflow: hidden;
+        contain: layout style paint;
+    }
+
+    :global(.node-wrapper) {
+        position: absolute;
+        contain: layout style;
     }
 
     :global(.pending-connection) {
