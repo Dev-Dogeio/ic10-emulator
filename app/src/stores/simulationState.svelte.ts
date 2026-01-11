@@ -847,6 +847,10 @@ export function startAutoStep(rate: number): boolean {
         stepTicks(1);
     }, intervalMs);
 
+    window.setTimeout(() => {
+        stepTicks(1);
+    }, 0);
+
     return true;
 }
 
