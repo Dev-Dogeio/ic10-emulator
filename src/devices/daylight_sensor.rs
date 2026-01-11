@@ -164,12 +164,12 @@ impl Device for DaylightSensor {
         Self::properties().supported_types()
     }
 
-    fn update(&self, tick: u64) -> SimulationResult<()> {
+    fn update(&self, tick: u64) -> SimulationResult<bool> {
         // Only update when device is On (non-zero)
         if *self.on.borrow() == 0.0 {
             self.horizontal.replace(0.0);
             self.vertical.replace(0.0);
-            return Ok(());
+            return Ok(false);
         }
 
         // Calculate position within the day cycle [0.0, 1.0)
@@ -195,7 +195,7 @@ impl Device for DaylightSensor {
         *self.horizontal.borrow_mut() = horizontal;
         *self.vertical.borrow_mut() = vertical;
 
-        Ok(())
+        Ok(true)
     }
 
     fn properties() -> &'static PropertyRegistry<Self> {

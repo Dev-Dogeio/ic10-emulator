@@ -1,20 +1,45 @@
 <script lang="ts">
+    import { onMount, onDestroy } from 'svelte';
     import {
         stepTicks,
         startAutoStep,
         stopAutoStep,
         isAutoStepping,
         getAutoStepRate,
-        getTickCount,
+        getSimulationState,
     } from '../stores/simulationState.svelte';
 
+    const simState = getSimulationState();
+
     let autoRate: number = $state(getAutoStepRate() ?? 1);
-    let tickCount: number = $derived(getTickCount());
+    let tickCount: number = $derived.by(() => simState.tickCount);
     let autoRunning: boolean = $state(isAutoStepping());
 
     function handleStep(n: number) {
         stepTicks(n);
     }
+
+    function _onAutoStepChanged(e: Event) {
+        try {
+            const detail = (e as CustomEvent).detail as { running: boolean } | undefined;
+            if (detail && typeof detail.running === 'boolean') {
+                autoRunning = detail.running;
+            } else {
+                autoRunning = isAutoStepping();
+            }
+        } catch (e) {
+            autoRunning = isAutoStepping();
+        }
+    }
+
+    onMount(() => {
+        window.addEventListener('sim:autoStepChanged', _onAutoStepChanged);
+        autoRunning = isAutoStepping();
+    });
+
+    onDestroy(() => {
+        window.removeEventListener('sim:autoStepChanged', _onAutoStepChanged);
+    });
 
     function handleToggleAuto() {
         if (isAutoStepping()) {

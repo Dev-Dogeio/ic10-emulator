@@ -18,6 +18,7 @@
     import AtmosphericNetworkInspector from './components/AtmosphericNetworkInspector.svelte';
     import CableNetworkInspector from './components/CableNetworkInspector.svelte';
     import SimulationControls from './components/SimulationControls.svelte';
+    import NotificationBanners from './components/NotificationBanners.svelte';
     import type { ConnectorSide } from './components/Connector.svelte';
 
     import {
@@ -657,6 +658,8 @@
         </div>
     {:else}
         <DeviceList prefabs={simState.devicePrefabs} />
+
+        <NotificationBanners />
 
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->

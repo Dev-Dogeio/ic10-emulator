@@ -73,7 +73,7 @@ mod tests {
             ..SimulationItemSettings::default()
         }));
         let chip_ac_weak = Rc::downgrade(&chip_ac);
-        ac.borrow().set_chip(chip_ac.clone());
+        ac.borrow().set_chip(chip_ac.clone()).unwrap();
         drop(chip_ac);
 
         let chip_fil = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
@@ -81,7 +81,7 @@ mod tests {
             ..SimulationItemSettings::default()
         }));
         let chip_fil_weak = Rc::downgrade(&chip_fil);
-        fil.borrow().set_chip(chip_fil.clone());
+        fil.borrow().set_chip(chip_fil.clone()).unwrap();
         drop(chip_fil);
 
         let chip_housing = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
@@ -89,7 +89,7 @@ mod tests {
             ..SimulationItemSettings::default()
         }));
         let chip_housing_weak = Rc::downgrade(&chip_housing);
-        housing.borrow().set_chip(chip_housing.clone());
+        housing.borrow().set_chip(chip_housing.clone()).unwrap();
         drop(chip_housing);
 
         // Create and attach atmospheric networks to atmospheric devices

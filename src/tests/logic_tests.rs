@@ -50,7 +50,7 @@ mod tests {
             }));
 
             // Connect chip to housing (this will also attach the chip slot to the chip)
-            housing.borrow().set_chip(chip.clone());
+            housing.borrow().set_chip(chip.clone()).unwrap();
 
             // Connect housing to network (which also adds it as a device)
             network
@@ -1328,7 +1328,7 @@ yield
             id: Some(4),
             ..SimulationItemSettings::default()
         }));
-        housing2.borrow().set_chip(chip2.clone());
+        housing2.borrow().set_chip(chip2.clone()).unwrap();
         let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
@@ -1404,7 +1404,7 @@ yield
             id: Some(4),
             ..SimulationItemSettings::default()
         }));
-        housing2.borrow().set_chip(chip2.clone());
+        housing2.borrow().set_chip(chip2.clone()).unwrap();
 
         let device_id = housing2.borrow().get_id();
         network
@@ -1839,7 +1839,7 @@ yield
             id: Some(4),
             ..SimulationItemSettings::default()
         }));
-        housing1.borrow().set_chip(chip1.clone());
+        housing1.borrow().set_chip(chip1.clone()).unwrap();
         let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
@@ -1853,7 +1853,7 @@ yield
             id: Some(6),
             ..SimulationItemSettings::default()
         }));
-        housing2.borrow().set_chip(chip2.clone());
+        housing2.borrow().set_chip(chip2.clone()).unwrap();
 
         let device_id2 = housing2.borrow().get_id();
         network
@@ -1951,7 +1951,7 @@ yield
             id: Some(4),
             ..SimulationItemSettings::default()
         }));
-        housing1.borrow().set_chip(chip1.clone());
+        housing1.borrow().set_chip(chip1.clone()).unwrap();
         let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
@@ -1965,7 +1965,7 @@ yield
             id: Some(6),
             ..SimulationItemSettings::default()
         }));
-        housing2.borrow().set_chip(chip2.clone());
+        housing2.borrow().set_chip(chip2.clone()).unwrap();
         let device_id2 = housing2.borrow().get_id();
         network
             .borrow_mut()

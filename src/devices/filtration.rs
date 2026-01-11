@@ -461,10 +461,10 @@ impl Device for Filtration {
         })
     }
 
-    fn update(&self, _tick: u64) -> SimulationResult<()> {
+    fn update(&self, _tick: u64) -> SimulationResult<bool> {
         // Only run filtration when device is On and Mode is enabled
         if *self.on.borrow() == 0.0 || *self.mode.borrow() == 0.0 {
-            return Ok(());
+            return Ok(false);
         }
 
         // Ensure input and both outputs exist; error if any missing
@@ -474,7 +474,7 @@ impl Device for Filtration {
 
         // If there's nothing in the input, early out
         if input_rc.borrow().total_moles() <= 0.0 {
-            return Ok(());
+            return Ok(false);
         }
 
         let input_pressure = input_rc.borrow().pressure();
@@ -495,7 +495,7 @@ impl Device for Filtration {
             calculate_moles(scale_pressure, PIPE_VOLUME, input_rc.borrow().temperature());
 
         if transfer_moles_amount <= 0.0 {
-            return Ok(());
+            return Ok(false);
         }
 
         // Remove that many moles from the input network
@@ -568,17 +568,19 @@ impl Device for Filtration {
         let mut waste_mut = waste_rc.borrow_mut();
         waste_mut.add_mixture(&transfer_mixture);
 
-        Ok(())
+        Ok(true)
     }
 
-    fn run(&self) -> SimulationResult<()> {
+    fn run(&self) -> SimulationResult<bool> {
         if *self.on.borrow() != 0.0 {
             self.chip_host
                 .borrow()
-                .run(self.max_instructions_per_tick)?
+                .run(self.max_instructions_per_tick)?;
+            let instr = self.chip_host.borrow().get_last_executed_instructions();
+            return Ok(instr > 0);
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn get_memory(&self, index: usize) -> SimulationResult<f64> {

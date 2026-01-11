@@ -69,7 +69,7 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
     const MAX_TICKS: u64 = 15;
 
     loop {
-        let changes = manager.update();
+        let changes = manager.update()?;
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n Input: {}\nOutput: {}",
@@ -109,7 +109,7 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
     const MAX_TICKS: u64 = 1000;
 
     loop {
-        let changes = manager.update();
+        let changes = manager.update()?;
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n{}",
@@ -131,7 +131,7 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
     network.borrow_mut().set_volume(20.0);
 
     loop {
-        let changes = manager.update();
+        let changes = manager.update()?;
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n{}",
@@ -185,7 +185,7 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
         id: Some(manager.allocate_next_id()),
         ..SimulationItemSettings::default()
     }));
-    ac.borrow().set_chip(chip.clone());
+    ac.borrow().set_chip(chip.clone())?;
 
     let network = manager.create_cable_network();
 
@@ -248,7 +248,7 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
     while ticks < 2 || ac.borrow().read(LogicType::Mode)? == 1.0 {
         // Time the simulation
         let _start = std::time::Instant::now();
-        manager.update();
+        manager.update()?;
         let duration = _start.elapsed();
 
         println!(
@@ -306,7 +306,7 @@ fn ac_device_test() -> Result<(), Box<dyn Error>> {
     let mut ticks = 1;
 
     while ticks <= 38 {
-        manager.update();
+        manager.update()?;
 
         println!(
             "\nAfter tick #{ticks}:\n Input: {}\n Output: {}\n Waste: {}",
@@ -375,7 +375,7 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
 
     while !input.borrow().is_empty() {
         // Run the filtration until input network is empty
-        manager.update();
+        manager.update()?;
 
         println!(
             "\nAfter filtration #{ticks}:\n Input: {}\n Filtered: {}\n Waste: {}",
@@ -405,7 +405,7 @@ fn ic_program_test() -> Result<(), Box<dyn Error>> {
         ..SimulationDeviceSettings::default()
     });
 
-    housing.borrow().set_chip(chip.clone());
+    housing.borrow().set_chip(chip.clone())?;
     network
         .borrow_mut()
         .add_device(housing.clone(), network.clone());
@@ -484,7 +484,7 @@ s db Setting STR("DONE")"#.to_string();
 
     // Run the simulation until the script is done
     while !(chip.borrow().is_halted() || housing.borrow().read(LogicType::On)? == 0.0) {
-        manager.update();
+        manager.update()?;
         let steps = housing.borrow().get_last_executed_instructions();
 
         println!("Tick {} ({} steps)", ticks, steps);

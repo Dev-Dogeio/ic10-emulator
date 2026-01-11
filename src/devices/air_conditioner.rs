@@ -412,14 +412,14 @@ impl Device for AirConditioner {
         Self::properties().write(self, logic_type, value)
     }
 
-    fn update(&self, _tick: u64) -> SimulationResult<()> {
+    fn update(&self, _tick: u64) -> SimulationResult<bool> {
         // Only run when device is On and Mode is enabled
         let stop = *self.on.borrow() == 0.0 || *self.mode.borrow() == 0.0;
 
         if stop {
             // Only processed moles is zeroed when not operating
             *self.processed_moles.borrow_mut() = 0.0;
-            return Ok(());
+            return Ok(false);
         }
 
         let input_rc = self.require_network(DeviceAtmosphericNetworkType::Input)?;
@@ -433,7 +433,7 @@ impl Device for AirConditioner {
         // only operate if target temperature differs from input by at least 1K
         if (target_temperature - input_temperature).abs() < 1.0 {
             *self.processed_moles.borrow_mut() = 0.0;
-            return Ok(());
+            return Ok(false);
         }
 
         // compute pressure scalar
@@ -454,7 +454,7 @@ impl Device for AirConditioner {
 
         if transfer_moles <= 0.0 {
             *self.processed_moles.borrow_mut() = 0.0;
-            return Ok(());
+            return Ok(false);
         }
 
         // remove that many moles from the input network
@@ -514,17 +514,19 @@ impl Device for AirConditioner {
             *self.processed_moles.borrow_mut() = transfer_moles;
         }
 
-        Ok(())
+        Ok(true)
     }
 
-    fn run(&self) -> SimulationResult<()> {
+    fn run(&self) -> SimulationResult<bool> {
         if *self.on.borrow() != 0.0 {
             self.chip_host
                 .borrow()
-                .run(self.max_instructions_per_tick)?
+                .run(self.max_instructions_per_tick)?;
+            let instr = self.chip_host.borrow().get_last_executed_instructions();
+            return Ok(instr > 0);
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn supported_types(&self) -> Vec<LogicType> {

@@ -183,8 +183,11 @@ impl WasmCableNetwork {
     }
 
     /// Update all devices on the network for the given tick
-    pub fn update(&self, tick: u64) {
-        self.inner.borrow().update(tick);
+    pub fn update(&self, tick: u64) -> Result<u32, JsValue> {
+        self.inner
+            .borrow()
+            .update(tick)
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     /// Batch read logic values from devices matching prefab and name
@@ -620,19 +623,19 @@ impl WasmDevice {
     }
 
     /// Run the device's run() method (execute chips if supported)
-    pub fn run(&self) -> Result<(), JsValue> {
+    pub fn run(&self) -> Result<bool, JsValue> {
         self.inner
             .borrow()
             .run()
-            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     /// Update the device for a given tick (calls `update`)
-    pub fn update(&self, tick: u64) -> Result<(), JsValue> {
+    pub fn update(&self, tick: u64) -> Result<bool, JsValue> {
         self.inner
             .borrow()
             .update(tick)
-            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     /// Read a slot logic value from this device.
@@ -731,7 +734,8 @@ impl WasmDevice {
     pub fn set_chip(&self, chip: &WasmICChip) -> Result<(), JsValue> {
         let dev = self.inner.borrow();
         if let Some(host) = dev.as_ic_host_device() {
-            host.set_chip(chip.inner.clone());
+            host.set_chip(chip.inner.clone())
+                .map_err(|e| JsValue::from_str(&format!("{e}")))?;
             Ok(())
         } else {
             Err(JsValue::from_str("Device does not support IC installation"))
@@ -799,10 +803,10 @@ impl WasmDevice {
     /// Return the stored source text from an installed chip (empty string if none or no chip)
     pub fn get_chip_source(&self) -> String {
         let dev = self.inner.borrow();
-        if let Some(host) = dev.as_ic_host_device() {
-            if let Some(chip) = host.chip_slot().borrow().get_chip() {
-                return chip.get_source().unwrap_or_default();
-            }
+        if let Some(host) = dev.as_ic_host_device()
+            && let Some(chip) = host.chip_slot().borrow().get_chip()
+        {
+            return chip.get_source().unwrap_or_default();
         }
         String::new()
     }
@@ -1022,7 +1026,10 @@ impl WasmAtmosphericNetwork {
         self.inner.borrow_mut().add_mixture(&other.inner);
     }
     pub fn id(&self) -> i32 {
-        self.inner.borrow().get_id().unwrap()
+        self.inner
+            .borrow()
+            .get_id()
+            .expect("AtmosphericNetwork has no ID")
     }
 
     pub fn remove_moles(&self, moles: f64, state_value: u32) -> WasmGasMixture {
@@ -1232,8 +1239,10 @@ impl WasmSimulationManager {
         self.inner.reset();
     }
 
-    pub fn update(&mut self) -> u32 {
-        self.inner.update()
+    pub fn update(&mut self) -> Result<u32, JsValue> {
+        self.inner
+            .update()
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     /// Get a string representation

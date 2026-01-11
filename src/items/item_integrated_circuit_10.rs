@@ -184,6 +184,7 @@ impl ItemIntegratedCircuit10 {
                 break;
             }
 
+            steps += 1;
             if *self.sleep_ticks.borrow() > 0 {
                 *self.sleep_ticks.borrow_mut() -= 1;
                 return Ok(steps);
@@ -192,7 +193,6 @@ impl ItemIntegratedCircuit10 {
             let current_instruction = self.program.borrow()[*self.pc.borrow()].clone();
 
             self.step()?;
-            steps += 1;
 
             match current_instruction.instruction {
                 Instruction::Yield | Instruction::Sleep { duration: _ } => {
@@ -495,7 +495,13 @@ impl ItemIntegratedCircuit10 {
     pub fn print_debug_info(&self) {
         println!(
             "On: {}",
-            if self.get_chip_slot().borrow().read(LogicType::On).unwrap() == 1.0 {
+            if self
+                .get_chip_slot()
+                .borrow()
+                .read(LogicType::On)
+                .unwrap_or(0.0)
+                == 1.0
+            {
                 "Yes"
             } else {
                 "No"

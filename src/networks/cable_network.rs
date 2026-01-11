@@ -167,9 +167,8 @@ impl CableNetwork {
         let name_hash = borrowed.get_name_hash();
         drop(borrowed);
 
-        if self.devices.contains_key(&ref_id) {
+        if let Some(existing) = self.devices.get(&ref_id) {
             // Check if device is the same
-            let existing = self.devices.get(&ref_id).unwrap();
             if Rc::ptr_eq(existing, &device) {
                 // Same device already present, no action needed
                 return;
@@ -327,16 +326,23 @@ impl CableNetwork {
     /// Update all devices in the network
     /// Devices are updated in ascending order of their reference IDs
     /// After updating all devices, IC runners are executed in the same order
-    pub fn update(&self, tick: u64) {
+    pub fn update(&self, tick: u64) -> SimulationResult<u32> {
         // Iterate over all devices in ascending order and run update
+        let mut effects: u32 = 0;
         for device in self.devices.values() {
-            device.borrow().update(tick).unwrap();
+            if device.borrow().update(tick)? {
+                effects = effects.saturating_add(1);
+            }
         }
 
         // Iterate over all devices again and execute IC runners
         for device in self.devices.values() {
-            device.borrow().run().unwrap();
+            if device.borrow().run()? {
+                effects = effects.saturating_add(1);
+            }
         }
+
+        Ok(effects)
     }
 
     // ==================== Batch Read Operations ====================

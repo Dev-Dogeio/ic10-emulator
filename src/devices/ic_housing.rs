@@ -196,12 +196,16 @@ impl Device for ICHousing {
         Self::properties().supported_types()
     }
 
-    fn run(&self) -> SimulationResult<()> {
+    fn run(&self) -> SimulationResult<bool> {
         if *self.on.borrow() != 0.0 {
-            ICHostDevice::run(self)?;
+            self.chip_host
+                .borrow()
+                .run(self.max_instructions_per_tick)?;
+            let instr = self.chip_host.borrow().get_last_executed_instructions();
+            return Ok(instr > 0);
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn get_memory(&self, index: usize) -> SimulationResult<f64> {

@@ -157,10 +157,10 @@ impl Device for VolumePump {
         Self::properties().supported_types()
     }
 
-    fn update(&self, _tick: u64) -> SimulationResult<()> {
+    fn update(&self, _tick: u64) -> SimulationResult<bool> {
         // Only run when device is On and Mode is enabled
         if *self.on.borrow() == 0.0 {
-            return Ok(());
+            return Ok(false);
         }
 
         let input_rc = self
@@ -201,10 +201,11 @@ impl Device for VolumePump {
                         .borrow_mut()
                         .remove_moles(moles_to_move, MatterState::All),
                 );
+                return Ok(true);
             }
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn properties() -> &'static PropertyRegistry<Self> {

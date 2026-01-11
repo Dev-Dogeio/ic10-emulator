@@ -656,15 +656,16 @@ pub trait Device: Debug {
     fn rename(&mut self, name: &str);
 
     /// Update the device state based on the global tick count
-    /// Default implementation does nothing - devices can override if they need tick-based updates
-    fn update(&self, _tick: u64) -> SimulationResult<()> {
-        Ok(())
+    /// Returns `Ok(true)` if the device actually performed any effect (changed state, moved gas, etc.).
+    /// Default implementation does nothing and returns `Ok(false)`.
+    fn update(&self, _tick: u64) -> SimulationResult<bool> {
+        Ok(false)
     }
 
     /// Run chip code if applicable for the device.
-    /// Default implementation does nothing - devices can override if they can execute code.
-    fn run(&self) -> SimulationResult<()> {
-        Ok(())
+    /// Returns `Ok(true)` if the device executed any instructions; default is `Ok(false)`.
+    fn run(&self) -> SimulationResult<bool> {
+        Ok(false)
     }
 
     /// Get the list of supported `LogicType` values for this device.
@@ -788,15 +789,19 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
     }
 
     /// Insert an IC chip into the host and attach it. Default implementation inserts into the slot and assigns the chip slot to the chip.
-    fn set_chip(&self, chip: Shared<ItemIntegratedCircuit10>) {
+    fn set_chip(&self, chip: Shared<ItemIntegratedCircuit10>) -> SimulationResult<()> {
         self.chip_slot()
             .borrow_mut()
             .set_chip(chip.clone())
-            .unwrap();
+            .map_err(|_leftover| SimulationError::RuntimeError {
+                message: "Chip slot occupied".to_string(),
+                line: 0,
+            })?;
 
         // Attach the slot back to the chip so it can resolve device pins/aliases
         chip.borrow_mut()
             .set_chip_slot(self.chip_slot(), self.ichost_get_id());
+        Ok(())
     }
 
     /// Set a device pin on the housing's chip slot (d0-dN)

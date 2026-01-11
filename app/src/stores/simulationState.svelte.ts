@@ -8,6 +8,7 @@ import init, {
     type WasmAtmosphericNetwork,
     type DevicePrefabInfo,
 } from '../../pkg/ic10_emulator';
+import { addNotification } from './notifications.svelte';
 
 export type { WasmDevice, WasmCableNetwork, WasmAtmosphericNetwork, DevicePrefabInfo };
 
@@ -94,6 +95,9 @@ export function getSimulationState() {
         },
         set connections(value: Connection[]) {
             _connections = value;
+        },
+        get tickCount() {
+            return _tickCount;
         },
     };
 }
@@ -493,8 +497,8 @@ export function syncFromWasm(): void {
         debugSimulation();
 
         try {
-            // current_tick is exported on the WASM manager and is the single source of truth
-            _tickCounter = Number(_simulationManager.current_tick());
+            // Update the local state tick count from the WASM manager
+            _tickCount = Number(_simulationManager.current_tick());
         } catch (_) {
             // ignore failures reading tick counter from WASM
         }
@@ -771,22 +775,38 @@ export function stepTicks(ticks: number) {
     if (!_simulationManager) return null;
     try {
         for (let i = 0; i < ticks; i++) {
-            _simulationManager.update();
+            const changes = _simulationManager.update();
             syncFromWasm();
+
+            // If no changes occurred in this tick, warn the user and stop auto-stepping if active
+            if (changes === 0) {
+                if (_autoRunning) {
+                    stopAutoStep();
+                    addNotification(
+                        'warning',
+                        'No changes occurred during the last step; auto-stepping has been stopped.',
+                        3000
+                    );
+                } else {
+                    addNotification('warning', 'No changes occurred during the last step.', 3000);
+                }
+                break;
+            }
         }
-        return _tickCounter;
+        return _tickCount;
     } catch (e) {
         console.error('Failed to step simulation:', e);
+        // Stop auto-step if active and notify the user
+        if (_autoRunning) {
+            stopAutoStep();
+        }
+        addNotification('error', `Simulation step failed: ${String(e)}`, null);
         return null;
     }
 }
 
-export function getTickCount(): number {
-    return _tickCounter;
-}
-
 // Tick counter and auto-step management
-let _tickCounter: number = $state(0);
+let _tickCount: number = $state(0);
 
 // Auto-step management: allows starting/stopping a periodic stepping at a specified ticks-per-second rate (1..64)
 let _autoStepTimer: number | null = $state(null);
@@ -811,6 +831,15 @@ export function startAutoStep(rate: number): boolean {
     _autoStepRate = Math.round(rate);
     _autoRunning = true;
 
+    // Notify UI that auto-step changed
+    try {
+        window.dispatchEvent(
+            new CustomEvent('sim:autoStepChanged', { detail: { running: _autoRunning } })
+        );
+    } catch (e) {
+        // ignore (e.g., server-side or non-window environments)
+    }
+
     // Interval such that we advance 1 tick per interval and hit approximately `rate` ticks per second.
     const intervalMs = Math.max(10, Math.round(1000 / _autoStepRate));
 
@@ -831,6 +860,14 @@ export function stopAutoStep(): void {
         _autoStepTimer = null;
     }
     _autoRunning = false;
+
+    try {
+        window.dispatchEvent(
+            new CustomEvent('sim:autoStepChanged', { detail: { running: _autoRunning } })
+        );
+    } catch (e) {
+        // ignore
+    }
 }
 
 export function isAutoStepping(): boolean {
