@@ -323,28 +323,6 @@ impl CableNetwork {
         self.name_index.clear();
     }
 
-    /// Update all devices in the network
-    /// Devices are updated in ascending order of their reference IDs
-    /// After updating all devices, IC runners are executed in the same order
-    pub fn update(&self, tick: u64) -> SimulationResult<u32> {
-        // Iterate over all devices in ascending order and run update
-        let mut effects: u32 = 0;
-        for device in self.devices.values() {
-            if device.borrow().update(tick)? {
-                effects = effects.saturating_add(1);
-            }
-        }
-
-        // Iterate over all devices again and execute IC runners
-        for device in self.devices.values() {
-            if device.borrow().run()? {
-                effects = effects.saturating_add(1);
-            }
-        }
-
-        Ok(effects)
-    }
-
     // ==================== Batch Read Operations ====================
 
     /// Read a logic value from all devices matching a prefab hash

@@ -8,7 +8,7 @@
 //!
 //! Update order implemented here:
 //! 1. Process atmospheric network updates
-//! 2. Update all cable networks (which run device updates and IC runners)
+//! 2. Update all devices (by the manager's device list): first updates, then IC runners
 
 use crate::ItemIntegratedCircuit10;
 use crate::LogicSlotType;
@@ -96,9 +96,21 @@ impl SimulationManager {
             total_effects += net.borrow_mut().process_phase_changes();
         }
 
-        // 2) Update all cable networks (which run device updates and IC runners)
-        for net in self.cable_networks.values() {
-            total_effects = total_effects.saturating_add(net.borrow().update(self.ticks)?);
+        // 2) Update all devices tracked by the manager (ascending reference ID)
+        let devices = self.devices.values().collect::<Vec<_>>();
+
+        // First, call update on all devices in ascending order
+        for device in &devices {
+            if device.borrow().update(self.ticks)? {
+                total_effects = total_effects.saturating_add(1);
+            }
+        }
+
+        // Then execute run() on all devices in the same order
+        for device in &devices {
+            if device.borrow().run()? {
+                total_effects = total_effects.saturating_add(1);
+            }
         }
 
         Ok(total_effects)

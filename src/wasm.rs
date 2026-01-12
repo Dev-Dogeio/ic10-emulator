@@ -181,14 +181,6 @@ impl WasmCableNetwork {
         self.inner.borrow_mut().clear();
     }
 
-    /// Update all devices on the network for the given tick
-    pub fn update(&self, tick: u64) -> Result<u32, JsValue> {
-        self.inner
-            .borrow()
-            .update(tick)
-            .map_err(|e| JsValue::from_str(&format!("{e}")))
-    }
-
     /// Batch read logic values from devices matching prefab and name
     pub fn batch_read_by_name(
         &self,
