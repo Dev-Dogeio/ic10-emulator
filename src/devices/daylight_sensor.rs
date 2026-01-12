@@ -127,8 +127,9 @@ impl Device for DaylightSensor {
         self.network.as_ref().and_then(|w| w.upgrade()).clone()
     }
 
-    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) {
+    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) -> SimulationResult<()> {
         self.network = network;
+        Ok(())
     }
 
     fn rename(&mut self, name: &str) {

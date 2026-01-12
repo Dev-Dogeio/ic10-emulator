@@ -31,6 +31,8 @@ pub struct DeviceProps {
     pub is_slot_host: bool,
     /// Whether this prefab type exposes atmospheric connections
     pub is_atmospheric_device: bool,
+    /// Whether this prefab type can be connected to a cable network
+    pub supports_cable_network: bool,
 }
 
 /// Function type that returns device metadata: `(display_name, DeviceProps)`.
@@ -196,6 +198,7 @@ where
             is_ic_host: T::is_ic_host(),
             is_slot_host: !T::slot_properties().descriptors().is_empty(),
             is_atmospheric_device: !T::required_atmospheric_connections().is_empty(),
+            supports_cable_network: T::supports_cable_network(),
         },
     )
 }
@@ -213,5 +216,6 @@ fn initialize_device_factory() {
         register_device!(DaylightSensor);
         register_device!(ICHousing);
         register_device!(LogicMemory);
+        register_device!(PassiveVent);
     }
 }

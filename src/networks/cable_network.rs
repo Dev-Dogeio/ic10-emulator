@@ -155,11 +155,15 @@ impl CableNetwork {
     /// Add a device to the network and set up the bidirectional connection
     /// The device will be indexed by its reference ID, prefab hash, and name hash
     /// The devices list will remain sorted by reference ID
-    pub fn add_device(&mut self, device: Shared<dyn Device>, network_rc: Shared<CableNetwork>) {
+    pub fn add_device(
+        &mut self,
+        device: Shared<dyn Device>,
+        network_rc: Shared<CableNetwork>,
+    ) -> SimulationResult<()> {
         // Set the device's network reference
         device
             .borrow_mut()
-            .set_network(Some(Rc::downgrade(&network_rc)));
+            .set_network(Some(Rc::downgrade(&network_rc)))?;
 
         let borrowed = device.borrow();
         let ref_id = borrowed.get_id();
@@ -171,7 +175,7 @@ impl CableNetwork {
             // Check if device is the same
             if Rc::ptr_eq(existing, &device) {
                 // Same device already present, no action needed
-                return;
+                return Ok(());
             }
             panic!(
                 "Different device with reference ID {} already exists on the network",
@@ -195,6 +199,8 @@ impl CableNetwork {
             Ok(_) => {}
             Err(pos) => name_ids.insert(pos, ref_id),
         }
+
+        Ok(())
     }
 
     /// Remove a device from the network by its reference ID
@@ -206,7 +212,7 @@ impl CableNetwork {
             drop(borrowed);
 
             // Notify the device that it is no longer part of the network
-            device.borrow_mut().set_network(None);
+            device.borrow_mut().set_network(None).unwrap();
 
             // Remove from prefab index
             if let Some(ids) = self.prefab_index.get_mut(&prefab_hash) {

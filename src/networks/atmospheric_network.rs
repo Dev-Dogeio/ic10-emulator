@@ -1,8 +1,8 @@
 //! Atmospheric Network - manages a shared gas mixture that can be accessed by multiple devices.
 
-use crate::SimulationError;
 use crate::atmospherics::{GasMixture, GasType, MatterState, Mole};
 use crate::types::{Shared, shared};
+use crate::{SimulationError, SimulationResult};
 use std::fmt::{Debug, Display};
 
 /// An atmospheric network that manages a shared gas mixture.
@@ -58,7 +58,7 @@ impl AtmosphericNetwork {
 
     /// Set the network volume
     /// If the network is constant, the constant mixture volume is also updated
-    pub fn set_volume(&mut self, volume: f64) -> Result<(), SimulationError> {
+    pub fn set_volume(&mut self, volume: f64) -> SimulationResult<()> {
         if volume <= 0.0 {
             return Err(SimulationError::RuntimeError {
                 message: "Atmospheric network volume must be positive".to_string(),
@@ -252,6 +252,7 @@ impl AtmosphericNetwork {
     pub fn equalize_with(&mut self, other: &mut AtmosphericNetwork) {
         self.mixture.equalize_with(&mut other.mixture);
         self.after_update();
+        other.after_update();
     }
 
     /// Equalize internal energy within the network
@@ -265,6 +266,7 @@ impl AtmosphericNetwork {
         let transferred = self.mixture.remove_moles(moles, MatterState::All);
         other.mixture.merge(&transferred);
         self.after_update();
+        other.after_update();
     }
 
     /// Set the temperature of the network

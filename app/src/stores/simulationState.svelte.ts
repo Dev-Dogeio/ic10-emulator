@@ -124,48 +124,60 @@ export async function initializeWasm(): Promise<void> {
 export function createDevice(prefabHash: number, x: number, y: number): GridDevice | null {
     if (!_simulationManager) return null;
 
-    const device = _simulationManager.create_device(prefabHash);
-    const prefabInfo = get_device_prefab_info(prefabHash);
+    try {
+        const device = _simulationManager.create_device(prefabHash);
+        const prefabInfo = get_device_prefab_info(prefabHash);
 
-    const gridDevice: GridDevice = {
-        id: device.id(),
-        device,
-        prefabInfo,
-        x,
-        y,
-    };
+        const gridDevice: GridDevice = {
+            id: device.id(),
+            device,
+            prefabInfo,
+            x,
+            y,
+        };
 
-    _gridDevices = [..._gridDevices, gridDevice];
-    console.log('Created device:', device.name(), 'at', x, y);
-    syncFromWasm();
+        _gridDevices = [..._gridDevices, gridDevice];
+        console.log('Created device:', device.name(), 'at', x, y);
+        syncFromWasm();
 
-    return gridDevice;
+        return gridDevice;
+    } catch (e) {
+        console.error('Failed to create device via manager:', e);
+        addNotification('error', `Failed to create device: ${String(e)}`, 5000);
+        return null;
+    }
 }
 
 export function createCableNetwork(x: number, y: number): GridNetwork | null {
     if (!_simulationManager) return null;
 
-    const network = _simulationManager.create_cable_network();
-    _cableNetworkCounter++;
+    try {
+        const network = _simulationManager.create_cable_network();
+        _cableNetworkCounter++;
 
-    const networkData: NetworkNodeData = {
-        id: `cable-${_cableNetworkCounter}`,
-        type: 'cable',
-        name: `Network ${network.id()}`,
-        network,
-        managerId: network.id(),
-    };
+        const networkData: NetworkNodeData = {
+            id: `cable-${_cableNetworkCounter}`,
+            type: 'cable',
+            name: `Network ${network.id()}`,
+            network,
+            managerId: network.id(),
+        };
 
-    const gridNetwork: GridNetwork = {
-        id: networkData.id,
-        data: networkData,
-        x,
-        y,
-    };
+        const gridNetwork: GridNetwork = {
+            id: networkData.id,
+            data: networkData,
+            x,
+            y,
+        };
 
-    _gridNetworks = [..._gridNetworks, gridNetwork];
-    syncFromWasm();
-    return gridNetwork;
+        _gridNetworks = [..._gridNetworks, gridNetwork];
+        syncFromWasm();
+        return gridNetwork;
+    } catch (e) {
+        console.error('Failed to create cable network via manager:', e);
+        addNotification('error', `Failed to create cable network: ${String(e)}`, 5000);
+        return null;
+    }
 }
 
 export function createAtmosphericNetwork(
@@ -175,27 +187,33 @@ export function createAtmosphericNetwork(
 ): GridNetwork | null {
     if (!_simulationManager) return null;
 
-    const network = _simulationManager.create_atmospheric_network(volume);
-    _atmosphericNetworkCounter++;
+    try {
+        const network = _simulationManager.create_atmospheric_network(volume);
+        _atmosphericNetworkCounter++;
 
-    const networkData: NetworkNodeData = {
-        id: `atmo-${_atmosphericNetworkCounter}`,
-        type: 'atmospheric',
-        name: `Atmosphere ${network.id()}`,
-        network,
-        managerId: network.id(),
-    };
+        const networkData: NetworkNodeData = {
+            id: `atmo-${_atmosphericNetworkCounter}`,
+            type: 'atmospheric',
+            name: `Atmosphere ${network.id()}`,
+            network,
+            managerId: network.id(),
+        };
 
-    const gridNetwork: GridNetwork = {
-        id: networkData.id,
-        data: networkData,
-        x,
-        y,
-    };
+        const gridNetwork: GridNetwork = {
+            id: networkData.id,
+            data: networkData,
+            x,
+            y,
+        };
 
-    _gridNetworks = [..._gridNetworks, gridNetwork];
-    syncFromWasm();
-    return gridNetwork;
+        _gridNetworks = [..._gridNetworks, gridNetwork];
+        syncFromWasm();
+        return gridNetwork;
+    } catch (e) {
+        console.error('Failed to create atmospheric network via manager:', e);
+        addNotification('error', `Failed to create atmospheric network: ${String(e)}`, 5000);
+        return null;
+    }
 }
 
 export function updateDevicePosition(deviceId: number, x: number, y: number): void {
@@ -632,6 +650,11 @@ export function connectDeviceToCableNetwork(deviceId: number, networkId: string)
         network?.remove_device?.(gridDevice.device.id());
     } catch (e) {
         console.warn('Failed to remove device from existing cable network:', e);
+        addNotification(
+            'warning',
+            `Failed to remove device from existing cable network: ${String(e)}`,
+            3000
+        );
     }
 
     try {
@@ -642,6 +665,11 @@ export function connectDeviceToCableNetwork(deviceId: number, networkId: string)
         return true;
     } catch (e) {
         console.error('Failed to connect device to cable network:', e);
+        addNotification(
+            'error',
+            `Failed to connect device ${deviceId} to cable network: ${String(e)}`,
+            5000
+        );
         return false;
     }
 }
@@ -677,6 +705,13 @@ export function connectDeviceToAtmosphericNetwork(
         return true;
     } catch (e) {
         console.error('Failed to connect device to atmospheric network:', e);
+        addNotification(
+            'error',
+            `Failed to connect device ${deviceId} (${connectorType}) to atmospheric network: ${String(
+                e
+            )}`,
+            5000
+        );
         return false;
     }
 }

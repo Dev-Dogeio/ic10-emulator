@@ -55,7 +55,8 @@ mod tests {
             // Connect housing to network (which also adds it as a device)
             network
                 .borrow_mut()
-                .add_device(housing.clone(), network.clone());
+                .add_device(housing.clone(), network.clone())
+                .unwrap();
 
             (chip, housing, network)
         }
@@ -1082,7 +1083,8 @@ j ra
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(sensor.clone(), network.clone());
+            .add_device(sensor.clone(), network.clone())
+            .unwrap();
         chip.borrow()
             .get_chip_slot()
             .borrow_mut()
@@ -1115,7 +1117,8 @@ yield
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(sensor.clone(), network.clone());
+            .add_device(sensor.clone(), network.clone())
+            .unwrap();
         chip.borrow()
             .get_chip_slot()
             .borrow_mut()
@@ -1149,7 +1152,8 @@ yield
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(sensor.clone(), network.clone());
+            .add_device(sensor.clone(), network.clone())
+            .unwrap();
         chip.borrow()
             .get_chip_slot()
             .borrow_mut()
@@ -1183,7 +1187,8 @@ yield
         let sensor_id = sensor.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(sensor.clone(), network.clone());
+            .add_device(sensor.clone(), network.clone())
+            .unwrap();
         chip.borrow()
             .get_chip_slot()
             .borrow_mut()
@@ -1259,7 +1264,8 @@ yield
         let housing2_id = housing2.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing2.clone(), network.clone());
+            .add_device(housing2.clone(), network.clone())
+            .unwrap();
 
         // Assign device to pin d0
         chip.borrow()
@@ -1332,7 +1338,8 @@ yield
         let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing2.clone(), network.clone());
+            .add_device(housing2.clone(), network.clone())
+            .unwrap();
 
         // Write some values to housing2's memory
         ICHostDevice::set_memory(&*housing2.borrow(), 0, 42.0).unwrap();
@@ -1409,7 +1416,8 @@ yield
         let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing2.clone(), network.clone());
+            .add_device(housing2.clone(), network.clone())
+            .unwrap();
 
         // Write some values to housing2's memory
         ICHostDevice::set_memory(&*housing2.borrow(), 0, 42.0).unwrap();
@@ -1463,7 +1471,8 @@ yield
         let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing2.clone(), network.clone());
+            .add_device(housing2.clone(), network.clone())
+            .unwrap();
 
         // Store the device ID in a register and use ld/sd - Setting = 12
         let program = format!(
@@ -1495,7 +1504,8 @@ yield
         let device_id = housing2.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing2.clone(), network.clone());
+            .add_device(housing2.clone(), network.clone())
+            .unwrap();
 
         let program = format!(
             r#"
@@ -1542,7 +1552,10 @@ yield
                 id: Some(i + 2),
                 ..SimulationDeviceSettings::default()
             });
-            network.borrow_mut().add_device(housing, network.clone());
+            network
+                .borrow_mut()
+                .add_device(housing, network.clone())
+                .unwrap();
         }
 
         // Now we should have 4 total
@@ -1643,7 +1656,8 @@ yield
         let fil_id = filtration.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(filtration.clone(), network.clone());
+            .add_device(filtration.clone(), network.clone())
+            .unwrap();
 
         // Insert a physical filter in slot 0
         {
@@ -1843,7 +1857,8 @@ yield
         let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing1.clone(), network.clone());
+            .add_device(housing1.clone(), network.clone())
+            .unwrap();
 
         let housing2 = ICHousing::new(SimulationDeviceSettings {
             id: Some(5),
@@ -1858,7 +1873,8 @@ yield
         let device_id2 = housing2.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing2.clone(), network.clone());
+            .add_device(housing2.clone(), network.clone())
+            .unwrap();
 
         // Write some values to housing1 and housing2's memory
         ICHostDevice::set_memory(&*housing1.borrow(), 0, 111.0).unwrap();
@@ -1955,7 +1971,8 @@ yield
         let device_id1 = housing1.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing1.clone(), network.clone());
+            .add_device(housing1.clone(), network.clone())
+            .unwrap();
 
         let housing2 = ICHousing::new(SimulationDeviceSettings {
             id: Some(5),
@@ -1969,7 +1986,8 @@ yield
         let device_id2 = housing2.borrow().get_id();
         network
             .borrow_mut()
-            .add_device(housing2.clone(), network.clone());
+            .add_device(housing2.clone(), network.clone())
+            .unwrap();
 
         // Write some values to both housings' memory
         ICHostDevice::set_memory(&*housing1.borrow(), 0, 111.0).unwrap();

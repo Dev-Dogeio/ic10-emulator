@@ -32,8 +32,12 @@
     let availableTabs = $derived.by(() => {
         const tabs: { id: TabId; label: string; icon: string }[] = [
             { id: 'overview', label: 'Overview', icon: '📋' },
-            { id: 'logic', label: 'Logic', icon: '⚙️' },
         ];
+
+        // Only show the Logic tab when the prefab exposes logic properties
+        if (prefabInfo.properties && prefabInfo.properties.length > 0) {
+            tabs.push({ id: 'logic', label: 'Logic', icon: '⚙️' });
+        }
 
         if (prefabInfo.is_slot_host) {
             tabs.push({ id: 'slots', label: 'Slots', icon: '📦' });
@@ -44,6 +48,13 @@
         }
 
         return tabs;
+    });
+
+    // Ensure the active tab is valid; if not, switch back to overview
+    $effect(() => {
+        if (!availableTabs.some((t) => t.id === activeTab)) {
+            switchTab('overview');
+        }
     });
 
     // Device name editing

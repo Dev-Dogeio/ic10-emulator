@@ -27,7 +27,7 @@ const TS_APPEND_CONTENT: &'static str = r#"
 export interface DevicePrefabProperty { logic: number; logic_name: string; readable: boolean; writable: boolean; }
 export interface DeviceSlotProperty { slot_logic: number; slot_logic_name: string; readable: boolean; slot_ids: number[]; }
 export interface AtmoConnection { name: string; connection_type: number; }
-export interface DevicePrefabInfo { device_name: string; prefab_hash: number; is_atmospheric_device: boolean; is_ic_host: boolean; is_slot_host: boolean; properties: DevicePrefabProperty[]; slot_properties: DeviceSlotProperty[]; atmospheric_connections: AtmoConnection[]; }
+export interface DevicePrefabInfo { device_name: string; prefab_hash: number; is_atmospheric_device: boolean; is_ic_host: boolean; is_slot_host: boolean; supports_cable_network: boolean; properties: DevicePrefabProperty[]; slot_properties: DeviceSlotProperty[]; atmospheric_connections: AtmoConnection[]; }
 export interface ItemPrefabInfo { name: string; prefab_hash: number; item_type: string; }
 
 export function get_device_prefab_info(prefab_hash: number): DevicePrefabInfo;
@@ -51,7 +51,8 @@ impl WasmCableNetwork {
     pub fn add_device(&self, device: &WasmDevice) -> Result<(), JsValue> {
         self.inner
             .borrow_mut()
-            .add_device(device.inner.clone(), self.inner.clone());
+            .add_device(device.inner.clone(), self.inner.clone())
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
         Ok(())
     }
 
@@ -537,8 +538,8 @@ impl WasmDevice {
         network
             .inner
             .borrow_mut()
-            .add_device(self.inner.clone(), network.inner.clone());
-        Ok(())
+            .add_device(self.inner.clone(), network.inner.clone())
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 
     /// Remove this device from its current network (if any)
@@ -1428,6 +1429,7 @@ struct PrefabInfo {
     is_atmospheric_device: bool,
     is_ic_host: bool,
     is_slot_host: bool,
+    supports_cable_network: bool,
     properties: Vec<PrefabProperty>,
     slot_properties: Vec<SlotProperty>,
     atmospheric_connections: Vec<AtmoConnection>,
@@ -1473,6 +1475,7 @@ pub fn get_device_prefab_info(prefab_hash: i32) -> Result<JsValue, JsValue> {
             is_atmospheric_device: props.is_atmospheric_device,
             is_ic_host: props.is_ic_host,
             is_slot_host: props.is_slot_host,
+            supports_cable_network: props.supports_cable_network,
             properties,
             slot_properties,
             atmospheric_connections,

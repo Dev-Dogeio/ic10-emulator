@@ -20,6 +20,7 @@ pub mod device_factory;
 pub mod filtration;
 pub mod ic_housing;
 pub mod logic_memory;
+pub mod passive_vent;
 pub mod property_descriptor;
 pub mod volume_pump;
 
@@ -29,6 +30,7 @@ pub use daylight_sensor::DaylightSensor;
 pub use filtration::Filtration;
 pub use ic_housing::ICHousing;
 pub use logic_memory::LogicMemory;
+pub use passive_vent::PassiveVent;
 pub use volume_pump::VolumePump;
 
 /// Simulation settings for devices
@@ -629,7 +631,7 @@ pub trait Device: Debug {
     }
 
     /// Set the network reference for the device
-    fn set_network(&mut self, network: OptWeakShared<CableNetwork>);
+    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) -> SimulationResult<()>;
 
     /// Read a value from a specific slot
     fn read_slot(&self, _index: usize, _slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
@@ -694,6 +696,15 @@ pub trait Device: Debug {
         Self: Sized,
     {
         false
+    }
+
+    /// Whether this device type can be connected to a cable network.
+    /// Device types that cannot be connected to a cable network should override this.
+    fn supports_cable_network() -> bool
+    where
+        Self: Sized,
+    {
+        true
     }
 
     /// If the device hosts an IC chip, return a reference to it.
@@ -873,7 +884,7 @@ pub trait AtmosphericDevice: Debug {
         &mut self,
         connection: DeviceAtmosphericNetworkType,
         network: OptShared<AtmosphericNetwork>,
-    ) -> Result<(), SimulationError>;
+    ) -> SimulationResult<()>;
 
     /// Get the atmospheric network for a specific connection on this device
     fn get_atmospheric_network(

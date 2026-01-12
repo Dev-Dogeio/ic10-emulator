@@ -92,6 +92,9 @@
         )
     );
 
+    // Whether the device supports attaching to the cable network
+    let hasCable = $derived.by(() => prefabInfo.supports_cable_network);
+
     interface Badge {
         label: string;
         bgColor: string;
@@ -236,20 +239,22 @@
         pointer-events="none"
     ></rect>
 
-    <!-- Cable network connector -->
-    <Connector
-        id={`device-${deviceId}-cable`}
-        type="cable"
-        side="left"
-        label="Network"
-        offsetY={-22}
-        nodeWidth={NODE_W}
-        nodeHeight={NODE_H}
-        compatible={isCompatible('cable')}
-        connecting={connectingType !== null}
-        onStartConnect={handleConnectorStart}
-        onEndConnect={handleConnectorEnd}
-    />
+    {#if hasCable}
+        <!-- Cable network connector -->
+        <Connector
+            id={`device-${deviceId}-cable`}
+            type="cable"
+            side="left"
+            label="Network"
+            offsetY={-22}
+            nodeWidth={NODE_W}
+            nodeHeight={NODE_H}
+            compatible={isCompatible('cable')}
+            connecting={connectingType !== null}
+            onStartConnect={handleConnectorStart}
+            onEndConnect={handleConnectorEnd}
+        />
+    {/if}
 
     <!-- Atmospheric input connectors (left side) -->
     {#if hasAtmoInput}
