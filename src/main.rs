@@ -47,7 +47,7 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
     });
     cable_network
         .borrow_mut()
-        .add_device(pump.clone(), cable_network.clone());
+        .add_device(pump.clone(), cable_network.clone())?;
     pump.borrow_mut().set_atmospheric_network(
         DeviceAtmosphericNetworkType::Input,
         Some(input_network.clone()),
@@ -63,18 +63,18 @@ fn phase_change_test() -> Result<(), Box<dyn Error>> {
         .borrow_mut()
         .add_gas(GasType::Water, 1.0, celsius_to_kelvin(30.0));
 
-    println!("Initial state:\n{}", input_network.borrow().mixture());
+    println!("Initial state:\n{}", input_network.borrow());
 
     let mut ticks = 1;
     const MAX_TICKS: u64 = 15;
 
     loop {
-        let changes = manager.update(ticks);
+        let changes = manager.update()?;
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n Input: {}\nOutput: {}",
-            input_network.borrow().mixture(),
-            output_network.borrow().mixture()
+            input_network.borrow(),
+            output_network.borrow()
         );
 
         if changes == 0 {
@@ -103,17 +103,17 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
         .borrow_mut()
         .add_gas(GasType::Water, 1.0, celsius_to_kelvin(30.0));
 
-    println!("Initial state:\n{}", network.borrow().mixture());
+    println!("Initial state:\n{}", network.borrow());
 
     let mut ticks = 1;
     const MAX_TICKS: u64 = 1000;
 
     loop {
-        let changes = manager.update(ticks);
+        let changes = manager.update()?;
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n{}",
-            network.borrow().mixture()
+            network.borrow()
         );
 
         if changes == 0 {
@@ -128,14 +128,14 @@ fn phase_change_test_2() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    network.borrow_mut().set_volume(20.0);
+    network.borrow_mut().set_volume(20.0)?;
 
     loop {
-        let changes = manager.update(ticks);
+        let changes = manager.update()?;
 
         println!(
             "\nAfter tick #{ticks} (phase changes: {changes}):\n{}",
-            network.borrow().mixture()
+            network.borrow()
         );
 
         if changes == 0 {
@@ -185,14 +185,16 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
         id: Some(manager.allocate_next_id()),
         ..SimulationItemSettings::default()
     }));
-    ac.borrow().set_chip(chip.clone());
+    ac.borrow().set_chip(chip.clone())?;
 
     let network = manager.create_cable_network();
 
-    network.borrow_mut().add_device(ac.clone(), network.clone());
     network
         .borrow_mut()
-        .add_device(pump.clone(), network.clone());
+        .add_device(ac.clone(), network.clone())?;
+    network
+        .borrow_mut()
+        .add_device(pump.clone(), network.clone())?;
 
     tank.borrow_mut().add_gas(GasType::Volatiles, 500.0, 315.15); // Fill tank with hot gas
 
@@ -239,16 +241,16 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
     println!("Elmo AC Test Program:\n{}\n", program);
 
     println!("Initial state:");
-    println!(" Tank: {}", tank.borrow().mixture());
-    println!(" Input: {}", input.borrow().mixture());
-    println!(" Vent: {}", vent.borrow().mixture());
+    println!(" Tank: {}", tank.borrow());
+    println!(" Input: {}", input.borrow());
+    println!(" Vent: {}", vent.borrow());
 
     let mut ticks = 0;
 
     while ticks < 2 || ac.borrow().read(LogicType::Mode)? == 1.0 {
         // Time the simulation
         let _start = std::time::Instant::now();
-        manager.update(ticks);
+        manager.update()?;
         let duration = _start.elapsed();
 
         println!(
@@ -256,9 +258,9 @@ fn elmo_ac_test() -> Result<(), Box<dyn Error>> {
             ticks,
             duration.as_micros() as f64 / 1000.0
         );
-        println!(" Tank: {}", tank.borrow().mixture());
-        println!(" Input: {}", input.borrow().mixture());
-        println!(" Vent: {}", vent.borrow().mixture());
+        println!(" Tank: {}", tank.borrow());
+        println!(" Input: {}", input.borrow());
+        println!(" Vent: {}", vent.borrow());
 
         ticks += 1;
     }
@@ -298,21 +300,21 @@ fn ac_device_test() -> Result<(), Box<dyn Error>> {
 
     println!(
         "Initial state:\n Input: {}\n Output: {}\n Waste: {}",
-        input.borrow().mixture(),
-        input.borrow().mixture(),
-        waste.borrow().mixture()
+        input.borrow(),
+        input.borrow(),
+        waste.borrow()
     );
 
     let mut ticks = 1;
 
     while ticks <= 38 {
-        manager.update(ticks);
+        manager.update()?;
 
         println!(
             "\nAfter tick #{ticks}:\n Input: {}\n Output: {}\n Waste: {}",
-            input.borrow().mixture(),
-            input.borrow().mixture(),
-            waste.borrow().mixture()
+            input.borrow(),
+            input.borrow(),
+            waste.borrow()
         );
         ticks += 1;
     }
@@ -362,26 +364,26 @@ fn filtration_device_test() -> Result<(), Box<dyn Error>> {
 
     network
         .borrow_mut()
-        .add_device(filtration.clone(), network.clone());
+        .add_device(filtration.clone(), network.clone())?;
 
     println!(
         "Initial state:\n Input: {}\n Filtered: {}\n Waste: {}",
-        input.borrow().mixture(),
-        filtered.borrow().mixture(),
-        waste.borrow().mixture()
+        input.borrow(),
+        filtered.borrow(),
+        waste.borrow()
     );
 
     let mut ticks = 1;
 
     while !input.borrow().is_empty() {
         // Run the filtration until input network is empty
-        manager.update(ticks);
+        manager.update()?;
 
         println!(
             "\nAfter filtration #{ticks}:\n Input: {}\n Filtered: {}\n Waste: {}",
-            input.borrow().mixture(),
-            filtered.borrow().mixture(),
-            waste.borrow().mixture()
+            input.borrow(),
+            filtered.borrow(),
+            waste.borrow()
         );
         ticks += 1;
     }
@@ -405,10 +407,10 @@ fn ic_program_test() -> Result<(), Box<dyn Error>> {
         ..SimulationDeviceSettings::default()
     });
 
-    housing.borrow().set_chip(chip.clone());
+    housing.borrow().set_chip(chip.clone())?;
     network
         .borrow_mut()
-        .add_device(housing.clone(), network.clone());
+        .add_device(housing.clone(), network.clone())?;
 
     let program = r#"define PREFIX HASH("Named Device Prefix ") # Generated by PyTrapIC v0.2.2.dev3+gb1dad33d5
 define FIRST_NUMBER 0
@@ -484,7 +486,7 @@ s db Setting STR("DONE")"#.to_string();
 
     // Run the simulation until the script is done
     while !(chip.borrow().is_halted() || housing.borrow().read(LogicType::On)? == 0.0) {
-        manager.update(ticks);
+        manager.update()?;
         let steps = housing.borrow().get_last_executed_instructions();
 
         println!("Tick {} ({} steps)", ticks, steps);

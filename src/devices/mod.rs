@@ -13,6 +13,7 @@ use crate::{
     types::{OptShared, OptWeakShared, Shared},
 };
 
+pub mod active_vent;
 pub mod air_conditioner;
 pub mod chip_slot;
 pub mod daylight_sensor;
@@ -20,15 +21,18 @@ pub mod device_factory;
 pub mod filtration;
 pub mod ic_housing;
 pub mod logic_memory;
+pub mod passive_vent;
 pub mod property_descriptor;
 pub mod volume_pump;
 
+pub use active_vent::ActiveVent;
 pub use air_conditioner::AirConditioner;
 pub use chip_slot::ChipSlot;
 pub use daylight_sensor::DaylightSensor;
 pub use filtration::Filtration;
 pub use ic_housing::ICHousing;
 pub use logic_memory::LogicMemory;
+pub use passive_vent::PassiveVent;
 pub use volume_pump::VolumePump;
 
 /// Simulation settings for devices
@@ -196,6 +200,8 @@ impl LogicSlotType {
 #[repr(i32)]
 pub enum LogicType {
     Mode = 3,
+    PressureExternal = 7,
+    PressureInternal = 8,
     Setting = 12,
     Horizontal = 20,
     Vertical = 21,
@@ -300,6 +306,8 @@ impl LogicType {
         use LogicType::*;
         match value as i32 {
             3 => Some(Mode),
+            7 => Some(PressureExternal),
+            8 => Some(PressureInternal),
             12 => Some(Setting),
             20 => Some(Horizontal),
             21 => Some(Vertical),
@@ -406,6 +414,8 @@ impl LogicType {
         use LogicType::*;
         match name {
             "Mode" => Some(Mode),
+            "PressureExternal" => Some(PressureExternal),
+            "PressureInternal" => Some(PressureInternal),
             "Setting" => Some(Setting),
             "Horizontal" => Some(Horizontal),
             "Vertical" => Some(Vertical),
@@ -629,7 +639,7 @@ pub trait Device: Debug {
     }
 
     /// Set the network reference for the device
-    fn set_network(&mut self, network: OptWeakShared<CableNetwork>);
+    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) -> SimulationResult<()>;
 
     /// Read a value from a specific slot
     fn read_slot(&self, _index: usize, _slot_logic_type: LogicSlotType) -> SimulationResult<f64> {
@@ -656,15 +666,16 @@ pub trait Device: Debug {
     fn rename(&mut self, name: &str);
 
     /// Update the device state based on the global tick count
-    /// Default implementation does nothing - devices can override if they need tick-based updates
-    fn update(&self, _tick: u64) -> SimulationResult<()> {
-        Ok(())
+    /// Returns `Ok(true)` if the device actually performed any effect (changed state, moved gas, etc.).
+    /// Default implementation does nothing and returns `Ok(false)`.
+    fn update(&self, _tick: u64) -> SimulationResult<bool> {
+        Ok(false)
     }
 
     /// Run chip code if applicable for the device.
-    /// Default implementation does nothing - devices can override if they can execute code.
-    fn run(&self) -> SimulationResult<()> {
-        Ok(())
+    /// Returns `Ok(true)` if the device executed any instructions; default is `Ok(false)`.
+    fn run(&self) -> SimulationResult<bool> {
+        Ok(false)
     }
 
     /// Get the list of supported `LogicType` values for this device.
@@ -693,6 +704,15 @@ pub trait Device: Debug {
         Self: Sized,
     {
         false
+    }
+
+    /// Whether this device type can be connected to a cable network.
+    /// Device types that cannot be connected to a cable network should override this.
+    fn supports_cable_network() -> bool
+    where
+        Self: Sized,
+    {
+        true
     }
 
     /// If the device hosts an IC chip, return a reference to it.
@@ -788,15 +808,19 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
     }
 
     /// Insert an IC chip into the host and attach it. Default implementation inserts into the slot and assigns the chip slot to the chip.
-    fn set_chip(&self, chip: Shared<ItemIntegratedCircuit10>) {
+    fn set_chip(&self, chip: Shared<ItemIntegratedCircuit10>) -> SimulationResult<()> {
         self.chip_slot()
             .borrow_mut()
             .set_chip(chip.clone())
-            .unwrap();
+            .map_err(|_leftover| SimulationError::RuntimeError {
+                message: "Chip slot occupied".to_string(),
+                line: 0,
+            })?;
 
         // Attach the slot back to the chip so it can resolve device pins/aliases
         chip.borrow_mut()
             .set_chip_slot(self.chip_slot(), self.ichost_get_id());
+        Ok(())
     }
 
     /// Set a device pin on the housing's chip slot (d0-dN)
@@ -868,7 +892,7 @@ pub trait AtmosphericDevice: Debug {
         &mut self,
         connection: DeviceAtmosphericNetworkType,
         network: OptShared<AtmosphericNetwork>,
-    ) -> Result<(), SimulationError>;
+    ) -> SimulationResult<()>;
 
     /// Get the atmospheric network for a specific connection on this device
     fn get_atmospheric_network(

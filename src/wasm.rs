@@ -21,14 +21,13 @@ use crate::types::{OptShared, Shared};
 use crate::{AtmosphericNetwork, CableNetwork, SimulationManager, parser};
 use serde::Serialize;
 use serde_wasm_bindgen::to_value;
-use std::rc::Rc;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_APPEND_CONTENT: &'static str = r#"
 export interface DevicePrefabProperty { logic: number; logic_name: string; readable: boolean; writable: boolean; }
 export interface DeviceSlotProperty { slot_logic: number; slot_logic_name: string; readable: boolean; slot_ids: number[]; }
 export interface AtmoConnection { name: string; connection_type: number; }
-export interface DevicePrefabInfo { device_name: string; prefab_hash: number; is_atmospheric_device: boolean; is_ic_host: boolean; is_slot_host: boolean; properties: DevicePrefabProperty[]; slot_properties: DeviceSlotProperty[]; atmospheric_connections: AtmoConnection[]; }
+export interface DevicePrefabInfo { device_name: string; prefab_hash: number; is_atmospheric_device: boolean; is_ic_host: boolean; is_slot_host: boolean; supports_cable_network: boolean; properties: DevicePrefabProperty[]; slot_properties: DeviceSlotProperty[]; atmospheric_connections: AtmoConnection[]; }
 export interface ItemPrefabInfo { name: string; prefab_hash: number; item_type: string; }
 
 export function get_device_prefab_info(prefab_hash: number): DevicePrefabInfo;
@@ -52,7 +51,8 @@ impl WasmCableNetwork {
     pub fn add_device(&self, device: &WasmDevice) -> Result<(), JsValue> {
         self.inner
             .borrow_mut()
-            .add_device(device.inner.clone(), self.inner.clone());
+            .add_device(device.inner.clone(), self.inner.clone())
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
         Ok(())
     }
 
@@ -180,11 +180,6 @@ impl WasmCableNetwork {
     /// Clear the network
     pub fn clear(&self) {
         self.inner.borrow_mut().clear();
-    }
-
-    /// Update all devices on the network for the given tick
-    pub fn update(&self, tick: u64) {
-        self.inner.borrow().update(tick);
     }
 
     /// Batch read logic values from devices matching prefab and name
@@ -543,8 +538,8 @@ impl WasmDevice {
         network
             .inner
             .borrow_mut()
-            .add_device(self.inner.clone(), network.inner.clone());
-        Ok(())
+            .add_device(self.inner.clone(), network.inner.clone())
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 
     /// Remove this device from its current network (if any)
@@ -620,19 +615,19 @@ impl WasmDevice {
     }
 
     /// Run the device's run() method (execute chips if supported)
-    pub fn run(&self) -> Result<(), JsValue> {
+    pub fn run(&self) -> Result<bool, JsValue> {
         self.inner
             .borrow()
             .run()
-            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     /// Update the device for a given tick (calls `update`)
-    pub fn update(&self, tick: u64) -> Result<(), JsValue> {
+    pub fn update(&self, tick: u64) -> Result<bool, JsValue> {
         self.inner
             .borrow()
             .update(tick)
-            .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     /// Read a slot logic value from this device.
@@ -654,6 +649,22 @@ impl WasmDevice {
             .borrow()
             .write_slot(index, slot_logic_type, value)
             .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+    }
+
+    /// Set the IC10 program source on an installed chip (loads into the chip).
+    /// Returns Err if device does not support IC hosting or if no chip is installed or if parsing fails.
+    pub fn set_code(&self, source: &str) -> Result<(), JsValue> {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device() {
+            if let Some(mut chip) = host.chip_slot().borrow().get_chip_mut() {
+                chip.load_program(source)
+                    .map_err(|e| JsValue::from_str(&format!("{e:?}")))
+            } else {
+                Err(JsValue::from_str("No chip installed"))
+            }
+        } else {
+            Err(JsValue::from_str("Device does not support IC hosting"))
+        }
     }
 
     /// Insert an item into a slot on this device. The item is consumed on success.
@@ -715,7 +726,8 @@ impl WasmDevice {
     pub fn set_chip(&self, chip: &WasmICChip) -> Result<(), JsValue> {
         let dev = self.inner.borrow();
         if let Some(host) = dev.as_ic_host_device() {
-            host.set_chip(chip.inner.clone());
+            host.set_chip(chip.inner.clone())
+                .map_err(|e| JsValue::from_str(&format!("{e}")))?;
             Ok(())
         } else {
             Err(JsValue::from_str("Device does not support IC installation"))
@@ -768,6 +780,27 @@ impl WasmDevice {
         } else {
             0
         }
+    }
+
+    /// Check whether this IC host device currently has a chip installed
+    pub fn has_chip(&self) -> bool {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device() {
+            host.chip_slot().borrow().get_chip().is_some()
+        } else {
+            false
+        }
+    }
+
+    /// Return the stored source text from an installed chip (empty string if none or no chip)
+    pub fn get_chip_source(&self) -> String {
+        let dev = self.inner.borrow();
+        if let Some(host) = dev.as_ic_host_device()
+            && let Some(chip) = host.chip_slot().borrow().get_chip()
+        {
+            return chip.get_source().unwrap_or_default();
+        }
+        String::new()
     }
 }
 
@@ -928,6 +961,11 @@ impl WasmICChip {
     pub fn get_host_id(&self) -> Option<i32> {
         self.inner.borrow().get_host_id()
     }
+
+    /// Get the source text stored in this chip (empty string if none)
+    pub fn get_source(&self) -> String {
+        self.inner.borrow().get_source().unwrap_or_default()
+    }
 }
 
 #[wasm_bindgen]
@@ -958,8 +996,11 @@ impl WasmAtmosphericNetwork {
         Ok(self.inner.borrow_mut().remove_gas(gas, moles))
     }
 
-    pub fn set_volume(&self, volume: f64) {
-        self.inner.borrow_mut().set_volume(volume);
+    pub fn set_volume(&self, volume: f64) -> Result<(), JsValue> {
+        self.inner
+            .borrow_mut()
+            .set_volume(volume)
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     pub fn clear(&self) {
@@ -979,8 +1020,12 @@ impl WasmAtmosphericNetwork {
     pub fn add_mixture(&self, other: &WasmGasMixture) {
         self.inner.borrow_mut().add_mixture(&other.inner);
     }
+
     pub fn id(&self) -> i32 {
-        self.inner.borrow().get_id().unwrap()
+        self.inner
+            .borrow()
+            .get_id()
+            .expect("AtmosphericNetwork has no ID")
     }
 
     pub fn remove_moles(&self, moles: f64, state_value: u32) -> WasmGasMixture {
@@ -1039,100 +1084,80 @@ impl WasmAtmosphericNetwork {
         self.inner.borrow_mut().remove_energy(joules)
     }
 
-    // ---- GasMixture parity methods (delegating to the internal mixture) ----
-    pub fn volume(&self) -> f64 {
-        self.inner.borrow().mixture().volume()
-    }
-
-    pub fn total_moles_gases(&self) -> f64 {
-        self.inner.borrow().mixture().total_moles_gases()
-    }
-
-    pub fn total_moles_liquids(&self) -> f64 {
-        self.inner.borrow().mixture().total_moles_liquids()
-    }
-
-    pub fn total_moles_by_state(&self, state_value: u32) -> f64 {
-        let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
-        self.inner.borrow().mixture().total_moles_by_state(state)
-    }
-
-    pub fn total_volume_liquids(&self) -> f64 {
-        self.inner.borrow().mixture().total_volume_liquids()
-    }
-
-    pub fn liquid_volume_ratio(&self) -> f64 {
-        self.inner.borrow().mixture().liquid_volume_ratio()
-    }
-
-    pub fn gas_volume(&self) -> f64 {
-        self.inner.borrow().mixture().gas_volume()
-    }
-
-    pub fn total_energy_gases(&self) -> f64 {
-        self.inner.borrow().mixture().total_energy_gases()
-    }
-
-    pub fn total_energy_liquids(&self) -> f64 {
-        self.inner.borrow().mixture().total_energy_liquids()
-    }
-
-    pub fn total_energy(&self) -> f64 {
-        self.inner.borrow().mixture().total_energy()
-    }
-
-    pub fn total_heat_capacity_gases(&self) -> f64 {
-        self.inner.borrow().mixture().total_heat_capacity_gases()
-    }
-
-    pub fn total_heat_capacity_liquids(&self) -> f64 {
-        self.inner.borrow().mixture().total_heat_capacity_liquids()
-    }
-
-    pub fn total_heat_capacity(&self) -> f64 {
-        self.inner.borrow().mixture().total_heat_capacity()
-    }
-
-    pub fn pressure_gases(&self) -> f64 {
-        self.inner.borrow().mixture().pressure_gases()
-    }
-
     pub fn equalize_internal_energy(&self) {
-        self.inner
-            .borrow_mut()
-            .mixture_mut()
-            .equalize_internal_energy();
+        self.inner.borrow_mut().equalize_internal_energy();
     }
 
     pub fn scale(&self, ratio: f64, state_value: u32) {
         let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
-        self.inner.borrow_mut().mixture_mut().scale(ratio, state);
+        self.inner.borrow_mut().scale(ratio, state);
     }
 
-    /// Transfer a ratio of moles from this network's mixture to another network's mixture
-    pub fn transfer_ratio_to_network(
-        &self,
-        target: &WasmAtmosphericNetwork,
-        ratio: f64,
-        state_value: u32,
-    ) -> f64 {
+    pub fn volume(&self) -> f64 {
+        self.inner.borrow().volume()
+    }
+
+    pub fn total_moles_gases(&self) -> f64 {
+        self.inner.borrow().total_moles_gases()
+    }
+
+    pub fn total_moles_liquids(&self) -> f64 {
+        self.inner.borrow().total_moles_liquids()
+    }
+
+    pub fn total_moles_by_state(&self, state_value: u32) -> f64 {
         let state = MatterState::from_value(state_value).unwrap_or(MatterState::None);
-        if Rc::ptr_eq(&self.inner, &target.inner) {
-            return 0.0;
-        }
+        self.inner.borrow().total_moles_by_state(state)
+    }
 
-        // Deterministic borrow ordering by pointer address
-        let (a_rc, b_rc) =
-            if (Rc::as_ptr(&self.inner) as usize) <= (Rc::as_ptr(&target.inner) as usize) {
-                (&self.inner, &target.inner)
-            } else {
-                (&target.inner, &self.inner)
-            };
+    pub fn total_volume_liquids(&self) -> f64 {
+        self.inner.borrow().total_volume_liquids()
+    }
 
-        let mut a = a_rc.borrow_mut();
-        let mut b = b_rc.borrow_mut();
-        a.mixture_mut()
-            .transfer_ratio_to(b.mixture_mut(), ratio, state)
+    pub fn liquid_volume_ratio(&self) -> f64 {
+        self.inner.borrow().liquid_volume_ratio()
+    }
+
+    pub fn gas_volume(&self) -> f64 {
+        self.inner.borrow().gas_volume()
+    }
+
+    pub fn total_energy_gases(&self) -> f64 {
+        self.inner.borrow().total_energy_gases()
+    }
+
+    pub fn total_energy_liquids(&self) -> f64 {
+        self.inner.borrow().total_energy_liquids()
+    }
+
+    pub fn total_energy(&self) -> f64 {
+        self.inner.borrow().total_energy()
+    }
+
+    pub fn total_heat_capacity_gases(&self) -> f64 {
+        self.inner.borrow().total_heat_capacity_gases()
+    }
+
+    pub fn total_heat_capacity_liquids(&self) -> f64 {
+        self.inner.borrow().total_heat_capacity_liquids()
+    }
+
+    pub fn total_heat_capacity(&self) -> f64 {
+        self.inner.borrow().total_heat_capacity()
+    }
+
+    pub fn pressure_gases(&self) -> f64 {
+        self.inner.borrow().pressure_gases()
+    }
+
+    /// Check if the network is in constant mixture mode
+    pub fn is_constant(&self) -> bool {
+        self.inner.borrow().is_constant()
+    }
+
+    /// Toggle constant mixture mode
+    pub fn toggle_constant(&self) {
+        self.inner.borrow_mut().toggle_constant();
     }
 }
 
@@ -1190,8 +1215,10 @@ impl WasmSimulationManager {
         self.inner.reset();
     }
 
-    pub fn update(&self, ticks: u64) -> u32 {
-        self.inner.update(ticks)
+    pub fn update(&mut self) -> Result<u32, JsValue> {
+        self.inner
+            .update()
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     /// Get a string representation
@@ -1274,6 +1301,12 @@ impl WasmSimulationManager {
         ))
     }
 
+    /// Create an IC10 chip item via this `SimulationManager`.
+    pub fn create_chip(&mut self) -> WasmICChip {
+        let chip = self.inner.create_chip();
+        WasmICChip { inner: chip }
+    }
+
     /// Return all devices created by this manager as `WasmDevice` wrappers
     pub fn all_devices(&self) -> Vec<WasmDevice> {
         self.inner
@@ -1354,6 +1387,11 @@ impl WasmSimulationManager {
             .map(|n| WasmAtmosphericNetwork { inner: n })
             .collect()
     }
+
+    /// Get the current simulation tick
+    pub fn current_tick(&self) -> u64 {
+        self.inner.ticks
+    }
 }
 
 /// Return a list of registered device prefab hashes
@@ -1391,6 +1429,7 @@ struct PrefabInfo {
     is_atmospheric_device: bool,
     is_ic_host: bool,
     is_slot_host: bool,
+    supports_cable_network: bool,
     properties: Vec<PrefabProperty>,
     slot_properties: Vec<SlotProperty>,
     atmospheric_connections: Vec<AtmoConnection>,
@@ -1436,6 +1475,7 @@ pub fn get_device_prefab_info(prefab_hash: i32) -> Result<JsValue, JsValue> {
             is_atmospheric_device: props.is_atmospheric_device,
             is_ic_host: props.is_ic_host,
             is_slot_host: props.is_slot_host,
+            supports_cable_network: props.supports_cable_network,
             properties,
             slot_properties,
             atmospheric_connections,

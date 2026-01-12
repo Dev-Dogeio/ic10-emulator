@@ -35,6 +35,9 @@ pub struct ItemIntegratedCircuit10 {
     /// Compile-time constants
     defines: RefCell<HashMap<String, f64>>,
 
+    /// Original source text
+    source: RefCell<Option<String>>,
+
     /// Chip slot reference (optional)
     chip_slot: OptWeakShared<ChipSlot>,
 
@@ -80,6 +83,7 @@ impl ItemIntegratedCircuit10 {
             aliases: RefCell::new(aliases),
             labels: RefCell::new(HashMap::new()),
             defines: RefCell::new(get_builtin_constants()),
+            source: RefCell::new(None),
             chip_slot: None,
             registers: RefCell::new([0.0; REGISTER_COUNT]),
             stack: RefCell::new([0.0; STACK_SIZE]),
@@ -96,6 +100,7 @@ impl ItemIntegratedCircuit10 {
         *self.pc.borrow_mut() = 0;
         *self.halted.borrow_mut() = false;
         *self.error_line.borrow_mut() = None;
+        *self.source.borrow_mut() = Some(source.to_string());
 
         // Preprocess the source
         let preprocessed = preprocess(source)?;
@@ -179,6 +184,7 @@ impl ItemIntegratedCircuit10 {
                 break;
             }
 
+            steps += 1;
             if *self.sleep_ticks.borrow() > 0 {
                 *self.sleep_ticks.borrow_mut() -= 1;
                 return Ok(steps);
@@ -187,7 +193,6 @@ impl ItemIntegratedCircuit10 {
             let current_instruction = self.program.borrow()[*self.pc.borrow()].clone();
 
             self.step()?;
-            steps += 1;
 
             match current_instruction.instruction {
                 Instruction::Yield | Instruction::Sleep { duration: _ } => {
@@ -440,6 +445,11 @@ impl ItemIntegratedCircuit10 {
         *self.halted.borrow_mut() = true;
     }
 
+    /// Resume the chip
+    pub fn resume(&self) {
+        *self.halted.borrow_mut() = false;
+    }
+
     /// Get sleep ticks
     pub fn get_sleep_ticks(&self) -> u64 {
         *self.sleep_ticks.borrow()
@@ -462,6 +472,11 @@ impl ItemIntegratedCircuit10 {
             .and_then(|weak| weak.upgrade().and_then(|rc| rc.borrow().id()))
     }
 
+    /// Get the stored original source text for this chip (if any)
+    pub fn get_source(&self) -> Option<String> {
+        self.source.borrow().clone()
+    }
+
     /// Attach the chip to a `ChipSlot` and register self device aliases
     pub fn set_chip_slot(&mut self, slot: Shared<ChipSlot>, device_id: i32) {
         // Store weak slot reference
@@ -480,7 +495,13 @@ impl ItemIntegratedCircuit10 {
     pub fn print_debug_info(&self) {
         println!(
             "On: {}",
-            if self.get_chip_slot().borrow().read(LogicType::On).unwrap() == 1.0 {
+            if self
+                .get_chip_slot()
+                .borrow()
+                .read(LogicType::On)
+                .unwrap_or(0.0)
+                == 1.0
+            {
                 "Yes"
             } else {
                 "No"

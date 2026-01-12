@@ -100,6 +100,8 @@ impl ChipSlot {
         if let Some(chip) = self.get_chip() {
             let instructions = chip.run(max_instructions_per_tick)?;
             *self.last_executed_instructions.borrow_mut() = instructions;
+        } else {
+            *self.last_executed_instructions.borrow_mut() = 0;
         }
 
         Ok(())

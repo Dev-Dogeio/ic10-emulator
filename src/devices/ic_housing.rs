@@ -120,6 +120,7 @@ impl ICHousing {
                         let pc = value as usize;
                         if let Some(chip) = device.chip_slot().borrow().get_chip() {
                             chip.set_pc(pc);
+                            chip.resume();
                             Ok(())
                         } else {
                             Err(SimulationError::RuntimeError {
@@ -158,8 +159,9 @@ impl Device for ICHousing {
         self.network.as_ref().and_then(|w| w.upgrade()).clone()
     }
 
-    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) {
+    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) -> SimulationResult<()> {
         self.network = network;
+        Ok(())
     }
 
     fn rename(&mut self, name: &str) {
@@ -195,12 +197,16 @@ impl Device for ICHousing {
         Self::properties().supported_types()
     }
 
-    fn run(&self) -> SimulationResult<()> {
+    fn run(&self) -> SimulationResult<bool> {
         if *self.on.borrow() != 0.0 {
-            ICHostDevice::run(self)?;
+            self.chip_host
+                .borrow()
+                .run(self.max_instructions_per_tick)?;
+            let instr = self.chip_host.borrow().get_last_executed_instructions();
+            return Ok(instr > 0);
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn get_memory(&self, index: usize) -> SimulationResult<f64> {

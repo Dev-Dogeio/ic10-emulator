@@ -99,7 +99,7 @@ impl Filtration {
                 }
                 s
             },
-            chip_host: ChipSlot::new(6),
+            chip_host: ChipSlot::new(2),
         });
 
         // Attach the shared ChipSlot back to the chip so it can query network/device pins
@@ -385,8 +385,9 @@ impl Device for Filtration {
         self.network.as_ref().and_then(|w| w.upgrade()).clone()
     }
 
-    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) {
+    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) -> SimulationResult<()> {
         self.network = network;
+        Ok(())
     }
 
     fn rename(&mut self, name: &str) {
@@ -461,10 +462,10 @@ impl Device for Filtration {
         })
     }
 
-    fn update(&self, _tick: u64) -> SimulationResult<()> {
+    fn update(&self, _tick: u64) -> SimulationResult<bool> {
         // Only run filtration when device is On and Mode is enabled
         if *self.on.borrow() == 0.0 || *self.mode.borrow() == 0.0 {
-            return Ok(());
+            return Ok(false);
         }
 
         // Ensure input and both outputs exist; error if any missing
@@ -472,14 +473,12 @@ impl Device for Filtration {
         let filtered_rc = self.require_network(DeviceAtmosphericNetworkType::Output)?;
         let waste_rc = self.require_network(DeviceAtmosphericNetworkType::Output2)?;
 
-        let mut input_mut = input_rc.borrow_mut();
-
         // If there's nothing in the input, early out
-        if input_mut.total_moles() <= 0.0 {
-            return Ok(());
+        if input_rc.borrow().total_moles() <= 0.0 {
+            return Ok(false);
         }
 
-        let input_pressure = input_mut.pressure();
+        let input_pressure = input_rc.borrow().pressure();
         let filtered_pressure = filtered_rc.borrow().pressure();
         let waste_pressure = waste_rc.borrow().pressure();
         let max_output_pressure = filtered_pressure.max(waste_pressure);
@@ -494,36 +493,73 @@ impl Device for Filtration {
 
         // transfer moles using ideal gas law for pipe volume
         let transfer_moles_amount =
-            calculate_moles(scale_pressure, PIPE_VOLUME, input_mut.temperature());
+            calculate_moles(scale_pressure, PIPE_VOLUME, input_rc.borrow().temperature());
 
         if transfer_moles_amount <= 0.0 {
-            return Ok(());
+            return Ok(false);
         }
 
         // Remove that many moles from the input network
-        let mut transfer_mixture = input_mut.remove_moles(transfer_moles_amount, MatterState::All);
-
-        let mut filtered_mut = filtered_rc.borrow_mut();
+        let mut transfer_mixture = input_rc
+            .borrow_mut()
+            .remove_moles(transfer_moles_amount, MatterState::All);
 
         // Determine the filters to apply (physical slots with quantity > 0 take precedence)
         let filters_to_apply = self.active_filters();
 
         // For each configured filter, remove that gas from the transfer mixture and add to filtered output
-        // Then, if the remaining input atmosphere has that gas below the min ratio, siphon all of it too
+        // Also remove its counterpart (liquid <-> gas) so a single filter handles both forms
+        // Then, if the remaining input atmosphere has that gas (or counterpart) below the min ratio, siphon all of it too
         for filter_type in &filters_to_apply {
+            // Remove the configured type from the transfer mixture
             let mol = transfer_mixture.remove_all_gas(*filter_type);
             if !mol.is_empty() {
-                filtered_mut.add_mole(&mol);
+                filtered_rc.borrow_mut().add_mole(&mol);
             }
 
-            // Check remaining input atmosphere mole fraction and optionally remove all of that gas
-            let atm_total = input_mut.total_moles();
+            // Remove counterpart form (condensation or evaporation type) if present
+            if let Some(counter_type) = filter_type.condensation_type() {
+                let mol2 = transfer_mixture.remove_all_gas(counter_type);
+                if !mol2.is_empty() {
+                    filtered_rc.borrow_mut().add_mole(&mol2);
+                }
+            } else if let Some(counter_type) = filter_type.evaporation_type() {
+                let mol2 = transfer_mixture.remove_all_gas(counter_type);
+                if !mol2.is_empty() {
+                    filtered_rc.borrow_mut().add_mole(&mol2);
+                }
+            }
+
+            // Check remaining input atmosphere mole fraction and optionally remove all of that gas/counterpart
+            let atm_total = input_rc.borrow().total_moles();
             if atm_total > 0.0 {
-                let atm_gas_moles = input_mut.get_moles(*filter_type);
+                let atm_gas_moles = input_rc.borrow().get_moles(*filter_type);
                 if atm_gas_moles / atm_total < MIN_RATIO_TO_FILTER_ALL {
-                    let extra = input_mut.remove_all_gas(*filter_type);
+                    let extra = input_rc.borrow_mut().remove_all_gas(*filter_type);
                     if !extra.is_empty() {
-                        filtered_mut.add_mole(&extra);
+                        filtered_rc.borrow_mut().add_mole(&extra);
+                    }
+                }
+
+                if let Some(counter_type) = filter_type.condensation_type() {
+                    let atm_counter_moles = input_rc.borrow().get_moles(counter_type);
+                    if atm_counter_moles / atm_total >= MIN_RATIO_TO_FILTER_ALL {
+                        continue;
+                    } else {
+                        let extra2 = input_rc.borrow_mut().remove_all_gas(counter_type);
+                        if !extra2.is_empty() {
+                            filtered_rc.borrow_mut().add_mole(&extra2);
+                        }
+                    }
+                } else if let Some(counter_type) = filter_type.evaporation_type() {
+                    let atm_counter_moles = input_rc.borrow().get_moles(counter_type);
+                    if atm_counter_moles / atm_total >= MIN_RATIO_TO_FILTER_ALL {
+                        continue;
+                    } else {
+                        let extra2 = input_rc.borrow_mut().remove_all_gas(counter_type);
+                        if !extra2.is_empty() {
+                            filtered_rc.borrow_mut().add_mole(&extra2);
+                        }
                     }
                 }
             }
@@ -533,17 +569,19 @@ impl Device for Filtration {
         let mut waste_mut = waste_rc.borrow_mut();
         waste_mut.add_mixture(&transfer_mixture);
 
-        Ok(())
+        Ok(true)
     }
 
-    fn run(&self) -> SimulationResult<()> {
+    fn run(&self) -> SimulationResult<bool> {
         if *self.on.borrow() != 0.0 {
             self.chip_host
                 .borrow()
-                .run(self.max_instructions_per_tick)?
+                .run(self.max_instructions_per_tick)?;
+            let instr = self.chip_host.borrow().get_last_executed_instructions();
+            return Ok(instr > 0);
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn get_memory(&self, index: usize) -> SimulationResult<f64> {
@@ -702,17 +740,17 @@ impl Display for Filtration {
         if let Some(weak) = &self.input_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", input: {}", net.borrow().mixture())?;
+            write!(f, ", input: {}", net.borrow())?;
         }
         if let Some(weak) = &self.filtered_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", filtered: {}", net.borrow().mixture())?;
+            write!(f, ", filtered: {}", net.borrow())?;
         }
         if let Some(weak) = &self.waste_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", waste: {}", net.borrow().mixture())?;
+            write!(f, ", waste: {}", net.borrow())?;
         }
 
         // Active filters

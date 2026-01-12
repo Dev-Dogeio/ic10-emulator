@@ -4,7 +4,7 @@
 pub const IDEAL_GAS_CONSTANT: f64 = 8.31446261815324;
 
 /// Standard atmospheric pressure in kPa
-pub const ONE_ATMOSPHERE: f64 = 101.325;
+pub const ONE_ATMOSPHERE: f64 = 101.32499694824219;
 
 /// Celsius to Kelvin offset
 pub const CELSIUS_TO_KELVIN: f64 = 273.15;

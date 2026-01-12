@@ -120,8 +120,9 @@ impl Device for VolumePump {
         self.network.as_ref().and_then(|w| w.upgrade()).clone()
     }
 
-    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) {
+    fn set_network(&mut self, network: OptWeakShared<CableNetwork>) -> SimulationResult<()> {
         self.network = network;
+        Ok(())
     }
 
     fn rename(&mut self, name: &str) {
@@ -157,10 +158,10 @@ impl Device for VolumePump {
         Self::properties().supported_types()
     }
 
-    fn update(&self, _tick: u64) -> SimulationResult<()> {
+    fn update(&self, _tick: u64) -> SimulationResult<bool> {
         // Only run when device is On and Mode is enabled
         if *self.on.borrow() == 0.0 {
-            return Ok(());
+            return Ok(false);
         }
 
         let input_rc = self
@@ -201,10 +202,11 @@ impl Device for VolumePump {
                         .borrow_mut()
                         .remove_moles(moles_to_move, MatterState::All),
                 );
+                return Ok(true);
             }
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn properties() -> &'static PropertyRegistry<Self> {
@@ -247,12 +249,12 @@ impl Display for VolumePump {
         if let Some(weak) = &self.input_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", input: {}", net.borrow().mixture())?;
+            write!(f, ", input: {}", net.borrow())?;
         }
         if let Some(weak) = &self.output_network
             && let Some(net) = weak.upgrade()
         {
-            write!(f, ", output: {}", net.borrow().mixture())?;
+            write!(f, ", output: {}", net.borrow())?;
         }
 
         write!(f, " }}")

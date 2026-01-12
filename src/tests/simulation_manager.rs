@@ -60,12 +60,16 @@ mod tests {
         let ds_weak = Rc::downgrade(&ds);
 
         // Add all devices to the cable network
-        cn.borrow_mut().add_device(ac.clone(), cn.clone());
-        cn.borrow_mut().add_device(fil.clone(), cn.clone());
-        cn.borrow_mut().add_device(pump.clone(), cn.clone());
-        cn.borrow_mut().add_device(housing.clone(), cn.clone());
-        cn.borrow_mut().add_device(lm.clone(), cn.clone());
-        cn.borrow_mut().add_device(ds.clone(), cn.clone());
+        cn.borrow_mut().add_device(ac.clone(), cn.clone()).unwrap();
+        cn.borrow_mut().add_device(fil.clone(), cn.clone()).unwrap();
+        cn.borrow_mut()
+            .add_device(pump.clone(), cn.clone())
+            .unwrap();
+        cn.borrow_mut()
+            .add_device(housing.clone(), cn.clone())
+            .unwrap();
+        cn.borrow_mut().add_device(lm.clone(), cn.clone()).unwrap();
+        cn.borrow_mut().add_device(ds.clone(), cn.clone()).unwrap();
 
         // Insert an IC chip into each IC host device (AirConditioner, Filtration, ICHousing)
         let chip_ac = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
@@ -73,7 +77,7 @@ mod tests {
             ..SimulationItemSettings::default()
         }));
         let chip_ac_weak = Rc::downgrade(&chip_ac);
-        ac.borrow().set_chip(chip_ac.clone());
+        ac.borrow().set_chip(chip_ac.clone()).unwrap();
         drop(chip_ac);
 
         let chip_fil = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
@@ -81,7 +85,7 @@ mod tests {
             ..SimulationItemSettings::default()
         }));
         let chip_fil_weak = Rc::downgrade(&chip_fil);
-        fil.borrow().set_chip(chip_fil.clone());
+        fil.borrow().set_chip(chip_fil.clone()).unwrap();
         drop(chip_fil);
 
         let chip_housing = shared(ItemIntegratedCircuit10::new(SimulationItemSettings {
@@ -89,7 +93,7 @@ mod tests {
             ..SimulationItemSettings::default()
         }));
         let chip_housing_weak = Rc::downgrade(&chip_housing);
-        housing.borrow().set_chip(chip_housing.clone());
+        housing.borrow().set_chip(chip_housing.clone()).unwrap();
         drop(chip_housing);
 
         // Create and attach atmospheric networks to atmospheric devices
@@ -238,7 +242,7 @@ mod tests {
             id: Some(1),
             ..SimulationDeviceSettings::default()
         });
-        cn.borrow_mut().add_device(fil.clone(), cn.clone());
+        cn.borrow_mut().add_device(fil.clone(), cn.clone()).unwrap();
 
         // Insert an Oxygen Large filter into slot 0
         let mut f = Filter::new(SimulationItemSettings {

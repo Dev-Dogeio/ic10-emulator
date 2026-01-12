@@ -38,7 +38,15 @@ macro_rules! prop_rw_clamped {
             $logic,
             |device, _| Ok(*device.$field.borrow()),
             |device, _, value| {
-                *device.$field.borrow_mut() = value.clamp($min, $max);
+                // Handle NaN and infinities explicitly: NaN -> min, infinities -> clamp to min/max
+                let v = if value.is_nan() {
+                    $min
+                } else if value.is_infinite() {
+                    if value.is_sign_positive() { $max } else { $min }
+                } else {
+                    value.clamp($min, $max)
+                };
+                *device.$field.borrow_mut() = v;
                 Ok(())
             },
         )

@@ -155,11 +155,15 @@ impl CableNetwork {
     /// Add a device to the network and set up the bidirectional connection
     /// The device will be indexed by its reference ID, prefab hash, and name hash
     /// The devices list will remain sorted by reference ID
-    pub fn add_device(&mut self, device: Shared<dyn Device>, network_rc: Shared<CableNetwork>) {
+    pub fn add_device(
+        &mut self,
+        device: Shared<dyn Device>,
+        network_rc: Shared<CableNetwork>,
+    ) -> SimulationResult<()> {
         // Set the device's network reference
         device
             .borrow_mut()
-            .set_network(Some(Rc::downgrade(&network_rc)));
+            .set_network(Some(Rc::downgrade(&network_rc)))?;
 
         let borrowed = device.borrow();
         let ref_id = borrowed.get_id();
@@ -167,12 +171,11 @@ impl CableNetwork {
         let name_hash = borrowed.get_name_hash();
         drop(borrowed);
 
-        if self.devices.contains_key(&ref_id) {
+        if let Some(existing) = self.devices.get(&ref_id) {
             // Check if device is the same
-            let existing = self.devices.get(&ref_id).unwrap();
             if Rc::ptr_eq(existing, &device) {
                 // Same device already present, no action needed
-                return;
+                return Ok(());
             }
             panic!(
                 "Different device with reference ID {} already exists on the network",
@@ -196,6 +199,8 @@ impl CableNetwork {
             Ok(_) => {}
             Err(pos) => name_ids.insert(pos, ref_id),
         }
+
+        Ok(())
     }
 
     /// Remove a device from the network by its reference ID
@@ -207,7 +212,7 @@ impl CableNetwork {
             drop(borrowed);
 
             // Notify the device that it is no longer part of the network
-            device.borrow_mut().set_network(None);
+            device.borrow_mut().set_network(None).unwrap();
 
             // Remove from prefab index
             if let Some(ids) = self.prefab_index.get_mut(&prefab_hash) {
@@ -322,21 +327,6 @@ impl CableNetwork {
         self.devices.clear();
         self.prefab_index.clear();
         self.name_index.clear();
-    }
-
-    /// Update all devices in the network
-    /// Devices are updated in ascending order of their reference IDs
-    /// After updating all devices, IC runners are executed in the same order
-    pub fn update(&self, tick: u64) {
-        // Iterate over all devices in ascending order and run update
-        for device in self.devices.values() {
-            device.borrow().update(tick).unwrap();
-        }
-
-        // Iterate over all devices again and execute IC runners
-        for device in self.devices.values() {
-            device.borrow().run().unwrap();
-        }
     }
 
     // ==================== Batch Read Operations ====================

@@ -1349,7 +1349,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1379,7 +1379,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1408,7 +1408,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1440,7 +1440,7 @@ pub fn execute_instruction(
             let value = chip.resolve_value(value)?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1493,7 +1493,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1524,7 +1524,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1563,7 +1563,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let value = network
@@ -1593,7 +1593,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             network
@@ -1630,7 +1630,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let value = network
@@ -1662,7 +1662,7 @@ pub fn execute_instruction(
                 })?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             network
@@ -1685,7 +1685,7 @@ pub fn execute_instruction(
             let index = chip.resolve_value(stack_index)? as usize;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1715,7 +1715,7 @@ pub fn execute_instruction(
             let val = chip.resolve_value(value)?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1742,7 +1742,7 @@ pub fn execute_instruction(
             let index = chip.resolve_value(stack_index)? as usize;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1772,7 +1772,7 @@ pub fn execute_instruction(
             let val = chip.resolve_value(value)?;
 
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1810,7 +1810,7 @@ pub fn execute_instruction(
         Instruction::Clr { device } => {
             let ref_id = chip.resolve_device_ref_id(device)?;
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
@@ -1829,7 +1829,7 @@ pub fn execute_instruction(
         Instruction::Clrd { id } => {
             let ref_id = chip.resolve_value(id)? as i32;
             let network = chip.get_network().ok_or(SimulationError::RuntimeError {
-                message: "Housing not connected to network".to_string(),
+                message: "Chip not connected to network".to_string(),
                 line: instruction.line_number,
             })?;
             let network_ref = network.borrow();
