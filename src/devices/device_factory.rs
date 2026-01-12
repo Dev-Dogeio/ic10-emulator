@@ -217,5 +217,6 @@ fn initialize_device_factory() {
         register_device!(ICHousing);
         register_device!(LogicMemory);
         register_device!(PassiveVent);
+        register_device!(ActiveVent);
     }
 }

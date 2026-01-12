@@ -13,6 +13,7 @@ use crate::{
     types::{OptShared, OptWeakShared, Shared},
 };
 
+pub mod active_vent;
 pub mod air_conditioner;
 pub mod chip_slot;
 pub mod daylight_sensor;
@@ -24,6 +25,7 @@ pub mod passive_vent;
 pub mod property_descriptor;
 pub mod volume_pump;
 
+pub use active_vent::ActiveVent;
 pub use air_conditioner::AirConditioner;
 pub use chip_slot::ChipSlot;
 pub use daylight_sensor::DaylightSensor;
@@ -198,6 +200,8 @@ impl LogicSlotType {
 #[repr(i32)]
 pub enum LogicType {
     Mode = 3,
+    PressureExternal = 7,
+    PressureInternal = 8,
     Setting = 12,
     Horizontal = 20,
     Vertical = 21,
@@ -302,6 +306,8 @@ impl LogicType {
         use LogicType::*;
         match value as i32 {
             3 => Some(Mode),
+            7 => Some(PressureExternal),
+            8 => Some(PressureInternal),
             12 => Some(Setting),
             20 => Some(Horizontal),
             21 => Some(Vertical),
@@ -408,6 +414,8 @@ impl LogicType {
         use LogicType::*;
         match name {
             "Mode" => Some(Mode),
+            "PressureExternal" => Some(PressureExternal),
+            "PressureInternal" => Some(PressureInternal),
             "Setting" => Some(Setting),
             "Horizontal" => Some(Horizontal),
             "Vertical" => Some(Vertical),
