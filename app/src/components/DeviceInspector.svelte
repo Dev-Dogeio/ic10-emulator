@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onMount, onDestroy } from 'svelte';
     import {
         type WasmDevice,
         type DevicePrefabInfo,
@@ -8,7 +9,8 @@
         get_item_prefab_info,
     } from '../../pkg/ic10_emulator';
     import { type InspectorWindow, setActiveTab } from '../stores/inspectorState.svelte';
-    import { getSimulationState, syncFromWasm } from '../stores/simulationState.svelte';
+    import { getSimulationState, syncFromWasm, onTick } from '../stores/simulationState.svelte';
+    import IC10Debugger from './IC10Debugger.svelte';
 
     interface Props {
         window: InspectorWindow;
@@ -19,6 +21,10 @@
     let { window, device, prefabInfo }: Props = $props();
 
     const simState = getSimulationState();
+    let unsubscribeTick: (() => void) | null = null;
+
+    // Debugger state
+    let showDebugger = $state(false);
 
     // Tabs
     type TabId = 'overview' | 'logic' | 'slots' | 'ic';
@@ -194,6 +200,28 @@
         if (activeTab === 'slots' && prefabInfo.is_slot_host) {
             slotInfoList = getSlotInfo();
         }
+    });
+
+    // Refresh all tab-specific data based on current tab
+    function refreshTabData() {
+        if (activeTab === 'logic' || activeTab === 'overview') {
+            logicProperties = getLogicProperties();
+        }
+        if (activeTab === 'slots' && prefabInfo.is_slot_host) {
+            slotInfoList = getSlotInfo();
+        }
+        if (activeTab === 'ic' && prefabInfo.is_ic_host) {
+            loadDevicePins();
+        }
+    }
+
+    onMount(() => {
+        // Subscribe to tick events to refresh data when simulation steps
+        unsubscribeTick = onTick(refreshTabData);
+    });
+
+    onDestroy(() => {
+        if (unsubscribeTick) unsubscribeTick();
     });
 
     function removeItemFromSlot(index: number) {
@@ -626,16 +654,22 @@
             </div>
         {:else if activeTab === 'ic'}
             <div class="ic-section">
-                <!-- Device Pins -->
-                <div class="pins-section">
-                    <h4>
-                        <span>{devicePinHeader}</span>
-                        {#if icHasChip}
-                            <span class="chip-badge installed inline">IC10 Installed</span>
-                        {:else}
-                            <button class="chip-badge not-installed inline clickable" onclick={installChip}>No Chip</button>
-                        {/if}
-                    </h4>
+                {#if showDebugger && prefabInfo.is_ic_host && icHasChip}
+                    <IC10Debugger {device} onClose={() => (showDebugger = false)} />
+                {:else}
+                    <!-- Device Pins -->
+                    <div class="pins-section">
+                        <h4>
+                            <span>{devicePinHeader}</span>
+                            <div class="chip-status-badges">
+                                {#if icHasChip}
+                                    <button class="chip-badge debug inline clickable" onclick={() => (showDebugger = true)}>DEBUG</button>
+                                    <span class="chip-badge installed inline">IC10 Installed</span>
+                                {:else}
+                                    <button class="chip-badge not-installed inline clickable" onclick={installChip}>No Chip</button>
+                                {/if}
+                            </div>
+                        </h4>
 
                     {#if codeError}
                         <div class="code-error-popup">
@@ -654,39 +688,40 @@
                         </div>
                     {/if}
 
-                    <div class="pins-list">
-                        {#each devicePins as pin, i}
-                            <div class="pin-item">
-                                <span class="pin-label">d{i}</span>
-                                <select
-                                    class="pin-select"
-                                    value={pin ?? ''}
-                                    onchange={(e) => {
-                                        const val = e.currentTarget.value;
-                                        setDevicePin(i, val ? parseInt(val) : null);
-                                    }}
-                                >
-                                    <option value="">Not Connected</option>
-                                    {#each networkDevices as dev}
-                                        <option value={dev.id}>{dev.name} (#{dev.id})</option>
-                                    {/each}
-                                </select>
-                            </div>
-                        {/each}
+                        <div class="pins-list">
+                            {#each devicePins as pin, i}
+                                <div class="pin-item">
+                                    <span class="pin-label">d{i}</span>
+                                    <select
+                                        class="pin-select"
+                                        value={pin ?? ''}
+                                        onchange={(e) => {
+                                            const val = e.currentTarget.value;
+                                            setDevicePin(i, val ? parseInt(val) : null);
+                                        }}
+                                    >
+                                        <option value="">Not Connected</option>
+                                        {#each networkDevices as dev}
+                                            <option value={dev.id}>{dev.name} (#{dev.id})</option>
+                                        {/each}
+                                    </select>
+                                </div>
+                            {/each}
+                        </div>
                     </div>
-                </div>
 
-                <!-- Code editor (simplified) -->
-                {#if icHasChip}
-                    <div class="code-section">
-                        <h4>IC10 Code</h4>
-                        <textarea
-                            class="code-editor"
-                            bind:value={icCode}
-                            placeholder="# Enter IC10 code here..."
-                            onblur={() => pushCodeToChip()}
-                        ></textarea>
-                    </div>
+                    <!-- Code editor (simplified) -->
+                    {#if icHasChip}
+                        <div class="code-section">
+                            <h4>IC10 Code</h4>
+                            <textarea
+                                class="code-editor"
+                                bind:value={icCode}
+                                placeholder="# Enter IC10 code here..."
+                                onblur={() => pushCodeToChip()}
+                            ></textarea>
+                        </div>
+                    {/if}
                 {/if}
             </div>
         {/if}
@@ -1138,6 +1173,22 @@
     .chip-badge.not-installed {
         background: rgba(239, 68, 68, 0.2);
         color: #f87171;
+    }
+
+    .chip-badge.debug {
+        background: rgba(99, 102, 241, 0.2);
+        color: #818cf8;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .chip-badge.debug:hover {
+        background: rgba(99, 102, 241, 0.3);
+    }
+
+    .chip-status-badges {
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 
     .pins-section h4 {

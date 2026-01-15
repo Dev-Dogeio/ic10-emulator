@@ -192,7 +192,9 @@
     .rate-control label {
         font-size: 12px;
         color: rgba(230, 238, 248, 0.95);
-        min-width: 30px;
+        min-width: 48px;
+        width: 48px;
+        display: inline-block;
         text-align: right;
         font-family: 'JetBrains Mono', monospace;
         line-height: 1;

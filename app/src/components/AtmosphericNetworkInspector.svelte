@@ -8,8 +8,8 @@
         gas_type_symbol,
     } from '../../pkg/ic10_emulator';
     import { type InspectorWindow, setActiveTab } from '../stores/inspectorState.svelte';
-    import { syncFromWasm } from '../stores/simulationState.svelte';
-    import { onMount } from 'svelte';
+    import { syncFromWasm, onTick } from '../stores/simulationState.svelte';
+    import { onMount, onDestroy } from 'svelte';
 
     interface Props {
         window: InspectorWindow;
@@ -18,6 +18,8 @@
     }
 
     let { window, network, networkName }: Props = $props();
+
+    let unsubscribeTick: (() => void) | null = null;
 
     type TabId = 'overview' | 'gases' | 'settings';
     let activeTab: TabId = $derived(window.activeTab as TabId);
@@ -105,15 +107,18 @@
     }
 
     let gasInfoList = $state<GasInfo[]>([]);
-    let refreshCounter = $state(0);
 
     function refreshData() {
         gasInfoList = getGasInfoList();
-        refreshCounter++;
     }
 
     onMount(() => {
+        unsubscribeTick = onTick(refreshData);
         refreshData();
+    });
+
+    onDestroy(() => {
+        if (unsubscribeTick) unsubscribeTick();
     });
 
     let pressure = $derived.by(() => {
@@ -166,17 +171,6 @@
             console.error('Failed to toggle constant mode:', e);
         }
     }
-
-    $effect(() => {
-        if (activeTab === 'overview' || activeTab === 'gases') {
-            void pressure;
-            void temperature;
-            void totalMoles;
-            void volume;
-
-            gasInfoList = getGasInfoList();
-        }
-    });
 
     let addGasType = $state<GasType>(GasType.Oxygen);
     let addGasMoles = $state(1000);

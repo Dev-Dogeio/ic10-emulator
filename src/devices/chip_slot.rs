@@ -21,6 +21,9 @@ pub struct ChipSlot {
     /// The chip slot
     slot: Slot,
 
+    /// Typed reference to the chip
+    chip_ref: OptShared<ItemIntegratedCircuit10>,
+
     /// Device pins mapping to device reference IDs
     device_pins: Vec<Option<i32>>,
 
@@ -35,6 +38,7 @@ impl ChipSlot {
             host_device: None,
             device_pins: vec![None; device_pin_count],
             slot: Slot::new(Some(ItemType::ItemIntegratedCircuit10)),
+            chip_ref: None,
             last_executed_instructions: RefCell::new(0),
         })
     }
@@ -47,6 +51,11 @@ impl ChipSlot {
     /// Get the hosted chip (if any)
     pub fn get_chip(&self) -> Option<Ref<'_, ItemIntegratedCircuit10>> {
         self.slot.borrow_item()
+    }
+
+    /// Get the shared reference to the hosted chip (if any)
+    pub fn get_chip_shared(&self) -> Option<Shared<ItemIntegratedCircuit10>> {
+        self.chip_ref.clone()
     }
 
     /// Borrow the item in the slot as type T mutably, if it matches
@@ -64,13 +73,17 @@ impl ChipSlot {
         }
 
         match self.slot.try_insert(chip.clone()) {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                self.chip_ref = Some(chip);
+                Ok(())
+            }
             Err(_leftover) => Err(chip),
         }
     }
 
     /// Remove and return the installed chip
     pub fn remove_chip(&mut self) -> OptShared<dyn Item> {
+        self.chip_ref = None;
         self.slot.remove()
     }
 

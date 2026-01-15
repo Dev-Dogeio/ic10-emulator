@@ -97,6 +97,8 @@ impl ItemIntegratedCircuit10 {
     pub fn load_program(&mut self, source: &str) -> SimulationResult<()> {
         self.program.borrow_mut().clear();
         self.labels.borrow_mut().clear();
+        self.registers.borrow_mut().fill(0.0);
+        self.stack.borrow_mut().fill(0.0);
         *self.pc.borrow_mut() = 0;
         *self.halted.borrow_mut() = false;
         *self.error_line.borrow_mut() = None;
@@ -179,9 +181,11 @@ impl ItemIntegratedCircuit10 {
         let mut steps = 0;
 
         while steps < max_steps {
-            if *self.pc.borrow() >= self.program.borrow().len() {
+            if *self.halted.borrow() {
+                return Ok(0);
+            } else if *self.pc.borrow() >= self.program.borrow().len() {
                 *self.halted.borrow_mut() = true;
-                break;
+                return Ok(0);
             }
 
             steps += 1;
@@ -196,7 +200,7 @@ impl ItemIntegratedCircuit10 {
 
             match current_instruction.instruction {
                 Instruction::Yield | Instruction::Sleep { duration: _ } => {
-                    break;
+                    return Ok(steps);
                 }
                 _ => {}
             }
@@ -475,6 +479,16 @@ impl ItemIntegratedCircuit10 {
     /// Get the stored original source text for this chip (if any)
     pub fn get_source(&self) -> Option<String> {
         self.source.borrow().clone()
+    }
+
+    /// Get the number of lines in the loaded program
+    pub fn get_line_count(&self) -> usize {
+        self.program.borrow().len()
+    }
+
+    /// Get the error line if execution failed (None if no error)
+    pub fn get_error_line(&self) -> Option<usize> {
+        *self.error_line.borrow()
     }
 
     /// Attach the chip to a `ChipSlot` and register self device aliases

@@ -95,8 +95,8 @@
         if (!isResizing) return;
         const dx = e.clientX - resizeStartX;
         const dy = e.clientY - resizeStartY;
-        const newW = Math.max(MIN_WIDTH, resizeStartW + dx);
-        const newH = Math.max(MIN_HEIGHT, resizeStartH + dy);
+        const newW = Math.max(enforcedMinWidth, resizeStartW + dx);
+        const newH = Math.max(enforcedMinHeight, resizeStartH + dy);
         updateInspectorSize(window.id, newW, newH);
     }
 
@@ -118,6 +118,37 @@
 
     let visualX = $derived(window.x + (isDragging ? dragOffsetX : 0));
     let visualY = $derived(window.y + (isDragging ? dragOffsetY : 0));
+
+    // Enforced minimum size (can be adjusted by child content via events)
+    let enforcedMinWidth: number = MIN_WIDTH;
+    let enforcedMinHeight: number = MIN_HEIGHT;
+
+    function handleEnforceMinSize(e: CustomEvent) {
+        try {
+            const detail = e.detail as { minWidth?: number; minHeight?: number } | undefined;
+            const minW = detail?.minWidth ?? MIN_WIDTH;
+            const minH = detail?.minHeight ?? MIN_HEIGHT;
+            enforcedMinWidth = Math.max(MIN_WIDTH, Math.round(minW));
+            enforcedMinHeight = Math.max(MIN_HEIGHT, Math.round(minH));
+            if (window.width < enforcedMinWidth || window.height < enforcedMinHeight) {
+                updateInspectorSize(
+                    window.id,
+                    Math.max(window.width, enforcedMinWidth),
+                    Math.max(window.height, enforcedMinHeight)
+                );
+            }
+            e.stopPropagation();
+        } catch (_) {}
+    }
+
+    function handleClearMinSize(e: CustomEvent) {
+        enforcedMinWidth = MIN_WIDTH;
+        enforcedMinHeight = MIN_HEIGHT;
+
+        e.stopPropagation();
+
+        console.log ('Cleared enforced min size for inspector', window.id);
+    }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -127,6 +158,8 @@
     class:minimized={window.minimized}
     class:dragging={isDragging}
     class:resizing={isResizing}
+    oninspector-enforce-min-size={handleEnforceMinSize}
+    oninspector-clear-min-size={handleClearMinSize}
     style="
         left: {visualX}px;
         top: {visualY}px;

@@ -806,14 +806,39 @@ export function getDeviceConnections(deviceId: number): Connection[] {
     return _connections.filter((c) => c.deviceId === deviceId);
 }
 
+// Tick event name constant for consumers
+const TICK_EVENT = 'sim:tick';
+
+// Dispatch the tick event to notify all listeners that a simulation tick occurred
+function dispatchTickEvent(): void {
+    try {
+        window.dispatchEvent(new CustomEvent(TICK_EVENT, { detail: { tick: _tickCount } }));
+    } catch (e) {
+        // Ignore errors
+    }
+}
+
+// Subscribe to tick events, returns an unsubscribe function
+export function onTick(callback: (tick: number) => void): () => void {
+    const handler = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { tick: number } | undefined;
+        callback(detail?.tick ?? _tickCount);
+    };
+    window.addEventListener(TICK_EVENT, handler);
+    return () => window.removeEventListener(TICK_EVENT, handler);
+}
+
 export function stepTicks(ticks: number) {
     if (!_simulationManager) return null;
-    try {
-        for (let i = 0; i < ticks; i++) {
-            const changes = _simulationManager.update();
-            syncFromWasm();
 
-            // If no changes occurred in this tick, warn the user and stop auto-stepping if active
+    let lastError: any = null;
+    for (let i = 0; i < ticks; i++) {
+        try {
+            const changes = _simulationManager.update();
+            console.log(changes)
+
+            // If no changes occurred in this tick, warn the user and stop auto-stepping if active,
+            // then break out and perform one final sync + dispatch below.
             if (changes === 0) {
                 if (_autoRunning) {
                     stopAutoStep();
@@ -827,17 +852,38 @@ export function stepTicks(ticks: number) {
                 }
                 break;
             }
+        } catch (e) {
+            console.error('Failed to step simulation for a tick:', e);
+            lastError = e;
+            // Break and perform final sync/dispatch so listeners see the latest state
+            break;
         }
-        return _tickCount;
+    }
+
+    // Sync state from WASM
+    try {
+        syncFromWasm();
     } catch (e) {
-        console.error('Failed to step simulation:', e);
+        console.warn('syncFromWasm failed after stepping:', e);
+    }
+
+    // Dispatch tick event
+    try {
+        dispatchTickEvent();
+    } catch (e) {
+        // ignore
+    }
+
+    if (lastError) {
         // Stop auto-step if active and notify the user
         if (_autoRunning) {
             stopAutoStep();
         }
-        addNotification('error', `Simulation step failed: ${String(e)}`, null);
+        addNotification('error', `Simulation step failed: ${String(lastError)}`, 5000);
         return null;
     }
+
+    return _tickCount;
 }
 
 // Tick counter and auto-step management

@@ -10,6 +10,7 @@ pub fn wasm_start() {
 }
 
 use crate::atmospherics::{GasMixture, GasType, MatterState};
+use crate::constants::{REGISTER_COUNT, STACK_SIZE};
 use crate::devices::LogicSlotType;
 use crate::devices::LogicType;
 use crate::devices::{Device, SimulationDeviceSettings};
@@ -802,8 +803,17 @@ impl WasmDevice {
         }
         String::new()
     }
-}
 
+    /// Get the installed IC chip from this device
+    pub fn get_chip(&self) -> Option<WasmICChip> {
+        if let Some(host) = self.inner.borrow().as_ic_host_device()
+            && let Some(chip) = host.chip_slot().borrow().get_chip_shared()
+        {
+            return Some(WasmICChip { inner: chip });
+        }
+        None
+    }
+}
 #[wasm_bindgen]
 pub struct WasmItem {
     inner: OptShared<dyn Item>,
@@ -965,6 +975,32 @@ impl WasmICChip {
     /// Get the source text stored in this chip (empty string if none)
     pub fn get_source(&self) -> String {
         self.inner.borrow().get_source().unwrap_or_default()
+    }
+
+    /// Get all registers as an array
+    pub fn get_all_registers(&self) -> Vec<f64> {
+        let chip = self.inner.borrow();
+        (0..REGISTER_COUNT)
+            .map(|i| chip.get_register(i).unwrap_or(0.0))
+            .collect()
+    }
+
+    /// Get all stack memory values as an array
+    pub fn get_all_stack(&self) -> Vec<f64> {
+        let chip = self.inner.borrow();
+        (0..STACK_SIZE)
+            .map(|i| chip.read_stack(i).unwrap_or(0.0))
+            .collect()
+    }
+
+    /// Get the line count of the loaded program
+    pub fn get_line_count(&self) -> usize {
+        self.inner.borrow().get_line_count()
+    }
+
+    /// Get the error line if execution failed (None if no error)
+    pub fn get_error_line(&self) -> Option<usize> {
+        self.inner.borrow().get_error_line()
     }
 }
 
