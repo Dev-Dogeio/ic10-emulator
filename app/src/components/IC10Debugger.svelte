@@ -566,10 +566,10 @@
     }
 
     .debug-panel {
-        width: 350px;
-        flex: 0 0 350px;
-        min-width: 350px;
-        max-width: 350px;
+        width: 400px;
+        flex: 0 0 400px;
+        min-width: 400px;
+        max-width: 400px;
         display: flex;
         flex-direction: column;
         overflow-y: auto;
