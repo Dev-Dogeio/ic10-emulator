@@ -626,19 +626,16 @@
             </div>
         {:else if activeTab === 'ic'}
             <div class="ic-section">
-                <!-- Chip status -->
-                <div class="chip-status">
-                    {#if icHasChip}
-                        <span class="chip-badge installed">IC10 Installed</span>
-                    {:else}
-                        <span class="chip-badge not-installed">No Chip</span>
-                        <button class="install-btn" onclick={installChip}>Install IC10</button>
-                    {/if}
-                </div>
-
                 <!-- Device Pins -->
                 <div class="pins-section">
-                    <h4>{devicePinHeader}</h4>
+                    <h4>
+                        <span>{devicePinHeader}</span>
+                        {#if icHasChip}
+                            <span class="chip-badge installed inline">IC10 Installed</span>
+                        {:else}
+                            <button class="chip-badge not-installed inline clickable" onclick={installChip}>No Chip</button>
+                        {/if}
+                    </h4>
 
                     {#if codeError}
                         <div class="code-error-popup">
@@ -659,7 +656,7 @@
 
                     <div class="pins-list">
                         {#each devicePins as pin, i}
-                            <div class="pin-row">
+                            <div class="pin-item">
                                 <span class="pin-label">d{i}</span>
                                 <select
                                     class="pin-select"
@@ -1112,7 +1109,7 @@
     .ic-section {
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 2px;
         flex: 1;
         min-height: 0;
     }
@@ -1120,16 +1117,10 @@
     .code-section {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 2px;
         flex: 1;
         min-height: 0;
         overflow: hidden;
-    }
-
-    .chip-status {
-        display: flex;
-        align-items: center;
-        gap: 12px;
     }
 
     .chip-badge {
@@ -1149,39 +1140,71 @@
         color: #f87171;
     }
 
-    .install-btn {
-        padding: 6px 12px;
-        border: none;
-        border-radius: 6px;
-        background: #818cf8;
-        color: #fff;
+    .pins-section h4 {
+        margin: 0 0 2px 0;
         font-size: 11px;
-        font-weight: 600;
-        cursor: pointer;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
     }
 
-    .install-btn:hover {
-        background: #6366f1;
-    }
-
-    .pins-section h4,
     .code-section h4 {
-        margin: 0 0 8px 0;
+        margin: 0 0 2px 0;
         font-size: 11px;
         color: rgba(255, 255, 255, 0.5);
         text-transform: uppercase;
     }
 
-    .pins-list {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
+    .chip-badge.inline {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 4px;
+        text-transform: uppercase;
+        font-family: inherit;
+        letter-spacing: 0.02em;
+        line-height: 1;
+        box-sizing: border-box;
+        border: 1px solid transparent;
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+        vertical-align: middle;
     }
 
-    .pin-row {
+    .chip-badge.inline.clickable {
+        cursor: pointer;
+        transition: background-color 0.12s ease, border-color 0.12s ease;
+    }
+
+    .chip-badge.inline.clickable:hover {
+        background: rgba(255, 255, 255, 0.02);
+        border-color: rgba(255, 255, 255, 0.06);
+    }
+
+    .chip-badge.inline.clickable:active,
+    .chip-badge.inline.clickable:focus {
+        outline: none;
+    }
+
+    .pins-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+    }
+
+    .pin-item {
         display: flex;
         align-items: center;
         gap: 10px;
+        padding: 4px 6px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 6px;
     }
 
     .pin-label {
@@ -1193,6 +1216,8 @@
 
     .pin-select {
         flex: 1;
+        min-width: 0;
+        max-width: 100%;
         padding: 6px 10px;
         border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 6px;
@@ -1200,11 +1225,20 @@
         color: #fff;
         font-size: 12px;
         cursor: pointer;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .pin-select:focus {
         border-color: #818cf8;
         outline: none;
+    }
+
+    .pin-select option {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .code-editor {
