@@ -1706,9 +1706,9 @@ pub fn execute_instruction(
             Ok(chip.get_pc() + 1)
         }
         Instruction::Put {
-            value,
             device,
             stack_index,
+            value,
         } => {
             let ref_id = chip.resolve_device_ref_id(device)?;
             let index = chip.resolve_value(stack_index)? as usize;
@@ -1763,9 +1763,9 @@ pub fn execute_instruction(
             Ok(chip.get_pc() + 1)
         }
         Instruction::Putd {
-            value,
             id,
             stack_index,
+            value,
         } => {
             let ref_id = chip.resolve_value(id)? as i32;
             let index = chip.resolve_value(stack_index)? as usize;

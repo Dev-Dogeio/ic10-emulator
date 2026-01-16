@@ -75,6 +75,7 @@
 
         pendingRAF = requestAnimationFrame(() => {
             try {
+                if (!editor) return;
                 const lineNumber = pc + 1;
                 const model = editor.getModel();
                 if (!model) return;
@@ -166,9 +167,12 @@
         }
     }
 
-    // Reset execution (reload the program)
+    // Reset the chip
     function resetExecution() {
+        if (!chip) return;
         pushCode();
+        chip.clear_registers();
+        chip.clear_stack();
     }
 
     // Get register name

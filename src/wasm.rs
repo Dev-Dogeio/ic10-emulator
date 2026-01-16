@@ -929,6 +929,14 @@ impl WasmICChip {
             .map_err(|e| JsValue::from_str(&format!("{e:?}")))
     }
 
+    pub fn clear_stack(&self) {
+        self.inner.borrow().clear_stack();
+    }
+
+    pub fn clear_registers(&self) {
+        self.inner.borrow().clear_registers();
+    }
+
     pub fn get_pc(&self) -> usize {
         self.inner.borrow().get_pc()
     }

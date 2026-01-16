@@ -664,11 +664,11 @@ pub enum Instruction {
         device: Operand,
         stack_index: Operand,
     },
-    /// put r, d, stackIndex - Write to device's memory
+    /// put d, stackIndex, value - Write to device's memory
     Put {
-        value: Operand,
         device: Operand,
         stack_index: Operand,
+        value: Operand,
     },
     /// getd r, id, stackIndex - Read from device memory by ID
     Getd {
@@ -676,11 +676,11 @@ pub enum Instruction {
         id: Operand,
         stack_index: Operand,
     },
-    /// putd r, id, stackIndex - Write to device memory by ID
+    /// putd id, stackIndex, value - Write to device memory by ID
     Putd {
-        value: Operand,
         id: Operand,
         stack_index: Operand,
+        value: Operand,
     },
 
     // ==================== Special Instructions ====================
@@ -2216,14 +2216,14 @@ impl ParsedInstruction {
                         actual: tokens.len() - 1,
                     });
                 }
-                let value = parse_operand(tokens[1]);
-                let device = parse_operand(tokens[2]);
-                let stack_index = parse_operand(tokens[3]);
+                let device = parse_operand(tokens[1]);
+                let stack_index = parse_operand(tokens[2]);
+                let value = parse_operand(tokens[3]);
                 Ok(ParsedInstruction {
                     instruction: Instruction::Put {
-                        value,
                         device,
                         stack_index,
+                        value,
                     },
                     line_number,
                     original_line,
@@ -2258,14 +2258,14 @@ impl ParsedInstruction {
                         actual: tokens.len() - 1,
                     });
                 }
-                let value = parse_operand(tokens[1]);
-                let id = parse_operand(tokens[2]);
-                let stack_index = parse_operand(tokens[3]);
+                let id = parse_operand(tokens[1]);
+                let stack_index = parse_operand(tokens[2]);
+                let value = parse_operand(tokens[3]);
                 Ok(ParsedInstruction {
                     instruction: Instruction::Putd {
-                        value,
                         id,
                         stack_index,
+                        value,
                     },
                     line_number,
                     original_line,

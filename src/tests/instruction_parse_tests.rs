@@ -6382,53 +6382,53 @@ mod tests {
             }
         );
 
-        // Put
+        // Put (device, index, value)
         assert_eq!(
             parse("put r1 r2 r3"),
             Instruction::Put {
-                value: register(1),
-                device: register(2),
-                stack_index: register(3)
+                device: register(1),
+                stack_index: register(2),
+                value: register(3)
             }
         );
         assert_eq!(
             parse("put 1 2 3"),
             Instruction::Put {
-                value: immediate(1.0),
-                device: immediate(2.0),
-                stack_index: immediate(3.0)
+                device: immediate(1.0),
+                stack_index: immediate(2.0),
+                value: immediate(3.0)
             }
         );
         assert_eq!(
             parse("put a1 a2 a3"),
             Instruction::Put {
-                value: alias("a1"),
-                device: alias("a2"),
-                stack_index: alias("a3")
+                device: alias("a1"),
+                stack_index: alias("a2"),
+                value: alias("a3")
             }
         );
         assert_eq!(
             parse("put r1 2 a3"),
             Instruction::Put {
-                value: register(1),
-                device: immediate(2.0),
-                stack_index: alias("a3")
+                device: register(1),
+                stack_index: immediate(2.0),
+                value: alias("a3")
             }
         );
         assert_eq!(
             parse("put 1 a2 r3"),
             Instruction::Put {
-                value: immediate(1.0),
-                device: alias("a2"),
-                stack_index: register(3)
+                device: immediate(1.0),
+                stack_index: alias("a2"),
+                value: register(3)
             }
         );
         assert_eq!(
             parse("put a1 r2 3"),
             Instruction::Put {
-                value: alias("a1"),
-                device: register(2),
-                stack_index: immediate(3.0)
+                device: alias("a1"),
+                stack_index: register(2),
+                value: immediate(3.0)
             }
         );
 
@@ -6482,53 +6482,53 @@ mod tests {
             }
         );
 
-        // Putd
+        // Putd (device, index, value)
         assert_eq!(
             parse("putd r1 r2 r3"),
             Instruction::Putd {
-                value: register(1),
-                id: register(2),
-                stack_index: register(3)
+                id: register(1),
+                stack_index: register(2),
+                value: register(3)
             }
         );
         assert_eq!(
             parse("putd 1 2 3"),
             Instruction::Putd {
-                value: immediate(1.0),
-                id: immediate(2.0),
-                stack_index: immediate(3.0)
+                id: immediate(1.0),
+                stack_index: immediate(2.0),
+                value: immediate(3.0)
             }
         );
         assert_eq!(
             parse("putd a1 a2 a3"),
             Instruction::Putd {
-                value: alias("a1"),
-                id: alias("a2"),
-                stack_index: alias("a3")
+                id: alias("a1"),
+                stack_index: alias("a2"),
+                value: alias("a3")
             }
         );
         assert_eq!(
             parse("putd r1 2 a3"),
             Instruction::Putd {
-                value: register(1),
-                id: immediate(2.0),
-                stack_index: alias("a3")
+                id: register(1),
+                stack_index: immediate(2.0),
+                value: alias("a3")
             }
         );
         assert_eq!(
             parse("putd 1 a2 r3"),
             Instruction::Putd {
-                value: immediate(1.0),
-                id: alias("a2"),
-                stack_index: register(3)
+                id: immediate(1.0),
+                stack_index: alias("a2"),
+                value: register(3)
             }
         );
         assert_eq!(
             parse("putd a1 r2 3"),
             Instruction::Putd {
-                value: alias("a1"),
-                id: register(2),
-                stack_index: immediate(3.0)
+                id: alias("a1"),
+                stack_index: register(2),
+                value: immediate(3.0)
             }
         );
     }

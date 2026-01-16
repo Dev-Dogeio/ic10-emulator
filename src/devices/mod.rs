@@ -784,7 +784,7 @@ pub trait ICHostDevice: ICHostDeviceMemoryOverride {
 
     /// Write to device internal memory at index. Default implementation proxies to the hosted chip.
     fn set_memory(&self, address: usize, value: f64) -> SimulationResult<()> {
-        if let Some(chip) = self.chip_slot().borrow().get_chip_mut() {
+        if let Some(chip) = self.chip_slot().borrow().get_chip() {
             return chip.write_stack(address, value);
         }
 

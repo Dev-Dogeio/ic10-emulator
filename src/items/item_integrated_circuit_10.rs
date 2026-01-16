@@ -97,8 +97,6 @@ impl ItemIntegratedCircuit10 {
     pub fn load_program(&mut self, source: &str) -> SimulationResult<()> {
         self.program.borrow_mut().clear();
         self.labels.borrow_mut().clear();
-        self.registers.borrow_mut().fill(0.0);
-        self.stack.borrow_mut().fill(0.0);
         *self.pc.borrow_mut() = 0;
         *self.halted.borrow_mut() = false;
         *self.error_line.borrow_mut() = None;
@@ -409,6 +407,11 @@ impl ItemIntegratedCircuit10 {
     /// Clear the stack memory
     pub fn clear_stack(&self) {
         self.stack.borrow_mut().fill(0.0);
+    }
+
+    /// Clear the chip registers
+    pub fn clear_registers(&self) {
+        self.registers.borrow_mut().fill(0.0);
     }
 
     /// Insert a compile-time define constant

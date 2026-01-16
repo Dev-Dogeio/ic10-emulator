@@ -529,7 +529,7 @@ move r0 222
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
         // Should skip line 3 (move r0 111) and execute line 4 (move r0 222)
         assert_eq!(chip.borrow().get_register(0).unwrap(), 222.0);
     }
@@ -768,7 +768,7 @@ add r2 r0 r1
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(2).unwrap(), 30.0);
     }
@@ -785,7 +785,7 @@ blt r0 5 loop
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 5.0);
     }
@@ -804,7 +804,7 @@ add r0 r0 5
 j ra
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 15.0);
     }
@@ -1097,7 +1097,7 @@ sdse r1 d0
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 1.0); // db exists
         assert_eq!(chip.borrow().get_register(1).unwrap(), 1.0); // d0 has device
@@ -1133,7 +1133,7 @@ move r1 1
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // Should have branched over the move r0 99 instruction
         assert_eq!(chip.borrow().get_register(0).unwrap(), 0.0);
@@ -1168,7 +1168,7 @@ move r1 1
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // Should branch over "move r0 99"
         assert_eq!(chip.borrow().get_register(0).unwrap(), 0.0);
@@ -1204,7 +1204,7 @@ move r1 ra
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // Should branch to line 5, ra should be 3 (next instruction after bdseal at line 2)
         assert_eq!(chip.borrow().get_register(0).unwrap(), 0.0);
@@ -1247,7 +1247,7 @@ l r0 db 12
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 42.0);
     }
@@ -1280,7 +1280,7 @@ l r0 d0 12
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 42.0);
     }
@@ -1312,7 +1312,7 @@ l r2 db r5
 yield
 "#;
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 10.0);
         assert_eq!(chip.borrow().get_register(1).unwrap(), 20.0);
@@ -1356,21 +1356,25 @@ get r1 d0 5      # Read from index 5
 get r2 d0 511    # Read from index 511
 
 # Test put - write to device memory
-put 77.0 d0 1    # Write to index 1
+put d0 1 77.0    # Write to index 1
 get r3 d0 1      # Read it back
 
 # Test with register operands
 move r10 2
 move r11 55.5
-put r11 d0 r10   # Write 55.5 to index 2
+put d0 r10 r11   # Write 55.5 to index 2
 get r4 d0 r10    # Read it back
+
+# Test device alias (put db index value)
+put db 3 123     # Write 123 to index 3 on the chip's host device
+get r5 db 3      # Read it back
 
 yield
 "#
         .to_string();
 
         chip.borrow_mut().load_program(&program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // Verify results
         let chip_ref = chip.borrow();
@@ -1379,6 +1383,7 @@ yield
         assert_reg(&chip_ref, 2, 999.0); // Read from index 511
         assert_reg(&chip_ref, 3, 77.0); // Read back written value
         assert_reg(&chip_ref, 4, 55.5); // Read back register-written value
+        assert_reg(&chip_ref, 5, 123.0); // Read back alias-written value
 
         // Verify the memory was actually written
         drop(chip_ref);
@@ -1389,6 +1394,11 @@ yield
         assert_eq!(
             ICHostDevice::get_memory(&*housing2.borrow(), 2).unwrap(),
             55.5
+        );
+        // Verify alias 'db' write went to the chip's host device (housing)
+        assert_eq!(
+            ICHostDevice::get_memory(&*housing.borrow(), 3).unwrap(),
+            123.0
         );
 
         // Also verify calling through the `Device` trait object routes to the host device behavior
@@ -1445,7 +1455,7 @@ yield
 "#;
 
         chip.borrow_mut().load_program(program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // Verify results
         let chip_ref = chip.borrow();
@@ -1485,7 +1495,7 @@ yield
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 42.0);
     }
@@ -1529,7 +1539,7 @@ yield
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 10.0);
         assert_eq!(chip.borrow().get_register(2).unwrap(), 20.0);
@@ -1584,7 +1594,7 @@ yield
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // BatchMode 1 is Sum, 4 housings total * 5 = 20
         assert_eq!(chip.borrow().get_register(0).unwrap(), 20.0);
@@ -1699,7 +1709,7 @@ yield
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // Compare to expected values from the inserted item
         let f_borrow = filtration.borrow();
@@ -1760,7 +1770,7 @@ yield
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // BatchMode 1 is Sum, 1 housing * 10 = 10
         assert_eq!(chip.borrow().get_register(0).unwrap(), 10.0);
@@ -1777,7 +1787,7 @@ yield
         );
 
         chip.borrow_mut().load_program(&program2).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         assert_eq!(chip.borrow().get_register(0).unwrap(), 20.0);
     }
@@ -1891,17 +1901,17 @@ getd r2 {device_id2} 0      # Read from housing2 index 0
 getd r3 {device_id2} 100    # Read from housing2 index 100
 
 # Test putd - write to device memory by ID
-putd 555.0 {device_id1} 10    # Write to housing1 index 10
+putd {device_id1} 10 555.0    # Write to housing1 index 10
 getd r4 {device_id1} 10       # Read it back
 
-putd 666.0 {device_id2} 200   # Write to housing2 index 200
+putd {device_id2} 200 666.0   # Write to housing2 index 200
 getd r5 {device_id2} 200      # Read it back
 
 # Test with register operands
 move r10 {device_id1}
 move r11 25
 move r12 777.0
-putd r12 r10 r11    # Write 777.0 to housing1 index 25
+putd r10 r11 r12    # Write 777.0 to housing1 index 25 (id, index, value)
 getd r6 r10 r11     # Read it back
 
 yield
@@ -1909,7 +1919,7 @@ yield
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // Verify results
         let chip_ref = chip.borrow();
@@ -2028,7 +2038,7 @@ yield
         );
 
         chip.borrow_mut().load_program(&program).unwrap();
-        chip.borrow_mut().run(128).unwrap();
+        chip.borrow().run(128).unwrap();
 
         // Verify results
         let chip_ref = chip.borrow();
